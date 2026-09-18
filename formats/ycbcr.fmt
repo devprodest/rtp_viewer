@@ -1,0 +1,7 @@
+# YCbCr 4:4:4
+bytes_per_pixel = 3
+gl_internal_format = GL_RGB
+gl_format = GL_RGB
+gl_type = GL_UNSIGNED_BYTE
+shader_file = ycbcr.glsl
+needs_demosaic = false

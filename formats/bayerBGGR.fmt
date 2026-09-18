@@ -1,0 +1,8 @@
+# Bayer BGGR
+bytes_per_pixel = 1
+gl_internal_format = GL_RED
+gl_format = GL_RED
+gl_type = GL_UNSIGNED_BYTE
+shader_file = bayerBGGR.glsl
+needs_demosaic = true
+bayer_pattern = BGGR

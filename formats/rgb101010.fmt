@@ -1,0 +1,7 @@
+# RGB101010 (10 бит на канал, упаковано в 32 бита)
+bytes_per_pixel = 4
+gl_internal_format = GL_RGB10_A2
+gl_format = GL_RGBA
+gl_type = GL_UNSIGNED_INT_2_10_10_10_REV
+shader_file = rgb101010.glsl
+needs_demosaic = false

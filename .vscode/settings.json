@@ -1,0 +1,11 @@
+{
+    "make-to-cpp-props.configurations": [
+        {
+            "name": "default",
+            "standard": "c23",
+            "includePath": [],
+            "defines": []
+        }
+    ],
+    "C_Cpp.errorSquiggles": "disabled"
+}

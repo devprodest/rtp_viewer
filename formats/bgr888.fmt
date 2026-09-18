@@ -1,0 +1,7 @@
+# BGR888
+bytes_per_pixel = 3
+gl_internal_format = GL_RGB
+gl_format = GL_RGB
+gl_type = GL_UNSIGNED_BYTE
+shader_file = bgr888.glsl
+needs_demosaic = false

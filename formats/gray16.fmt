@@ -1,0 +1,7 @@
+# Gray16
+bytes_per_pixel = 2
+gl_internal_format = GL_R16
+gl_format = GL_RED
+gl_type = GL_UNSIGNED_SHORT
+shader_file = gray16.glsl
+needs_demosaic = false
