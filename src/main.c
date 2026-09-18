@@ -24,7 +24,8 @@
     #define SLEEP_MS(ms) usleep((ms) * 1000)
 #endif
 
-#define NUM_FRAME_BUFFERS 2
+#define NUM_FRAME_BUFFERS  2
+#define DEFAULT_BATCH_SIZE 500
 
 static volatile bool g_running = true;
 
@@ -48,8 +49,10 @@ static void print_usage(const char * prog)
         "\n"
         "Optional:\n"
         "  -e <bits>           Effective bits for gray16 (1..16, default 16)\n"
-        "  -s <prefix>         Enable raw frame saving, specify file prefix\n"
-        "  -b <N>              Frames per saved file (>=1, default 1)\n"
+        "  -s <prefix>         Save raw frames from start (prefix for file names).\n"
+        "                      If not given, files still can be recorded with 'R'\n"
+        "                      using default prefix 'rtp'.\n"
+        "  -b <N>              Frames per saved file (>=1, default %d)\n"
         "  -t <seconds>        Save interval in seconds (>=0, default 0 = off)\n"
         "  -l <logfile>        Log statistics to file\n"
         "  -o <dir>            Output directory for saved files (default \".\")\n"
@@ -61,7 +64,7 @@ static void print_usage(const char * prog)
         "  R          Toggle recording (on/off)\n"
         "  W          Force save current accumulated frames\n"
         "  Esc        Exit\n",
-        prog);
+        prog, DEFAULT_BATCH_SIZE);
 }
 
 // Строгий парсинг int. 0 - успех, -1 - ошибка.
@@ -120,6 +123,7 @@ static void process_input(GLFWwindow * window)
     if (r && !r_pressed)
     {
         saver_toggle_recording();
+        gl_render_refresh_title();
     }
 
     if (w && !w_pressed)
@@ -145,23 +149,15 @@ int main(int argc, char ** argv)
     const char * format      = NULL;
     int effective_bits       = 16;
     const char * save_prefix = NULL;
-    int batch_size           = 1;
+    int batch_size           = DEFAULT_BATCH_SIZE;
     int time_window          = 0;
     const char * logfile     = NULL;
     const char * outdir      = ".";
     bool smooth_start        = false;
 
-    // Отслеживание дубликатов
-    bool seen_x = false;
-    bool seen_y = false;
-    bool seen_p = false;
-    bool seen_f = false;
-    bool seen_e = false;
-    bool seen_s = false;
-    bool seen_b = false;
-    bool seen_t = false;
-    bool seen_l = false;
-    bool seen_o = false;
+    bool seen_x = false, seen_y = false, seen_p = false, seen_f = false;
+    bool seen_e = false, seen_s = false, seen_b = false, seen_t = false;
+    bool seen_l = false, seen_o = false;
 
     static struct option long_opts[] = {
         {"help", no_argument, NULL, 'h'},
@@ -364,7 +360,6 @@ int main(int argc, char ** argv)
         }
     }
 
-    // Позиционные аргументы не допускаются
     if (optind < argc)
     {
         fprintf(stderr, "Error: unexpected positional argument: '%s'\n", argv[optind]);
@@ -372,7 +367,6 @@ int main(int argc, char ** argv)
         return EXIT_FAILURE;
     }
 
-    // Обязательные
     if (width == 0 || height == 0 || port == 0 || format == NULL)
     {
         fprintf(stderr, "Error: -x, -y, -p and -f are required\n");
@@ -380,7 +374,6 @@ int main(int argc, char ** argv)
         return EXIT_FAILURE;
     }
 
-    // Файл формата должен существовать
     {
         char fmt_path[512];
         snprintf(fmt_path, sizeof(fmt_path), "formats/%s.fmt", format);
@@ -394,14 +387,15 @@ int main(int argc, char ** argv)
         }
     }
 
-    // Директория сохранения
+    // Директорию сохранения проверяем только если будем писать автоматически.
+    // При записи по клавише 'R' файлы будут падать в текущую директорию,
+    // если -o не задан - это допустимо.
     if (save_prefix && !dir_exists(outdir))
     {
         fprintf(stderr, "Error: output directory does not exist: %s\n", outdir);
         return EXIT_FAILURE;
     }
 
-    // Директория лог-файла (если указан путь с разделителем)
     if (logfile)
     {
         const char * slash = strrchr(logfile, '/');
@@ -432,14 +426,11 @@ int main(int argc, char ** argv)
         }
     }
 
-    // Разумный предел размера кадра
     if ((uint64_t)width * (uint64_t)height > (1ull << 30))
     {
         fprintf(stderr, "Error: %dx%d is too large\n", width, height);
         return EXIT_FAILURE;
     }
-
-    // --- Инициализация подсистем ---
 
     stats_init(logfile);
 
@@ -452,7 +443,10 @@ int main(int argc, char ** argv)
 
     int bpp = gl_render_get_bytes_per_pixel();
 
-    saver_init(save_prefix, outdir, batch_size, time_window, width, height, bpp);
+    saver_init(save_prefix, outdir, batch_size, time_window, width, height, bpp, format);
+
+    // Заголовок окна содержит актуальное состояние записи
+    gl_render_refresh_title();
 
     int sock = rtp_socket_open(port);
     if (sock < 0)
@@ -465,7 +459,6 @@ int main(int argc, char ** argv)
 
     signal(SIGINT, signal_handler);
 
-    // Двойная буферизация
     uint8_t * frame_buffers[NUM_FRAME_BUFFERS];
     for (int i = 0; i < NUM_FRAME_BUFFERS; i++)
     {

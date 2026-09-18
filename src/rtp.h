@@ -1,20 +1,19 @@
 // rtp.h - приём RTP (RFC 4175)
 
-#ifndef RTP_H
-#define RTP_H
+#pragma once
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef _WIN32
     #include <winsock2.h>
     #include <ws2tcpip.h>
-    typedef int socklen_t;
+typedef int socklen_t;
     #define RTP_CLOSE_SOCKET(s) closesocket(s)
 #else
-    #include <sys/socket.h>
-    #include <netinet/in.h>
     #include <arpa/inet.h>
+    #include <netinet/in.h>
+    #include <sys/socket.h>
     #include <unistd.h>
     #define RTP_CLOSE_SOCKET(s) close(s)
 #endif
@@ -37,15 +36,13 @@ typedef struct rtp_frame_state_s
 } rtp_frame_state_s;
 
 int rtp_socket_open(int port);
-void rtp_frame_state_init(rtp_frame_state_s *state, uint16_t width, uint16_t height, uint16_t bytes_per_pixel);
-void rtp_frame_state_reset(rtp_frame_state_s *state);
+void rtp_frame_state_init(rtp_frame_state_s * state, uint16_t width, uint16_t height, uint16_t bytes_per_pixel);
+void rtp_frame_state_reset(rtp_frame_state_s * state);
 
-static inline bool rtp_frame_is_ready(const rtp_frame_state_s *state)
+static inline bool rtp_frame_is_ready(const rtp_frame_state_s * state)
 {
     return state->frame_ready;
 }
 
-bool rtp_frame_check_timeout(rtp_frame_state_s *state);
-int rtp_receive_packets(int sock, rtp_frame_state_s *state, uint8_t *frame_buffer);
-
-#endif
+bool rtp_frame_check_timeout(rtp_frame_state_s * state);
+int rtp_receive_packets(int sock, rtp_frame_state_s * state, uint8_t * frame_buffer);

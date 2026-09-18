@@ -1,9 +1,11 @@
+override MAKEFLAGS += -j --silent
+
 CC = gcc
 CP = cp
 MKDIR_P = mkdir -p
 RM_RF = rm -rf
 
-TARGET = rtp_play.exe
+TARGET = rtp_viewer.exe
 SRC_DIR = src
 OBJ_DIR = obj
 PUBLISH_DIR = publish

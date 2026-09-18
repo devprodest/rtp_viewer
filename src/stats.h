@@ -1,15 +1,12 @@
 // stats.h - статистика
 
-#ifndef STATS_H
-#define STATS_H
+#pragma once
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
-void stats_init(const char *logfile);
+void stats_init(const char * logfile);
 void stats_cleanup(void);
 void stats_add_packets(int count);
 void stats_frame_rendered(void);
 void stats_update(void);
-
-#endif

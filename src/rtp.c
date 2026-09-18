@@ -147,9 +147,7 @@ static inline uint32_t be32(const uint8_t * p)
 }
 
 // Обработать один RTP-пакет. Возвращает 1 если пакет учтён, 0 если пропущен.
-static int process_rtp_packet(const uint8_t *packet, size_t plen,
-                              rtp_frame_state_s *state,
-                              uint8_t *frame_buffer)
+static int process_rtp_packet(const uint8_t * packet, size_t plen, rtp_frame_state_s * state, uint8_t * frame_buffer)
 {
     if (plen < RTP_FIXED_HEADER_SIZE)
     {
@@ -157,12 +155,12 @@ static int process_rtp_packet(const uint8_t *packet, size_t plen,
         return 0;
     }
 
-    uint8_t b0 = packet[0];
+    uint8_t b0         = packet[0];
     uint8_t version    = (b0 >> 6) & 0x03;
     uint8_t csrc_count = b0 & 0x0F;
 
-    uint8_t b1 = packet[1];
-    bool    marker = (b1 >> 7) & 0x01;
+    uint8_t b1  = packet[1];
+    bool marker = (b1 >> 7) & 0x01;
 
     if (version != 2)
     {
@@ -204,13 +202,17 @@ static int process_rtp_packet(const uint8_t *packet, size_t plen,
         hdr_pos += 6;
 
         if (!more)
+        {
             break;
+        }
     }
 
     // Суммарный payload по всем rawline
     uint32_t total_payload = 0;
     for (int i = 0; i < rl_count; i++)
+    {
         total_payload += rl_lengths[i];
+    }
 
     if (hdr_pos + total_payload > plen)
     {
@@ -218,7 +220,7 @@ static int process_rtp_packet(const uint8_t *packet, size_t plen,
         return 0;
     }
 
-    const uint8_t *payload = packet + hdr_pos;
+    const uint8_t * payload = packet + hdr_pos;
 
     // Граница кадра по timestamp
     if (state->received_bytes > 0 && timestamp != state->last_timestamp)
@@ -240,7 +242,7 @@ static int process_rtp_packet(const uint8_t *packet, size_t plen,
         uint16_t expected = (uint16_t)(state->last_seq + 1);
         if (seq != expected)
         {
-            uint16_t diff = (uint16_t)(seq - expected);
+            uint16_t diff        = (uint16_t)(seq - expected);
             state->lost_packets += diff;
         }
         state->last_seq = seq;
@@ -255,7 +257,9 @@ static int process_rtp_packet(const uint8_t *packet, size_t plen,
         uint32_t base_offset = (uint32_t)rl_lines[i] * stride + byte_offset;
 
         if ((uint64_t)base_offset + rl_lengths[i] > state->frame_size)
+        {
             continue;
+        }
 
         memcpy(frame_buffer + base_offset, payload + running, rl_lengths[i]);
         running += rl_lengths[i];
@@ -274,6 +278,7 @@ static int process_rtp_packet(const uint8_t *packet, size_t plen,
 
     return 1;
 }
+
 // ---- основной приём ----
 
 int rtp_receive_packets(int sock, rtp_frame_state_s * state, uint8_t * frame_buffer)

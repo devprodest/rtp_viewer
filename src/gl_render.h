@@ -1,7 +1,6 @@
 // gl_render.h - отображение через OpenGL
 
-#ifndef GL_RENDER_H
-#define GL_RENDER_H
+#pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -20,4 +19,5 @@ void gl_render_toggle_smoothing(void);
 void gl_render_set_demosaic_mode(int mode);
 int gl_render_get_bytes_per_pixel(void);
 
-#endif
+// Обновить заголовок окна (вызывается после изменения состояния записи)
+void gl_render_refresh_title(void);
