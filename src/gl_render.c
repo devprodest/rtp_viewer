@@ -22,6 +22,14 @@ static int g_eff_bits                 = 16;
 static bool g_smoothing               = false;
 static int g_demosaic_mode            = 0;
 
+// Для переключения fullscreen двойным кликом
+static bool g_is_fullscreen     = false;
+static int g_windowed_x         = 0;
+static int g_windowed_y         = 0;
+static int g_windowed_w         = 0;
+static int g_windowed_h         = 0;
+static double g_last_click_time = 0.0;
+
 // Для заголовка окна
 static char g_format_name[64] = {0};
 
@@ -308,6 +316,105 @@ void gl_render_refresh_title(void)
     glfwSetWindowTitle(g_window, title);
 }
 
+static void mouse_button_callback(GLFWwindow * window, int button, int action, int mods)
+{
+    (void)mods;
+
+    if (button != GLFW_MOUSE_BUTTON_LEFT || action != GLFW_PRESS)
+    {
+        return;
+    }
+
+    double now = glfwGetTime();
+
+    // Двойной клик: второй клик в течение 400 мс после первого
+    if (now - g_last_click_time < 0.4)
+    {
+        gl_render_toggle_fullscreen();
+        g_last_click_time = 0.0; // сброс, чтобы тройной клик не сработал дважды
+    }
+    else
+    {
+        g_last_click_time = now;
+    }
+}
+
+void gl_render_toggle_fullscreen(void)
+{
+    if (!g_window)
+    {
+        return;
+    }
+
+    if (!g_is_fullscreen)
+    {
+        // Сохраняем текущую позицию и размер окна
+        glfwGetWindowPos(g_window, &g_windowed_x, &g_windowed_y);
+        glfwGetWindowSize(g_window, &g_windowed_w, &g_windowed_h);
+
+        // Находим монитор, на котором сейчас находится окно
+        GLFWmonitor * target = NULL;
+
+        int win_center_x = g_windowed_x + g_windowed_w / 2;
+        int win_center_y = g_windowed_y + g_windowed_h / 2;
+
+        int monitor_count       = 0;
+        GLFWmonitor ** monitors = glfwGetMonitors(&monitor_count);
+
+        for (int i = 0; i < monitor_count; i++)
+        {
+            int mx = 0, my = 0;
+            glfwGetMonitorPos(monitors[i], &mx, &my);
+
+            const GLFWvidmode * mode = glfwGetVideoMode(monitors[i]);
+            if (!mode)
+            {
+                continue;
+            }
+
+            // Границы монитора в виртуальных координатах
+            int m_left   = mx;
+            int m_top    = my;
+            int m_right  = mx + mode->width;
+            int m_bottom = my + mode->height;
+
+            if (win_center_x >= m_left && win_center_x < m_right && win_center_y >= m_top && win_center_y < m_bottom)
+            {
+                target = monitors[i];
+                break;
+            }
+        }
+
+        // Если по каким-то причинам не нашли — берём основной
+        if (!target)
+        {
+            target = glfwGetPrimaryMonitor();
+        }
+
+        if (!target)
+        {
+            return;
+        }
+
+        const GLFWvidmode * mode = glfwGetVideoMode(target);
+        if (!mode)
+        {
+            return;
+        }
+
+        glfwSetWindowMonitor(g_window, target, 0, 0, mode->width, mode->height, mode->refreshRate);
+
+        g_is_fullscreen = true;
+    }
+    else
+    {
+        // Возврат в оконный режим
+        glfwSetWindowMonitor(g_window, NULL, g_windowed_x, g_windowed_y, g_windowed_w, g_windowed_h, 0);
+
+        g_is_fullscreen = false;
+    }
+}
+
 bool gl_render_init(int width, int height, const char * format_name, int effective_bits, bool smooth_start)
 {
     if (!glfwInit())
@@ -337,6 +444,8 @@ bool gl_render_init(int width, int height, const char * format_name, int effecti
 
     glfwMakeContextCurrent(g_window);
     glfwSwapInterval(1);
+
+    glfwSetMouseButtonCallback(g_window, mouse_button_callback);
 
     if (gl_api_load() != 0)
     {

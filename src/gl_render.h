@@ -21,3 +21,5 @@ int gl_render_get_bytes_per_pixel(void);
 
 // Обновить заголовок окна (вызывается после изменения состояния записи)
 void gl_render_refresh_title(void);
+// Переключить полный экран (вызывается из callback по двойному клику)
+void gl_render_toggle_fullscreen(void);
