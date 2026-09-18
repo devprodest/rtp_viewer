@@ -1,7 +1,12 @@
 CC = gcc
+CP = cp
+MKDIR_P = mkdir -p
+RM_RF = rm -rf
+
 TARGET = rtp_play.exe
 SRC_DIR = src
 OBJ_DIR = obj
+PUBLISH_DIR = publish
 
 SRCS =  $(SRC_DIR)/main.c
 SRCS += $(SRC_DIR)/rtp.c
@@ -18,6 +23,15 @@ LDFLAGS = -Llib/glfw/lib -lglfw3 -lopengl32 -lgdi32 -luser32 -lshell32 -lws2_32
 
 all: $(TARGET)
 
+publish: $(TARGET)
+	$(RM_RF) $(PUBLISH_DIR)
+	$(MKDIR_P) $(PUBLISH_DIR)
+	$(MKDIR_P) $(PUBLISH_DIR)/formats
+	$(CP) $(TARGET) $(PUBLISH_DIR)/
+	$(CP) formats/*.fmt  $(PUBLISH_DIR)/formats/ 2>/dev/null || true
+	$(CP) formats/*.glsl $(PUBLISH_DIR)/formats/ 2>/dev/null || true
+
+
 $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
@@ -25,9 +39,9 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR):
-	mkdir -p $(OBJ_DIR)
+	$(MKDIR_P) $(OBJ_DIR)
 
 clean:
-	rm -rf $(OBJ_DIR) $(TARGET)
+	$(RM_RF) $(OBJ_DIR) $(TARGET) $(PUBLISH_DIR)
 
-.PHONY: all clean
+.PHONY: all clean publish
