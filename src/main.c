@@ -67,30 +67,6 @@ static void print_usage(const char * prog)
         prog, DEFAULT_BATCH_SIZE);
 }
 
-// Строгий парсинг int. 0 - успех, -1 - ошибка.
-static int parse_int(const char * s, long min, long max, long * out)
-{
-    if (!s || !*s)
-    {
-        return -1;
-    }
-
-    errno      = 0;
-    char * end = NULL;
-    long v     = strtol(s, &end, 10);
-
-    if (errno != 0 || end == s || *end != '\0')
-    {
-        return -1;
-    }
-    if (v < min || v > max)
-    {
-        return -1;
-    }
-
-    *out = v;
-    return 0;
-}
 
 static bool file_exists(const char * path)
 {
@@ -143,29 +119,37 @@ static void process_input(GLFWwindow * window)
 
 int main(int argc, char ** argv)
 {
-    int width                = 0;
-    int height               = 0;
-    int port                 = 0;
-    const char * format      = NULL;
+    int width           = 0;
+    int height          = 0;
+    int port            = 0;
+    const char * format = nullptr;
+
+    const char * save_prefix = nullptr;
+    const char * logfile     = nullptr;
+    const char * outdir      = ".";
     int effective_bits       = 16;
-    const char * save_prefix = NULL;
     int batch_size           = DEFAULT_BATCH_SIZE;
     int time_window          = 0;
-    const char * logfile     = NULL;
-    const char * outdir      = ".";
     bool smooth_start        = false;
 
-    bool seen_x = false, seen_y = false, seen_p = false, seen_f = false;
-    bool seen_e = false, seen_s = false, seen_b = false, seen_t = false;
-    bool seen_l = false, seen_o = false;
+    bool seen_x = false;
+    bool seen_y = false;
+    bool seen_p = false;
+    bool seen_f = false;
+    bool seen_e = false;
+    bool seen_s = false;
+    bool seen_b = false;
+    bool seen_t = false;
+    bool seen_l = false;
+    bool seen_o = false;
 
     static struct option long_opts[] = {
-        {"help", no_argument, NULL, 'h'},
-        {NULL,   0,           NULL, 0  }
+        {"help",  no_argument, nullptr, 'h'},
+        {nullptr, 0,           nullptr, 0  }
     };
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "x:y:p:f:e:s:b:t:l:o:Sh", long_opts, NULL)) != -1)
+    while ((opt = getopt_long(argc, argv, "x:y:p:f:e:s:b:t:l:o:Sh", long_opts, nullptr)) != -1)
     {
         switch (opt)
         {
@@ -173,13 +157,13 @@ int main(int argc, char ** argv)
             {
                 if (seen_x)
                 {
-                    fprintf(stderr, "Error: -x specified more than once\n");
+                    fprintf(stderr, "Error: -x определен более одного раза\n");
                     return EXIT_FAILURE;
                 }
                 long v = 0;
                 if (parse_int(optarg, 1, 65535, &v) != 0)
                 {
-                    fprintf(stderr, "Error: -x expects an integer in [1..65535], got '%s'\n", optarg);
+                    fprintf(stderr, "Error: -x должен быть в диапазоне [1..65535], сейчас '%s'\n", optarg);
                     return EXIT_FAILURE;
                 }
                 width  = (int)v;
@@ -191,13 +175,13 @@ int main(int argc, char ** argv)
             {
                 if (seen_y)
                 {
-                    fprintf(stderr, "Error: -y specified more than once\n");
+                    fprintf(stderr, "Error: -y определен более одного раза\n");
                     return EXIT_FAILURE;
                 }
                 long v = 0;
                 if (parse_int(optarg, 1, 65535, &v) != 0)
                 {
-                    fprintf(stderr, "Error: -y expects an integer in [1..65535], got '%s'\n", optarg);
+                    fprintf(stderr, "Error: -y должен быть в диапазоне [1..65535], сейчас '%s'\n", optarg);
                     return EXIT_FAILURE;
                 }
                 height = (int)v;
@@ -209,13 +193,13 @@ int main(int argc, char ** argv)
             {
                 if (seen_p)
                 {
-                    fprintf(stderr, "Error: -p specified more than once\n");
+                    fprintf(stderr, "Error: -p определен более одного раза\n");
                     return EXIT_FAILURE;
                 }
                 long v = 0;
                 if (parse_int(optarg, 1, 65535, &v) != 0)
                 {
-                    fprintf(stderr, "Error: -p expects a UDP port in [1..65535], got '%s'\n", optarg);
+                    fprintf(stderr, "Error: -p UDP порт [1..65535], сейчас '%s'\n", optarg);
                     return EXIT_FAILURE;
                 }
                 port   = (int)v;
@@ -227,12 +211,12 @@ int main(int argc, char ** argv)
             {
                 if (seen_f)
                 {
-                    fprintf(stderr, "Error: -f specified more than once\n");
+                    fprintf(stderr, "Error: -f определен более одного раза\n");
                     return EXIT_FAILURE;
                 }
                 if (*optarg == '\0')
                 {
-                    fprintf(stderr, "Error: -f expects a non-empty format name\n");
+                    fprintf(stderr, "Error: -f должен быть именем формата\n");
                     return EXIT_FAILURE;
                 }
                 format = optarg;
@@ -244,13 +228,13 @@ int main(int argc, char ** argv)
             {
                 if (seen_e)
                 {
-                    fprintf(stderr, "Error: -e specified more than once\n");
+                    fprintf(stderr, "Error: -e определен более одного раза\n");
                     return EXIT_FAILURE;
                 }
                 long v = 0;
                 if (parse_int(optarg, 1, 16, &v) != 0)
                 {
-                    fprintf(stderr, "Error: -e expects an integer in [1..16], got '%s'\n", optarg);
+                    fprintf(stderr, "Error: -e должен быть в диапазоне [1..16], сейчас '%s'\n", optarg);
                     return EXIT_FAILURE;
                 }
                 effective_bits = (int)v;
@@ -262,12 +246,12 @@ int main(int argc, char ** argv)
             {
                 if (seen_s)
                 {
-                    fprintf(stderr, "Error: -s specified more than once\n");
+                    fprintf(stderr, "Error: -s определен более одного раза\n");
                     return EXIT_FAILURE;
                 }
                 if (*optarg == '\0')
                 {
-                    fprintf(stderr, "Error: -s expects a non-empty prefix\n");
+                    fprintf(stderr, "Error: -s Ожидается префикс имени\n");
                     return EXIT_FAILURE;
                 }
                 save_prefix = optarg;
@@ -279,13 +263,13 @@ int main(int argc, char ** argv)
             {
                 if (seen_b)
                 {
-                    fprintf(stderr, "Error: -b specified more than once\n");
+                    fprintf(stderr, "Error: -b определен более одного раза\n");
                     return EXIT_FAILURE;
                 }
                 long v = 0;
                 if (parse_int(optarg, 1, INT_MAX, &v) != 0)
                 {
-                    fprintf(stderr, "Error: -b expects an integer >= 1, got '%s'\n", optarg);
+                    fprintf(stderr, "Error: -b ожидается число >= 1, сейчас '%s'\n", optarg);
                     return EXIT_FAILURE;
                 }
                 batch_size = (int)v;
@@ -297,13 +281,13 @@ int main(int argc, char ** argv)
             {
                 if (seen_t)
                 {
-                    fprintf(stderr, "Error: -t specified more than once\n");
+                    fprintf(stderr, "Error: -t определен более одного раза\n");
                     return EXIT_FAILURE;
                 }
                 long v = 0;
                 if (parse_int(optarg, 0, INT_MAX, &v) != 0)
                 {
-                    fprintf(stderr, "Error: -t expects an integer >= 0, got '%s'\n", optarg);
+                    fprintf(stderr, "Error: -t  ожидается число >= 0, сейчас '%s'\n", optarg);
                     return EXIT_FAILURE;
                 }
                 time_window = (int)v;
@@ -315,12 +299,12 @@ int main(int argc, char ** argv)
             {
                 if (seen_l)
                 {
-                    fprintf(stderr, "Error: -l specified more than once\n");
+                    fprintf(stderr, "Error: -l определен более одного раза\n");
                     return EXIT_FAILURE;
                 }
                 if (*optarg == '\0')
                 {
-                    fprintf(stderr, "Error: -l expects a non-empty logfile path\n");
+                    fprintf(stderr, "Error: -l ожидается имя файла\n");
                     return EXIT_FAILURE;
                 }
                 logfile = optarg;
@@ -332,12 +316,12 @@ int main(int argc, char ** argv)
             {
                 if (seen_o)
                 {
-                    fprintf(stderr, "Error: -o specified more than once\n");
+                    fprintf(stderr, "Error: -o определен более одного раза\n");
                     return EXIT_FAILURE;
                 }
                 if (*optarg == '\0')
                 {
-                    fprintf(stderr, "Error: -o expects a non-empty directory path\n");
+                    fprintf(stderr, "Error: -o ожидается пусть к директории для сохранения\n");
                     return EXIT_FAILURE;
                 }
                 outdir = optarg;
@@ -362,14 +346,14 @@ int main(int argc, char ** argv)
 
     if (optind < argc)
     {
-        fprintf(stderr, "Error: unexpected positional argument: '%s'\n", argv[optind]);
+        fprintf(stderr, "Error: неизвестный аргумент: '%s'\n", argv[optind]);
         print_usage(argv[0]);
         return EXIT_FAILURE;
     }
 
     if (width == 0 || height == 0 || port == 0 || format == NULL)
     {
-        fprintf(stderr, "Error: -x, -y, -p and -f are required\n");
+        fprintf(stderr, "Error: -x, -y, -p и -f обязательные аргументы\n");
         print_usage(argv[0]);
         return EXIT_FAILURE;
     }
@@ -379,10 +363,7 @@ int main(int argc, char ** argv)
         snprintf(fmt_path, sizeof(fmt_path), "formats/%s.fmt", format);
         if (!file_exists(fmt_path))
         {
-            fprintf(stderr, "Error: format file not found: %s\n", fmt_path);
-            fprintf(stderr,
-                    "       expected pixel format description next to the executable "
-                    "in the 'formats/' directory\n");
+            fprintf(stderr, "Error: Не найден файл описания формата: %s\n", fmt_path);
             return EXIT_FAILURE;
         }
     }
@@ -392,7 +373,7 @@ int main(int argc, char ** argv)
     // если -o не задан - это допустимо.
     if (save_prefix && !dir_exists(outdir))
     {
-        fprintf(stderr, "Error: output directory does not exist: %s\n", outdir);
+        fprintf(stderr, "Error: Директория для сохранения файлов не сужществует: %s\n", outdir);
         return EXIT_FAILURE;
     }
 
@@ -413,30 +394,24 @@ int main(int argc, char ** argv)
             size_t n = (size_t)(slash - logfile);
             if (n >= sizeof(dirbuf))
             {
-                fprintf(stderr, "Error: logfile path is too long\n");
+                fprintf(stderr, "Error: Слишком длинный пусть к файлу лога\n");
                 return EXIT_FAILURE;
             }
             memcpy(dirbuf, logfile, n);
             dirbuf[n] = '\0';
             if (!dir_exists(dirbuf))
             {
-                fprintf(stderr, "Error: logfile directory does not exist: %s\n", dirbuf);
+                fprintf(stderr, "Error: Директория для сохранения лога не сужществует: %s\n", dirbuf);
                 return EXIT_FAILURE;
             }
         }
-    }
-
-    if ((uint64_t)width * (uint64_t)height > (1ull << 30))
-    {
-        fprintf(stderr, "Error: %dx%d is too large\n", width, height);
-        return EXIT_FAILURE;
     }
 
     stats_init(logfile);
 
     if (!gl_render_init(width, height, format, effective_bits, smooth_start))
     {
-        fprintf(stderr, "Error: failed to initialize OpenGL renderer\n");
+        fprintf(stderr, "Error: Не удалось инициализировать OpenGL\n");
         stats_cleanup();
         return EXIT_FAILURE;
     }
@@ -451,7 +426,7 @@ int main(int argc, char ** argv)
     int sock = rtp_socket_open(port);
     if (sock < 0)
     {
-        fprintf(stderr, "Error: failed to open UDP socket on port %d\n", port);
+        fprintf(stderr, "Error: Не удалось открыть UDP сокет на порту %d\n", port);
         gl_render_cleanup();
         stats_cleanup();
         return EXIT_FAILURE;

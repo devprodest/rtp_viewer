@@ -1,4 +1,3 @@
-// gl_api.h - загрузка функций OpenGL 2.0+ (не экспортируются opengl32.dll)
 
 #pragma once
 

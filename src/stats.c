@@ -1,4 +1,3 @@
-// stats.c - реализация статистики
 
 #include "stats.h"
 #include "utils.h"
@@ -8,7 +7,7 @@
 #include <string.h>
 #include <time.h>
 
-static const char * g_logfile         = NULL;
+static const char * g_logfile         = nullptr;
 static uint64_t g_total_packets       = 0;
 static uint64_t g_total_frames        = 0;
 static uint64_t g_last_second_packets = 0;
@@ -63,7 +62,7 @@ void stats_update(void)
             FILE * f = fopen(g_logfile, "a");
             if (f)
             {
-                time_t t       = time(NULL);
+                time_t t       = time(nullptr);
                 struct tm * tm = localtime(&t);
                 char time_str[64];
                 strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", tm);

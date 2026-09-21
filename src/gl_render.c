@@ -1,4 +1,3 @@
-// gl_render.c - реализация OpenGL, загрузка формата из .fmt
 
 #include "gl_render.h"
 #include "saver.h"
@@ -148,7 +147,9 @@ static bool parse_format_file(const char * format_name, format_config_s * cfg)
 
         if (strcmp(key, "bytes_per_pixel") == 0)
         {
-            cfg->bytes_per_pixel = atoi(value);
+            long bpp;
+            parse_int(value, 1, 128, &bpp);
+            cfg->bytes_per_pixel = bpp;
         }
         else if (strcmp(key, "gl_internal_format") == 0)
         {
@@ -207,7 +208,7 @@ static bool parse_format_file(const char * format_name, format_config_s * cfg)
 static GLuint compile_shader(const char * source, GLenum type)
 {
     GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, &source, NULL);
+    glShaderSource(shader, 1, &source, nullptr);
     glCompileShader(shader);
 
     GLint success = 0;
@@ -215,7 +216,7 @@ static GLuint compile_shader(const char * source, GLenum type)
     if (!success)
     {
         char info[512];
-        glGetShaderInfoLog(shader, sizeof(info), NULL, info);
+        glGetShaderInfoLog(shader, sizeof(info), nullptr, info);
         fprintf(stderr, "Shader compilation error: %s\n", info);
         glDeleteShader(shader);
         return 0;
@@ -259,7 +260,7 @@ static GLuint build_program(const char * fragment_source)
     if (!success)
     {
         char info[512];
-        glGetProgramInfoLog(prog, sizeof(info), NULL, info);
+        glGetProgramInfoLog(prog, sizeof(info), nullptr, info);
         fprintf(stderr, "Program linking error: %s\n", info);
         glDeleteShader(vertex);
         glDeleteShader(fragment);
@@ -277,8 +278,12 @@ static GLuint g_vao = 0;
 static void create_fullscreen_quad(GLuint * out_vao)
 {
     static const float vertices[] = {
-        -1.0f, 1.0f, 0.0f, 0.0f, -1.0f, -1.0f, 0.0f, 1.0f, 1.0f, -1.0f, 1.0f, 1.0f,
-        -1.0f, 1.0f, 0.0f, 0.0f, 1.0f,  -1.0f, 1.0f, 1.0f, 1.0f, 1.0f,  1.0f, 0.0f,
+        -1.0f, 1.0f,  0.0f, 0.0f, //
+        -1.0f, -1.0f, 0.0f, 1.0f, //
+        1.0f,  -1.0f, 1.0f, 1.0f, //
+        -1.0f, 1.0f,  0.0f, 0.0f, //
+        1.0f,  -1.0f, 1.0f, 1.0f, //
+        1.0f,  1.0f,  1.0f, 0.0f, //
     };
 
     GLuint vao = 0;
@@ -288,7 +293,7 @@ static void create_fullscreen_quad(GLuint * out_vao)
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), nullptr);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
     glEnableVertexAttribArray(1);
@@ -316,10 +321,8 @@ void gl_render_refresh_title(void)
     glfwSetWindowTitle(g_window, title);
 }
 
-static void mouse_button_callback(GLFWwindow * window, int button, int action, int mods)
+static void mouse_button_callback(GLFWwindow * /*unused*/, int button, int action, int /*unused*/)
 {
-    (void)mods;
-
     if (button != GLFW_MOUSE_BUTTON_LEFT || action != GLFW_PRESS)
     {
         return;
@@ -355,8 +358,8 @@ void gl_render_toggle_fullscreen(void)
         // Находим монитор, на котором сейчас находится окно
         GLFWmonitor * target = NULL;
 
-        int win_center_x = g_windowed_x + g_windowed_w / 2;
-        int win_center_y = g_windowed_y + g_windowed_h / 2;
+        int win_center_x = g_windowed_x + (g_windowed_w / 2);
+        int win_center_y = g_windowed_y + (g_windowed_h / 2);
 
         int monitor_count       = 0;
         GLFWmonitor ** monitors = glfwGetMonitors(&monitor_count);
@@ -513,7 +516,7 @@ bool gl_render_init(int width, int height, const char * format_name, int effecti
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexImage2D(GL_TEXTURE_2D, 0, g_format.gl_internal_format, width, height, 0, g_format.gl_format, g_format.gl_type,
-                 NULL);
+                 nullptr);
 
     // Начальное состояние фильтра: toggle инвертирует флаг
     g_smoothing = !smooth_start;

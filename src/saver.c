@@ -1,4 +1,3 @@
-// saver.c - сохранение кадров
 
 #include "saver.h"
 #include "utils.h"
@@ -66,7 +65,7 @@ void saver_init(const char * prefix, const char * outdir, int batch_size, int ti
     g_saver.batch_size       = batch_size > 0 ? batch_size : 1;
     g_saver.time_window      = time_window;
     g_saver.file_counter     = 0;
-    g_saver.last_save_time   = time(NULL);
+    g_saver.last_save_time   = time(nullptr);
     g_saver.batch_start_time = 0;
 
     g_saver.width  = width;
@@ -76,7 +75,7 @@ void saver_init(const char * prefix, const char * outdir, int batch_size, int ti
         strncpy(g_saver.format_name, format_name, sizeof(g_saver.format_name) - 1);
     }
 
-    g_saver.buffer.frames     = NULL;
+    g_saver.buffer.frames     = nullptr;
     g_saver.buffer.count      = 0;
     g_saver.buffer.capacity   = 0;
     g_saver.buffer.frame_size = width * height * bytes_per_pixel;
@@ -114,22 +113,17 @@ static bool has_outdir(void)
 // Время берётся из g_saver.batch_start_time - момента начала накопления батча.
 static void build_filename(char * out, size_t outsz)
 {
-    time_t t           = g_saver.batch_start_time ? g_saver.batch_start_time : time(NULL);
+    time_t t           = g_saver.batch_start_time ? g_saver.batch_start_time : time(nullptr);
     struct tm * tm_now = localtime(&t);
 
     char stamp[32];
     strftime(stamp, sizeof(stamp), "%Y%m%d_%H%M%S", tm_now);
 
-    if (has_outdir())
-    {
-        snprintf(out, outsz, "%s/%s_%s_%dx%d_%s_%04d.raw", g_saver.outdir, g_saver.prefix, stamp, g_saver.width,
-                 g_saver.height, g_saver.format_name[0] ? g_saver.format_name : "unknown", g_saver.file_counter);
-    }
-    else
-    {
-        snprintf(out, outsz, "%s_%s_%dx%d_%s_%04d.raw", g_saver.prefix, stamp, g_saver.width, g_saver.height,
-                 g_saver.format_name[0] ? g_saver.format_name : "unknown", g_saver.file_counter);
-    }
+    snprintf(out, outsz, "%s/%s_%s_%dx%d_%s_%04d.raw", has_outdir() ? g_saver.outdir : ".", g_saver.prefix, //
+             stamp,                                                                                         //
+             g_saver.width, g_saver.height,                                                                 //
+             g_saver.format_name[0] ? g_saver.format_name : "unknown",                                      //
+             g_saver.file_counter);
 }
 
 static void save_buffer(frame_buffer_s * buf)
@@ -154,7 +148,7 @@ static void save_buffer(frame_buffer_s * buf)
 
     g_saver.file_counter++;
 
-    char filename[512];
+    char filename[1024];
     build_filename(filename, sizeof(filename));
 
     FILE * f = fopen(filename, "wb");
@@ -168,14 +162,14 @@ static void save_buffer(frame_buffer_s * buf)
     {
         fwrite(buf->frames[i], 1, (size_t)buf->frame_size, f);
         free(buf->frames[i]);
-        buf->frames[i] = NULL;
+        buf->frames[i] = nullptr;
     }
     fclose(f);
 
     printf("Saved %s (frames=%d, size=%d bytes)\n", filename, buf->count, buf->count * buf->frame_size);
 
     buf->count             = 0;
-    g_saver.last_save_time = time(NULL);
+    g_saver.last_save_time = time(nullptr);
 
     // Сброс: следующий батч начнёт своё время с первого кадра
     g_saver.batch_start_time = 0;
@@ -191,7 +185,7 @@ void saver_add_frame(const uint8_t * frame_data)
     // Фиксируем время начала батча на самом первом кадре
     if (g_saver.buffer.count == 0)
     {
-        g_saver.batch_start_time = time(NULL);
+        g_saver.batch_start_time = time(nullptr);
     }
 
     ensure_capacity(&g_saver.buffer, g_saver.buffer.count + 1);
@@ -214,7 +208,7 @@ void saver_add_frame(const uint8_t * frame_data)
 
     if (g_saver.time_window > 0)
     {
-        time_t now = time(NULL);
+        time_t now = time(nullptr);
         if (difftime(now, g_saver.last_save_time) >= (double)g_saver.time_window)
         {
             should_save = true;
@@ -266,7 +260,7 @@ void saver_cleanup(void)
         }
     }
     free(g_saver.buffer.frames);
-    g_saver.buffer.frames   = NULL;
+    g_saver.buffer.frames   = nullptr;
     g_saver.buffer.count    = 0;
     g_saver.buffer.capacity = 0;
 }

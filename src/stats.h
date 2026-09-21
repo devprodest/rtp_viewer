@@ -1,4 +1,3 @@
-// stats.h - статистика
 
 #pragma once
 

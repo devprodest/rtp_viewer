@@ -1,4 +1,3 @@
-// rtp.c - реализация RTP (RFC 4175)
 
 #include "rtp.h"
 #include "utils.h"
@@ -17,13 +16,6 @@
 #define RTP_MAX_PACKET_SIZE       65536
 #define RTP_FRAME_TIMEOUT_US      500000ull
 
-// ---- отладочные счётчики ----
-static uint32_t g_dbg_total_recv = 0;
-static uint32_t g_dbg_short      = 0;
-static uint32_t g_dbg_version    = 0;
-static uint32_t g_dbg_trunc      = 0;
-static uint32_t g_dbg_ok         = 0;
-
 // ---- сокет ----
 
 int rtp_socket_open(int port)
@@ -32,8 +24,7 @@ int rtp_socket_open(int port)
     static bool wsa_inited = false;
     if (!wsa_inited)
     {
-        WSADATA wsa;
-        if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+        if (WSAStartup(MAKEWORD(2, 2), &(WSADATA) {}) != 0)
         {
             fprintf(stderr, "WSAStartup failed\n");
             return -1;
@@ -44,7 +35,7 @@ int rtp_socket_open(int port)
 
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
 #ifdef _WIN32
-    if (sock == INVALID_SOCKET)
+    if (sock == (int)INVALID_SOCKET)
     {
         fprintf(stderr, "socket() failed: %d\n", WSAGetLastError());
         return -1;
@@ -58,18 +49,19 @@ int rtp_socket_open(int port)
 #endif
 
     int opt = 1;
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt, sizeof(opt));
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *)&opt, sizeof(int));
 
     int rcvbuf = 16 * 1024 * 1024;
-    setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (const char *)&rcvbuf, sizeof(rcvbuf));
+    setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (void *)&rcvbuf, sizeof(int));
 
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family      = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port        = htons((uint16_t)port);
-
-    if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    int bind_result = bind(sock,
+                           (struct sockaddr *)&(struct sockaddr_in) {
+                               .sin_family      = AF_INET,
+                               .sin_addr.s_addr = INADDR_ANY,
+                               .sin_port        = htons((uint16_t)port),
+                           },
+                           sizeof(struct sockaddr_in));
+    if (bind_result < 0)
     {
         perror("bind");
         RTP_CLOSE_SOCKET(sock);
@@ -134,6 +126,11 @@ bool rtp_frame_check_timeout(rtp_frame_state_s * state)
     return false;
 }
 
+bool rtp_frame_is_ready(const rtp_frame_state_s * state)
+{
+    return state->frame_ready;
+}
+
 // ---- разбор ----
 
 static inline uint16_t be16(const uint8_t * p)
@@ -151,28 +148,27 @@ static int process_rtp_packet(const uint8_t * packet, size_t plen, rtp_frame_sta
 {
     if (plen < RTP_FIXED_HEADER_SIZE)
     {
-        g_dbg_short++;
         return 0;
     }
 
-    uint8_t b0         = packet[0];
-    uint8_t version    = (b0 >> 6) & 0x03;
+    uint8_t b0 = packet[0];
+
+    uint8_t version = (b0 >> 6) & 0x03;
+    if (version != 2)
+    {
+        return 0;
+    }
+
     uint8_t csrc_count = b0 & 0x0F;
 
     uint8_t b1  = packet[1];
     bool marker = (b1 >> 7) & 0x01;
 
-    if (version != 2)
-    {
-        g_dbg_version++;
-        return 0;
-    }
-
     uint16_t seq       = be16(packet + 2);
     uint32_t timestamp = be32(packet + 4);
 
     // Пропускаем RTP header (12 + CC*4) и 2 байта extseq
-    size_t hdr_pos = RTP_FIXED_HEADER_SIZE + (size_t)csrc_count * 4 + 2;
+    size_t hdr_pos = RTP_FIXED_HEADER_SIZE + ((size_t)csrc_count * 4) + 2;
 
     // Разбираем цепочку rawline-заголовков
     uint16_t rl_lengths[16];
@@ -184,7 +180,6 @@ static int process_rtp_packet(const uint8_t * packet, size_t plen, rtp_frame_sta
     {
         if (hdr_pos + 6 > plen || rl_count >= 16)
         {
-            g_dbg_trunc++;
             return 0;
         }
 
@@ -216,7 +211,6 @@ static int process_rtp_packet(const uint8_t * packet, size_t plen, rtp_frame_sta
 
     if (hdr_pos + total_payload > plen)
     {
-        g_dbg_trunc++;
         return 0;
     }
 
@@ -254,7 +248,7 @@ static int process_rtp_packet(const uint8_t * packet, size_t plen, rtp_frame_sta
     {
         uint32_t stride      = (uint32_t)state->width * state->bytes_per_pixel;
         uint32_t byte_offset = (uint32_t)rl_offsets[i] * state->bytes_per_pixel;
-        uint32_t base_offset = (uint32_t)rl_lines[i] * stride + byte_offset;
+        uint32_t base_offset = (rl_lines[i] * stride) + byte_offset;
 
         if ((uint64_t)base_offset + rl_lengths[i] > state->frame_size)
         {
@@ -268,7 +262,6 @@ static int process_rtp_packet(const uint8_t * packet, size_t plen, rtp_frame_sta
     state->received_bytes += total_payload;
     state->packet_count++;
     state->last_packet_time_us = get_time_us();
-    g_dbg_ok++;
 
     if (marker)
     {
@@ -288,9 +281,9 @@ int rtp_receive_packets(int sock, rtp_frame_state_s * state, uint8_t * frame_buf
     socklen_t addr_len = sizeof(src_addr);
     int total          = 0;
 
-    while (1)
+    while (true)
     {
-        ssize_t n = recvfrom(sock, packet, sizeof(packet), 0, (struct sockaddr *)&src_addr, &addr_len);
+        ssize_t n = recvfrom(sock, (void *)packet, sizeof(packet), 0, (struct sockaddr *)&src_addr, &addr_len);
 #ifdef _WIN32
         if (n == SOCKET_ERROR)
         {
@@ -314,8 +307,6 @@ int rtp_receive_packets(int sock, rtp_frame_state_s * state, uint8_t * frame_buf
         }
 #endif
 
-        g_dbg_total_recv++;
-
         if (process_rtp_packet(packet, (size_t)n, state, frame_buffer))
         {
             total++;
@@ -326,20 +317,6 @@ int rtp_receive_packets(int sock, rtp_frame_state_s * state, uint8_t * frame_buf
             break;
         }
     }
-
-    // static uint64_t last_dbg = 0;
-    // uint64_t now_dbg = get_time_us();
-    // if (now_dbg - last_dbg > 3000000ULL)
-    // {
-    //     fprintf(stderr,
-    //             "[dbg] recv=%u ok=%u short=%u ver=%u trunc=%u "
-    //             "frame_bytes=%u packets=%u lost=%u ready=%d\n",
-    //             g_dbg_total_recv, g_dbg_ok,
-    //             g_dbg_short, g_dbg_version, g_dbg_trunc,
-    //             state->received_bytes, state->packet_count,
-    //             state->lost_packets, state->frame_ready ? 1 : 0);
-    //     last_dbg = now_dbg;
-    // }
 
     return total;
 }

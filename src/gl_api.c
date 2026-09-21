@@ -1,4 +1,3 @@
-// gl_api.c - загрузка функций OpenGL через glfwGetProcAddress
 
 #include "gl_api.h"
 

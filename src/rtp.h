@@ -1,4 +1,3 @@
-// rtp.h - приём RTP (RFC 4175)
 
 #pragma once
 
@@ -39,10 +38,7 @@ int rtp_socket_open(int port);
 void rtp_frame_state_init(rtp_frame_state_s * state, uint16_t width, uint16_t height, uint16_t bytes_per_pixel);
 void rtp_frame_state_reset(rtp_frame_state_s * state);
 
-static inline bool rtp_frame_is_ready(const rtp_frame_state_s * state)
-{
-    return state->frame_ready;
-}
+bool rtp_frame_is_ready(const rtp_frame_state_s * state);
 
 bool rtp_frame_check_timeout(rtp_frame_state_s * state);
 int rtp_receive_packets(int sock, rtp_frame_state_s * state, uint8_t * frame_buffer);

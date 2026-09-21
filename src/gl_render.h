@@ -1,5 +1,3 @@
-// gl_render.h - отображение через OpenGL
-
 #pragma once
 
 #include <stdbool.h>
@@ -19,7 +17,5 @@ void gl_render_toggle_smoothing(void);
 void gl_render_set_demosaic_mode(int mode);
 int gl_render_get_bytes_per_pixel(void);
 
-// Обновить заголовок окна (вызывается после изменения состояния записи)
 void gl_render_refresh_title(void);
-// Переключить полный экран (вызывается из callback по двойному клику)
 void gl_render_toggle_fullscreen(void);

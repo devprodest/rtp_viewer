@@ -1,4 +1,3 @@
-// saver.h - сохранение кадров
 
 #pragma once
 
