@@ -9,3 +9,4 @@ void stats_cleanup(void);
 void stats_add_packets(int count);
 void stats_frame_rendered(void);
 void stats_update(void);
+double stats_get_fps(void);

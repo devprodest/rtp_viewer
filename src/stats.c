@@ -1,6 +1,7 @@
 
 #include "stats.h"
 #include "utils.h"
+#include "gl_render.h"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -13,6 +14,8 @@ static uint64_t g_total_frames        = 0;
 static uint64_t g_last_second_packets = 0;
 static uint64_t g_last_second_frames  = 0;
 static uint64_t g_last_time_s         = 0;
+
+static double fps = 0.0;
 
 void stats_init(const char * logfile)
 {
@@ -51,9 +54,10 @@ void stats_update(void)
     uint64_t delta = now - g_last_time_s;
     if (delta > 0)
     {
-        double fps = (double)g_last_second_frames / (double)delta;
+        fps        = (double)g_last_second_frames / (double)delta;
         double pps = (double)g_last_second_packets / (double)delta;
 
+        gl_render_refresh_title();
         printf("Packets: %" PRIu64 " (%.0f pkts/s), Frames: %" PRIu64 " (%.1f fps)\n", g_total_packets, pps,
                g_total_frames, fps);
 
@@ -76,4 +80,9 @@ void stats_update(void)
     g_last_second_packets = 0;
     g_last_second_frames  = 0;
     g_last_time_s         = now;
+}
+
+double stats_get_fps(void)
+{
+    return fps;
 }

@@ -1,6 +1,7 @@
 
 #include "gl_render.h"
 #include "saver.h"
+#include "stats.h"
 #include "utils.h"
 
 #include <stdio.h>
@@ -303,7 +304,7 @@ static void create_fullscreen_quad(GLuint * out_vao)
     *out_vao = vao;
 }
 
-// Формируем заголовок: "RTP Viewer - WxH format, smoothing: on/off [REC]"
+// Формируем заголовок: "RTP Viewer - WxH format [SMOOTH] [REC]"
 void gl_render_refresh_title(void)
 {
     if (!g_window)
@@ -313,9 +314,11 @@ void gl_render_refresh_title(void)
 
     char title[160];
 
-    snprintf(title, sizeof(title), "RTP Viewer - %dx%d %s%s%s", g_width, g_height, //
-             g_format_name[0] ? g_format_name : "?",                               //
-             g_smoothing ? " [SMOOTH]" : "",                                       //
+    snprintf(title, sizeof(title), "RTP Viewer - %dx%d %s fps:%.1f%s%s", //
+             g_width, g_height,                                          //
+             g_format_name[0] ? g_format_name : "?",                     //
+             stats_get_fps(),                                            //
+             g_smoothing ? " [SMOOTH]" : "",                             //
              saver_is_recording() ? " [REC]" : "");
 
     glfwSetWindowTitle(g_window, title);
