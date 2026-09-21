@@ -5,6 +5,12 @@
 		}
 	],
 	"settings": {
+		"workbench.colorCustomizations": {
+            "titleBar.activeBackground": "#ff7300",
+            "titleBar.inactiveBackground": "#ff7300",
+            "titleBar.activeForeground": "#000000",
+            "titleBar.inactiveForeground": "#000000"
+        },
 		"cortex-debug.variableUseNaturalFormat": false,
 		"C_Cpp.default.intelliSenseMode": "gcc-x64",
 		"C_Cpp.default.cStandard": "gnu23",
