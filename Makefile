@@ -20,7 +20,7 @@ SRCS += $(SRC_DIR)/utils.c
 
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
-CFLAGS  = -std=gnu23 -Wall -Wextra -O2 -g -Isrc -Ilib/glfw/include
+CFLAGS  = -std=gnu2x -Wall -Wextra -O2 -g -Isrc -Ilib/glfw/include
 LDFLAGS = -Llib/glfw/lib -lglfw3 -lopengl32 -lgdi32 -luser32 -lshell32 -lws2_32
 
 all: $(TARGET)
@@ -30,6 +30,7 @@ publish: $(TARGET)
 	$(MKDIR_P) $(PUBLISH_DIR)
 	$(MKDIR_P) $(PUBLISH_DIR)/formats
 	$(CP) $(TARGET) $(PUBLISH_DIR)/
+	echo "rtp_viewer.exe -x 640 -y 512 -p 5004 -f ycbcr" >> $(PUBLISH_DIR)/ycbcb-640-512.bat
 	$(CP) formats/*.fmt  $(PUBLISH_DIR)/formats/ 2>/dev/null || true
 	$(CP) formats/*.glsl $(PUBLISH_DIR)/formats/ 2>/dev/null || true
 

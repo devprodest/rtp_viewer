@@ -1,0 +1,71 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"cortex-debug.variableUseNaturalFormat": false,
+		"C_Cpp.default.intelliSenseMode": "gcc-x64",
+		"C_Cpp.default.cStandard": "gnu23",
+		"C_Cpp.default.configurationProvider": "ZaikinDenis.make-to-cpp-props",
+		"make-to-cpp-props.generator.make": "make clean && make all -j 1",
+		"make-to-cpp-props.generator.toolchainVersion": "14.2.0",
+		"make-to-cpp-props.generator.CompilerPath": "x86_64-w64-mingw32-gcc",
+		"make-to-cpp-props.generator.toolchainPath": "x86_64-w64-mingw32-gcc",
+		"C_Cpp.codeAnalysis.clangTidy.checks.disabled": [
+			"cert-err33-c",
+		],
+		"make-to-cpp-props.configurations": [
+			{
+				"name": "default",
+				"includePath": [
+					"lib/GLFW/include/GLFW",
+					"src",
+				],
+			}
+		]
+	},
+	"tasks": {
+		"version": "2.0.0",
+		// Задачи для сборки
+		"tasks": [
+			{
+				"label": "build",
+				"type": "shell",
+				"command": "make all",
+				"group": "build",
+				"problemMatcher": []
+			},
+			{
+				"label": "clean",
+				"type": "shell",
+				"command": "make clean",
+				"group": {
+					"kind": "build"
+				}
+			},
+			{
+				"label": "publish",
+				"type": "shell",
+				"command": "make publish",
+				"group": {
+					"kind": "build"
+				}
+			},
+			{
+				"label": "ReBuild",
+				"dependsOn": [
+					"clean",
+					"build"
+				],
+				"dependsOrder": "sequence",
+				"group": {
+					"kind": "build",
+					"isDefault": true
+				},
+				"problemMatcher": []
+			}
+		]
+	},
+}
