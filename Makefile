@@ -18,6 +18,7 @@ SRCS += $(SRC_DIR)/stats.c
 SRCS += $(SRC_DIR)/saver.c
 SRCS += $(SRC_DIR)/utils.c
 SRCS += $(SRC_DIR)/png_writer.c
+SRCS += $(SRC_DIR)/help_dialog.c
 
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 

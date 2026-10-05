@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 
 #include "gl_render.h"
+#include "help_dialog.h"
 #include "rtp.h"
 #include "saver.h"
 #include "stats.h"
@@ -64,10 +65,9 @@ static void print_usage(const char * prog)
         "  S          Save screenshot (PNG)\n"
         "  R          Toggle recording (on/off)\n"
         "  W          Force save current accumulated frames\n"
-        "  Esc        Exit\n",
+        "  F1         Show this help\n",
         prog, DEFAULT_BATCH_SIZE);
 }
-
 
 static bool file_exists(const char * path)
 {
@@ -87,43 +87,42 @@ static void process_input(GLFWwindow * window)
     static bool r_pressed   = false;
     static bool w_pressed   = false;
     static bool one_pressed = false;
+    static bool f1_pressed  = false;
 
     bool s   = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
     bool r   = glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS;
     bool w   = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
-    bool esc = glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
     bool one = glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS;
+    bool f1  = glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS;
 
     if (one && !one_pressed)
     {
         gl_render_toggle_smoothing();
     }
-
     if (s && !s_pressed)
     {
         gl_render_request_screenshot();
     }
-
     if (r && !r_pressed)
     {
         saver_toggle_recording();
         gl_render_refresh_title();
     }
-
     if (w && !w_pressed)
     {
         saver_flush();
     }
-
-    if (esc)
+    if (f1 && !f1_pressed)
     {
-        glfwSetWindowShouldClose(window, GLFW_TRUE);
+        help_dialog_show();
     }
+
 
     s_pressed   = s;
     r_pressed   = r;
     w_pressed   = w;
     one_pressed = one;
+    f1_pressed  = f1;
 }
 
 int main(int argc, char ** argv)
