@@ -17,6 +17,7 @@ SRCS += $(SRC_DIR)/gl_api.c
 SRCS += $(SRC_DIR)/stats.c
 SRCS += $(SRC_DIR)/saver.c
 SRCS += $(SRC_DIR)/utils.c
+SRCS += $(SRC_DIR)/png_writer.c
 
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
