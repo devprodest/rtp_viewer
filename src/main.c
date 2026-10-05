@@ -351,7 +351,7 @@ int main(int argc, char ** argv)
         return EXIT_FAILURE;
     }
 
-    if (width == 0 || height == 0 || port == 0 || format == NULL)
+    if (width == 0 || height == 0 || port == 0 || format == nullptr)
     {
         fprintf(stderr, "Error: -x, -y, -p и -f обязательные аргументы\n");
         print_usage(argv[0]);

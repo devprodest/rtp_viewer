@@ -6,30 +6,30 @@
 
 #include <stdio.h>
 
-PFNGLCREATESHADERPROC glCreateShader                       = NULL;
-PFNGLSHADERSOURCEPROC glShaderSource                       = NULL;
-PFNGLCOMPILESHADERPROC glCompileShader                     = NULL;
-PFNGLGETSHADERIVPROC glGetShaderiv                         = NULL;
-PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog               = NULL;
-PFNGLDELETESHADERPROC glDeleteShader                       = NULL;
-PFNGLCREATEPROGRAMPROC glCreateProgram                     = NULL;
-PFNGLATTACHSHADERPROC glAttachShader                       = NULL;
-PFNGLLINKPROGRAMPROC glLinkProgram                         = NULL;
-PFNGLGETPROGRAMIVPROC glGetProgramiv                       = NULL;
-PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog             = NULL;
-PFNGLDELETEPROGRAMPROC glDeleteProgram                     = NULL;
-PFNGLGENVERTEXARRAYSPROC glGenVertexArrays                 = NULL;
-PFNGLGENBUFFERSPROC glGenBuffers                           = NULL;
-PFNGLBINDVERTEXARRAYPROC glBindVertexArray                 = NULL;
-PFNGLBINDBUFFERPROC glBindBuffer                           = NULL;
-PFNGLBUFFERDATAPROC glBufferData                           = NULL;
-PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer         = NULL;
-PFNGLENABLEVERTEXATTRIBARRAYPROC glEnableVertexAttribArray = NULL;
-PFNGLUSEPROGRAMPROC glUseProgram                           = NULL;
-PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation           = NULL;
-PFNGLUNIFORM1IPROC glUniform1i                             = NULL;
-PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays           = NULL;
-PFNGLACTIVETEXTUREPROC glActiveTexture                     = NULL;
+PFNGLCREATESHADERPROC glCreateShader                       = nullptr;
+PFNGLSHADERSOURCEPROC glShaderSource                       = nullptr;
+PFNGLCOMPILESHADERPROC glCompileShader                     = nullptr;
+PFNGLGETSHADERIVPROC glGetShaderiv                         = nullptr;
+PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog               = nullptr;
+PFNGLDELETESHADERPROC glDeleteShader                       = nullptr;
+PFNGLCREATEPROGRAMPROC glCreateProgram                     = nullptr;
+PFNGLATTACHSHADERPROC glAttachShader                       = nullptr;
+PFNGLLINKPROGRAMPROC glLinkProgram                         = nullptr;
+PFNGLGETPROGRAMIVPROC glGetProgramiv                       = nullptr;
+PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog             = nullptr;
+PFNGLDELETEPROGRAMPROC glDeleteProgram                     = nullptr;
+PFNGLGENVERTEXARRAYSPROC glGenVertexArrays                 = nullptr;
+PFNGLGENBUFFERSPROC glGenBuffers                           = nullptr;
+PFNGLBINDVERTEXARRAYPROC glBindVertexArray                 = nullptr;
+PFNGLBINDBUFFERPROC glBindBuffer                           = nullptr;
+PFNGLBUFFERDATAPROC glBufferData                           = nullptr;
+PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer         = nullptr;
+PFNGLENABLEVERTEXATTRIBARRAYPROC glEnableVertexAttribArray = nullptr;
+PFNGLUSEPROGRAMPROC glUseProgram                           = nullptr;
+PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation           = nullptr;
+PFNGLUNIFORM1IPROC glUniform1i                             = nullptr;
+PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays           = nullptr;
+PFNGLACTIVETEXTUREPROC glActiveTexture                     = nullptr;
 
 #define LOAD(name)                                                          \
     ({                                                                      \

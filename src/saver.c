@@ -254,10 +254,7 @@ void saver_cleanup(void)
 
     for (int i = 0; i < g_saver.buffer.count; i++)
     {
-        if (g_saver.buffer.frames[i])
-        {
-            free(g_saver.buffer.frames[i]);
-        }
+        free(g_saver.buffer.frames[i]);
     }
     free(g_saver.buffer.frames);
     g_saver.buffer.frames   = nullptr;

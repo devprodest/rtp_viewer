@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static GLFWwindow * g_window          = NULL;
+static GLFWwindow * g_window          = nullptr;
 static GLuint g_texture               = 0;
 static GLuint g_program               = 0;
 static GLint g_uniform_tex            = -1;
@@ -359,7 +359,7 @@ void gl_render_toggle_fullscreen(void)
         glfwGetWindowSize(g_window, &g_windowed_w, &g_windowed_h);
 
         // Находим монитор, на котором сейчас находится окно
-        GLFWmonitor * target = NULL;
+        GLFWmonitor * target = nullptr;
 
         int win_center_x = g_windowed_x + (g_windowed_w / 2);
         int win_center_y = g_windowed_y + (g_windowed_h / 2);
@@ -415,7 +415,7 @@ void gl_render_toggle_fullscreen(void)
     else
     {
         // Возврат в оконный режим
-        glfwSetWindowMonitor(g_window, NULL, g_windowed_x, g_windowed_y, g_windowed_w, g_windowed_h, 0);
+        glfwSetWindowMonitor(g_window, nullptr, g_windowed_x, g_windowed_y, g_windowed_w, g_windowed_h, 0);
 
         g_is_fullscreen = false;
     }
@@ -440,7 +440,7 @@ bool gl_render_init(int width, int height, const char * format_name, int effecti
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-    g_window = glfwCreateWindow(width, height, "RTP Viewer", NULL, NULL);
+    g_window = glfwCreateWindow(width, height, "RTP Viewer", nullptr, nullptr);
     if (!g_window)
     {
         fprintf(stderr, "GLFW window creation failed\n");
@@ -627,7 +627,7 @@ void gl_render_cleanup(void)
     g_vao     = 0;
     g_program = 0;
     g_texture = 0;
-    g_window  = NULL;
+    g_window  = nullptr;
 }
 
 void gl_render_toggle_smoothing(void)
