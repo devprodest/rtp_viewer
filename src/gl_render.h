@@ -19,3 +19,5 @@ int gl_render_get_bytes_per_pixel(void);
 
 void gl_render_refresh_title(void);
 void gl_render_toggle_fullscreen(void);
+
+void gl_render_request_screenshot(void);

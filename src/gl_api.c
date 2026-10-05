@@ -30,6 +30,11 @@ PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation           = nullptr;
 PFNGLUNIFORM1IPROC glUniform1i                             = nullptr;
 PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays           = nullptr;
 PFNGLACTIVETEXTUREPROC glActiveTexture                     = nullptr;
+PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers                 = nullptr;
+PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer                 = nullptr;
+PFNGLFRAMEBUFFERTEXTURE2DPROC glFramebufferTexture2D       = nullptr;
+PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus   = nullptr;
+PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers           = nullptr;
 
 #define LOAD(name)                                                          \
     ({                                                                      \
@@ -68,5 +73,11 @@ int gl_api_load(void)
     LOAD(glUniform1i);
     LOAD(glDeleteVertexArrays);
     LOAD(glActiveTexture);
+    LOAD(glGenFramebuffers);
+    LOAD(glBindFramebuffer);
+    LOAD(glFramebufferTexture2D);
+    LOAD(glCheckFramebufferStatus);
+    LOAD(glDeleteFramebuffers);
+
     return 0;
 }

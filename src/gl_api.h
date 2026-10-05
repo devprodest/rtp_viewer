@@ -29,6 +29,11 @@ extern PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation;
 extern PFNGLUNIFORM1IPROC glUniform1i;
 extern PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays;
 extern PFNGLACTIVETEXTUREPROC glActiveTexture;
+extern PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers;
+extern PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer;
+extern PFNGLFRAMEBUFFERTEXTURE2DPROC glFramebufferTexture2D;
+extern PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus;
+extern PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers;
 
 // Загрузить указатели (вызывать после glfwMakeContextCurrent)
 int gl_api_load(void);

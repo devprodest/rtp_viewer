@@ -1,5 +1,6 @@
 
 #include "gl_render.h"
+#include "png_writer.h"
 #include "saver.h"
 #include "stats.h"
 #include "utils.h"
@@ -7,6 +8,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
 
 static GLFWwindow * g_window          = nullptr;
 static GLuint g_texture               = 0;
@@ -21,6 +24,11 @@ static int g_height                   = 0;
 static int g_eff_bits                 = 16;
 static bool g_smoothing               = false;
 static int g_demosaic_mode            = 0;
+static bool g_screenshot_requested    = false;
+
+static GLuint g_vao      = 0;
+static GLuint g_shot_fbo = 0;
+static GLuint g_shot_tex = 0;
 
 // Для переключения fullscreen двойным кликом
 static bool g_is_fullscreen     = false;
@@ -206,6 +214,142 @@ static bool parse_format_file(const char * format_name, format_config_s * cfg)
     return true;
 }
 
+// Создаёт offscreen FBO размером WxH для скриншотов.
+// Вызывается лениво при первом запросе. Размеры кадра фиксированы,
+// поэтому пересоздавать не нужно.
+static bool ensure_shot_fbo(void)
+{
+    if (g_shot_fbo)
+    {
+        return true;
+    }
+
+    glGenTextures(1, &g_shot_tex);
+    glBindTexture(GL_TEXTURE_2D, g_shot_tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, g_width, g_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glGenFramebuffers(1, &g_shot_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, g_shot_fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_shot_tex, 0);
+
+    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    if (status != GL_FRAMEBUFFER_COMPLETE)
+    {
+        fprintf(stderr, "screenshot FBO incomplete: 0x%x\n", status);
+        if (g_shot_tex)
+        {
+            glDeleteTextures(1, &g_shot_tex);
+            g_shot_tex = 0;
+        }
+        if (g_shot_fbo)
+        {
+            glDeleteFramebuffers(1, &g_shot_fbo);
+            g_shot_fbo = 0;
+        }
+        return false;
+    }
+    return true;
+}
+
+// Сохранить текущий кадр в PNG в оригинальном размере (W×H).
+// Рендерим ещё раз в offscreen FBO размером с кадр, читаем пиксели оттуда,
+// пишем PNG. Default framebuffer при этом не трогается.
+static void save_screenshot_internal(void)
+{
+    if (!ensure_shot_fbo())
+    {
+        return;
+    }
+
+    // Рендер кадра в FBO (без letterbox — ровно W×H).
+    glBindFramebuffer(GL_FRAMEBUFFER, g_shot_fbo);
+    glViewport(0, 0, g_width, g_height);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glUseProgram(g_program);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g_texture);
+    if (g_uniform_tex >= 0)
+    {
+        glUniform1i(g_uniform_tex, 0);
+    }
+    if (g_uniform_width >= 0)
+    {
+        glUniform1i(g_uniform_width, g_width);
+    }
+    if (g_uniform_height >= 0)
+    {
+        glUniform1i(g_uniform_height, g_height);
+    }
+    if (g_uniform_effective_bits >= 0)
+    {
+        glUniform1i(g_uniform_effective_bits, g_eff_bits);
+    }
+    if (g_uniform_demosaic_mode >= 0)
+    {
+        glUniform1i(g_uniform_demosaic_mode, g_demosaic_mode);
+    }
+
+    glBindVertexArray(g_vao);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+
+    size_t stride    = (size_t)g_width * 4;
+    uint8_t * pixels = malloc(stride * (size_t)g_height);
+    if (!pixels)
+    {
+        fprintf(stderr, "screenshot: out of memory\n");
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        return;
+    }
+
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadPixels(0, 0, g_width, g_height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // OpenGL отдаёт строки снизу вверх — переворачиваем.
+    for (int y = 0; y < g_height / 2; y++)
+    {
+        uint8_t * a = pixels + ((size_t)y * stride);
+        uint8_t * b = pixels + ((size_t)(g_height - 1 - y) * stride);
+        for (size_t i = 0; i < stride; i++)
+        {
+            uint8_t t = a[i];
+            a[i]      = b[i];
+            b[i]      = t;
+        }
+    }
+
+    time_t t           = time(nullptr);
+    struct tm * tm_now = localtime(&t);
+
+    char stamp[32];
+    strftime(stamp, sizeof(stamp), "%Y%m%d_%H%M%S", tm_now);
+
+    const char * outdir = saver_get_outdir();
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/screenshot_%s.png", outdir, stamp);
+
+    if (png_write_rgba(path, pixels, g_width, g_height))
+    {
+        printf("Screenshot saved: %s (%dx%d)\n", path, g_width, g_height);
+    }
+    else
+    {
+        fprintf(stderr, "Failed to save screenshot: %s\n", path);
+    }
+
+    free(pixels);
+}
+
 static GLuint compile_shader(const char * source, GLenum type)
 {
     GLuint shader = glCreateShader(type);
@@ -273,8 +417,6 @@ static GLuint build_program(const char * fragment_source)
     glDeleteShader(fragment);
     return prog;
 }
-
-static GLuint g_vao = 0;
 
 static void create_fullscreen_quad(GLuint * out_vao)
 {
@@ -592,9 +734,16 @@ void gl_render_update_texture(const uint8_t * data)
         glUniform1i(g_uniform_demosaic_mode, g_demosaic_mode);
     }
 
+
     glBindVertexArray(g_vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
+
+    if (g_screenshot_requested)
+    {
+        g_screenshot_requested = false;
+        save_screenshot_internal();
+    }
 
     glfwSwapBuffers(g_window);
 }
@@ -614,6 +763,14 @@ void gl_render_cleanup(void)
     {
         glDeleteProgram(g_program);
     }
+    if (g_shot_tex)
+    {
+        glDeleteTextures(1, &g_shot_tex);
+    }
+    if (g_shot_fbo)
+    {
+        glDeleteFramebuffers(1, &g_shot_fbo);
+    }
     if (g_texture)
     {
         glDeleteTextures(1, &g_texture);
@@ -624,10 +781,12 @@ void gl_render_cleanup(void)
     }
     glfwTerminate();
 
-    g_vao     = 0;
-    g_program = 0;
-    g_texture = 0;
-    g_window  = nullptr;
+    g_vao      = 0;
+    g_shot_tex = 0;
+    g_shot_fbo = 0;
+    g_program  = 0;
+    g_texture  = 0;
+    g_window   = nullptr;
 }
 
 void gl_render_toggle_smoothing(void)
@@ -658,4 +817,9 @@ void gl_render_set_demosaic_mode(int mode)
 int gl_render_get_bytes_per_pixel(void)
 {
     return g_format.bytes_per_pixel;
+}
+
+void gl_render_request_screenshot(void)
+{
+    g_screenshot_requested = true;
 }

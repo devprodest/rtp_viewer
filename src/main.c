@@ -60,7 +60,8 @@ static void print_usage(const char * prog)
         "  -h, --help          Show this help\n"
         "\n"
         "Hotkeys:\n"
-        "  S          Toggle smoothing (linear/nearest)\n"
+        "  1          Toggle smoothing (linear/nearest)\n"
+        "  S          Save screenshot (PNG)\n"
         "  R          Toggle recording (on/off)\n"
         "  W          Force save current accumulated frames\n"
         "  Esc        Exit\n",
@@ -82,18 +83,25 @@ static bool dir_exists(const char * path)
 
 static void process_input(GLFWwindow * window)
 {
-    static bool s_pressed = false;
-    static bool r_pressed = false;
-    static bool w_pressed = false;
+    static bool s_pressed   = false;
+    static bool r_pressed   = false;
+    static bool w_pressed   = false;
+    static bool one_pressed = false;
 
     bool s   = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
     bool r   = glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS;
     bool w   = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
     bool esc = glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
+    bool one = glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS;
+
+    if (one && !one_pressed)
+    {
+        gl_render_toggle_smoothing();
+    }
 
     if (s && !s_pressed)
     {
-        gl_render_toggle_smoothing();
+        gl_render_request_screenshot();
     }
 
     if (r && !r_pressed)
@@ -112,9 +120,10 @@ static void process_input(GLFWwindow * window)
         glfwSetWindowShouldClose(window, GLFW_TRUE);
     }
 
-    s_pressed = s;
-    r_pressed = r;
-    w_pressed = w;
+    s_pressed   = s;
+    r_pressed   = r;
+    w_pressed   = w;
+    one_pressed = one;
 }
 
 int main(int argc, char ** argv)

@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include <stdbool.h>
@@ -13,3 +12,6 @@ void saver_cleanup(void);
 
 // Текущее состояние записи (true - идёт запись)
 bool saver_is_recording(void);
+
+// Директория, куда сохраняются файлы. Никогда не NULL; по умолчанию ".".
+const char * saver_get_outdir(void);

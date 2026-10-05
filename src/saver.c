@@ -266,3 +266,8 @@ bool saver_is_recording(void)
 {
     return g_saver.recording;
 }
+
+const char * saver_get_outdir(void)
+{
+    return g_saver.outdir[0] ? g_saver.outdir : ".";
+}
