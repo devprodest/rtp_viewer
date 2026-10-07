@@ -1,15 +1,18 @@
 
 #include "gl_render.h"
+#include "histogram.h"
 #include "png_writer.h"
 #include "saver.h"
 #include "stats.h"
 #include "utils.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
+#define HIST_TEX_H 192 // 3 полосы по 64 px для RGB, одна на всю высоту для grayscale
 
 static GLFWwindow * g_window          = nullptr;
 static GLuint g_texture               = 0;
@@ -29,6 +32,14 @@ static bool g_screenshot_requested    = false;
 static GLuint g_vao      = 0;
 static GLuint g_shot_fbo = 0;
 static GLuint g_shot_tex = 0;
+
+// Гистограммы
+static histogram_s g_histogram;
+static bool g_histogram_enabled = false;
+static GLuint g_hist_tex        = 0;
+static GLuint g_hist_program    = 0;
+static GLint g_hist_uniform_tex = -1;
+static uint8_t g_hist_pixels[HIST_BINS * HIST_TEX_H * 4];
 
 // Для переключения fullscreen двойным кликом
 static bool g_is_fullscreen     = false;
@@ -258,6 +269,163 @@ static bool ensure_shot_fbo(void)
     return true;
 }
 
+// Является ли текущий формат YCbCr (Y, Cb, Cr в трёх байтах).
+// Пока проверяем по имени формата; если появится второй ycbcr-формат,
+// вынести признак в .fmt.
+static bool hist_format_is_ycbcr(void)
+{
+    return g_format_name[0] != '\0' && strcmp(g_format_name, "ycbcr") == 0;
+}
+
+// Заполняет g_hist_pixels растр для текстуры гистограммы.
+// Grayscale: одна белая гистограмма на всю высоту.
+// RGB: три полосы (R/G/B), полный диапазон 0..255.
+// YCbCr: три полосы (Y/Cb/Cr); Y — по всей ширине, Cb/Cr — окно [96..160]
+//        вокруг нейтрального 128, растянутое на всю ширину.
+// Высота столбика — по логарифмической шкале, с нормировкой на максимум своего канала (иначе один доминирующий пик подавит остальные каналы).
+static void build_histogram_image(void)
+{
+    const int W = HIST_BINS;
+    const int H = HIST_TEX_H;
+
+    memset(g_hist_pixels, 0, sizeof(g_hist_pixels));
+
+    if (g_histogram.active_channels == 0)
+    {
+        return;
+    }
+
+    const bool is_ycbcr = hist_format_is_ycbcr();
+
+    if (g_histogram.active_channels == 1)
+    {
+        double denom = log(1.0 + (double)g_histogram.max_per_channel[0]);
+        if (denom <= 0.0)
+        {
+            return;
+        }
+
+        for (int x = 0; x < W; x++)
+        {
+            double t = log(1.0 + (double)g_histogram.bins[0][x]) / denom;
+            int bar  = (int)(t * H);
+
+            for (int y = 0; y < bar; y++)
+            {
+                int yy                 = H - 1 - y;
+                size_t idx             = ((size_t)yy * W + x) * 4;
+                g_hist_pixels[idx + 0] = 255;
+                g_hist_pixels[idx + 1] = 255;
+                g_hist_pixels[idx + 2] = 255;
+                g_hist_pixels[idx + 3] = 255;
+            }
+        }
+    }
+    else
+    {
+        static const uint8_t col_rgb[3][3] = {
+            {255, 0,   0  }, // R
+            {0,   255, 0  }, // G
+            {0,   0,   255}, // B
+        };
+        static const uint8_t col_ycbcr[3][3] = {
+            {220, 220, 220}, // Y
+            {80,  120, 255}, // Cb
+            {255, 80,  80 }, // Cr
+        };
+        const uint8_t (*col)[3] = is_ycbcr ? col_ycbcr : col_rgb;
+
+        const int band_h = H / 3;
+
+        for (int c = 0; c < 3; c++)
+        {
+            const bool use_window = is_ycbcr && c != 0;
+            const int lo          = use_window ? 96 : 0;
+            const int hi          = use_window ? 160 : (HIST_BINS - 1);
+            const int span        = hi - lo + 1;
+
+            double denom = log(1.0 + (double)g_histogram.max_per_channel[c]);
+            if (denom <= 0.0)
+            {
+                continue;
+            }
+
+            int y0 = c * band_h;
+
+            for (int x = lo; x <= hi; x++)
+            {
+                const int xs = (x - lo) * W / span;
+
+                double t = log(1.0 + (double)g_histogram.bins[c][x]) / denom;
+                int bar  = (int)(t * band_h);
+
+                for (int y = 0; y < bar; y++)
+                {
+                    int yy                 = y0 + band_h - 1 - y;
+                    size_t idx             = ((size_t)yy * W + xs) * 4;
+                    g_hist_pixels[idx + 0] = col[c][0];
+                    g_hist_pixels[idx + 1] = col[c][1];
+                    g_hist_pixels[idx + 2] = col[c][2];
+                    g_hist_pixels[idx + 3] = 255;
+                }
+            }
+        }
+    }
+
+    glBindTexture(GL_TEXTURE_2D, g_hist_tex);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, g_hist_pixels);
+}
+
+// Считаем гистограмму по сырому буферу кадра.
+// Поддерживаемые форматы:
+//   GL_RED + UNSIGNED_BYTE  → 1 канал, 8 бит
+//   GL_RED + UNSIGNED_SHORT → 1 канал, берём старший байт
+//   GL_RGB/GL_RGBA + UNSIGNED_BYTE → 3 канала
+// Прочее → активных каналов 0 (ничего не рисуем).
+static void compute_histogram(const uint8_t * data)
+{
+    histogram_reset(&g_histogram);
+
+    const size_t n = (size_t)g_width * (size_t)g_height;
+
+    if (g_format.gl_format == GL_RED && g_format.gl_type == GL_UNSIGNED_BYTE)
+    {
+        g_histogram.active_channels = 1;
+        for (size_t i = 0; i < n; i++)
+        {
+            histogram_add(&g_histogram, 0, data[i]);
+        }
+    }
+    else if (g_format.gl_format == GL_RED && g_format.gl_type == GL_UNSIGNED_SHORT)
+    {
+        g_histogram.active_channels = 1;
+        const uint16_t * p          = (const uint16_t *)data;
+        for (size_t i = 0; i < n; i++)
+        {
+            histogram_add(&g_histogram, 0, p[i] >> 8);
+        }
+    }
+    else if ((g_format.gl_format == GL_RGB || g_format.gl_format == GL_RGBA) && g_format.gl_type == GL_UNSIGNED_BYTE)
+    {
+        g_histogram.active_channels = 3;
+        const int step              = (g_format.gl_format == GL_RGBA) ? 4 : 3;
+        for (size_t i = 0; i < n; i++)
+        {
+            const uint8_t * px = data + (i * (size_t)step);
+            histogram_add(&g_histogram, 0, px[0]);
+            histogram_add(&g_histogram, 1, px[1]);
+            histogram_add(&g_histogram, 2, px[2]);
+        }
+    }
+    else
+    {
+        g_histogram.active_channels = 0;
+    }
+
+    histogram_finalize(&g_histogram);
+}
+
 // Сохранить текущий кадр в PNG в оригинальном размере (W×H).
 // Рендерим ещё раз в offscreen FBO размером с кадр, читаем пиксели оттуда,
 // пишем PNG. Default framebuffer при этом не трогается.
@@ -456,11 +624,12 @@ void gl_render_refresh_title(void)
 
     char title[160];
 
-    snprintf(title, sizeof(title), "RTP Viewer - %dx%d %s fps:%.1f%s%s", //
-             g_width, g_height,                                          //
-             g_format_name[0] ? g_format_name : "?",                     //
-             stats_get_fps(),                                            //
-             g_smoothing ? " [SMOOTH]" : "",                             //
+    snprintf(title, sizeof(title), "RTP Viewer - %dx%d %s fps:%.1f%s%s%s", //
+             g_width, g_height,                                            //
+             g_format_name[0] ? g_format_name : "?",                       //
+             stats_get_fps(),                                              //
+             g_smoothing ? " [SMOOTH]" : "",                               //
+             g_histogram_enabled ? " [HIST]" : "",                         //
              saver_is_recording() ? " [REC]" : "");
 
     glfwSetWindowTitle(g_window, title);
@@ -667,6 +836,40 @@ bool gl_render_init(int width, int height, const char * format_name, int effecti
     g_smoothing = !smooth_start;
     gl_render_toggle_smoothing();
 
+    // --- Оверлей гистограммы ---
+    glGenTextures(1, &g_hist_tex);
+    glBindTexture(GL_TEXTURE_2D, g_hist_tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, HIST_BINS, HIST_TEX_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+    static const char * hist_frag =
+        "#version 330 core\n"
+        "uniform sampler2D tex;\n"
+        "in vec2 TexCoord;\n"
+        "out vec4 FragColor;\n"
+        "void main()\n"
+        "{\n"
+        "    FragColor = texture(tex, TexCoord);\n"
+        "}\n";
+
+    g_hist_program = build_program(hist_frag);
+    if (!g_hist_program)
+    {
+        glDeleteTextures(1, &g_texture);
+        glfwDestroyWindow(g_window);
+        glfwTerminate();
+        return false;
+    }
+    glUseProgram(g_hist_program);
+    g_hist_uniform_tex = glGetUniformLocation(g_hist_program, "tex");
+
+    // Blending — для оверлея. Основной шейдер выдаёт alpha=1, на него не влияет.
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     create_fullscreen_quad(&g_vao);
 
     return true;
@@ -682,17 +885,25 @@ void gl_render_update_texture(const uint8_t * data)
     glBindTexture(GL_TEXTURE_2D, g_texture);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, g_width, g_height, g_format.gl_format, g_format.gl_type, data);
 
+    if (g_histogram_enabled)
+    {
+        compute_histogram(data);
+        build_histogram_image();
+    }
+
     int win_w = 0;
     int win_h = 0;
     glfwGetFramebufferSize(g_window, &win_w, &win_h);
 
+    if (win_w <= 0 || win_h <= 0)
+    {
+        return;
+    }
+
     float aspect_img = (float)g_width / (float)g_height;
     float aspect_win = (float)win_w / (float)win_h;
 
-    int vp_w = 0;
-    int vp_h = 0;
-    int vp_x = 0;
-    int vp_y = 0;
+    int vp_w = 0, vp_h = 0, vp_x = 0, vp_y = 0;
 
     if (aspect_win > aspect_img)
     {
@@ -707,7 +918,9 @@ void gl_render_update_texture(const uint8_t * data)
         vp_y = (win_h - vp_h) / 2;
     }
 
+    // --- Основной кадр ---
     glViewport(vp_x, vp_y, vp_w, vp_h);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
     glUseProgram(g_program);
@@ -734,9 +947,40 @@ void gl_render_update_texture(const uint8_t * data)
         glUniform1i(g_uniform_demosaic_mode, g_demosaic_mode);
     }
 
-
     glBindVertexArray(g_vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    // --- Оверлей гистограммы в правом верхнем углу ---
+    if (g_histogram_enabled && g_histogram.active_channels > 0)
+    {
+        const int ov_w   = 320;
+        const int ov_h   = 240;
+        const int margin = 10;
+
+        int ov_x = win_w - ov_w - margin;
+        int ov_y = win_h - ov_h - margin; // в OpenGL Y растёт вверх
+        if (ov_x < 0)
+        {
+            ov_x = 0;
+        }
+        if (ov_y < 0)
+        {
+            ov_y = 0;
+        }
+
+        glViewport(ov_x, ov_y, ov_w, ov_h);
+
+        glUseProgram(g_hist_program);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, g_hist_tex);
+        if (g_hist_uniform_tex >= 0)
+        {
+            glUniform1i(g_hist_uniform_tex, 0);
+        }
+
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
+
     glBindVertexArray(0);
 
     if (g_screenshot_requested)
@@ -779,14 +1023,25 @@ void gl_render_cleanup(void)
     {
         glfwDestroyWindow(g_window);
     }
+    if (g_hist_program)
+    {
+        glDeleteProgram(g_hist_program);
+    }
+    if (g_hist_tex)
+    {
+        glDeleteTextures(1, &g_hist_tex);
+    }
+
     glfwTerminate();
 
-    g_vao      = 0;
-    g_shot_tex = 0;
-    g_shot_fbo = 0;
-    g_program  = 0;
-    g_texture  = 0;
-    g_window   = nullptr;
+    g_vao          = 0;
+    g_shot_tex     = 0;
+    g_shot_fbo     = 0;
+    g_program      = 0;
+    g_texture      = 0;
+    g_hist_program = 0;
+    g_hist_tex     = 0;
+    g_window       = nullptr;
 }
 
 void gl_render_toggle_smoothing(void)
@@ -822,4 +1077,11 @@ int gl_render_get_bytes_per_pixel(void)
 void gl_render_request_screenshot(void)
 {
     g_screenshot_requested = true;
+}
+
+void gl_render_toggle_histogram(void)
+{
+    g_histogram_enabled = !g_histogram_enabled;
+    gl_render_refresh_title();
+    printf("Histogram %s\n", g_histogram_enabled ? "enabled" : "disabled");
 }

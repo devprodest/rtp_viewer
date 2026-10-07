@@ -16,6 +16,7 @@
 #include "saver.h"
 #include "stats.h"
 #include "utils.h"
+#include "version.h"
 
 #ifdef _WIN32
     #include <windows.h>
@@ -39,6 +40,8 @@ static void signal_handler(int sig)
 static void print_usage(const char * prog)
 {
     printf(
+        "%s v%s\n"
+        "\n"
         "Usage: %s -x <width> -y <height> -p <port> -f <format> [options]\n"
         "\n"
         "Required:\n"
@@ -59,14 +62,16 @@ static void print_usage(const char * prog)
         "  -o <dir>            Output directory for saved files (default \".\")\n"
         "  -S                  Start with smoothing enabled (default off)\n"
         "  -h, --help          Show this help\n"
+        "  -V, --version       Show program version\n"
         "\n"
         "Hotkeys:\n"
         "  1          Toggle smoothing (linear/nearest)\n"
         "  S          Save screenshot (PNG)\n"
         "  R          Toggle recording (on/off)\n"
         "  W          Force save current accumulated frames\n"
+        "  H          Toggle histogram overlay\n"
         "  F1         Show this help\n",
-        prog, DEFAULT_BATCH_SIZE);
+        RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR, prog, DEFAULT_BATCH_SIZE);
 }
 
 static bool file_exists(const char * path)
@@ -88,12 +93,14 @@ static void process_input(GLFWwindow * window)
     static bool w_pressed   = false;
     static bool one_pressed = false;
     static bool f1_pressed  = false;
+    static bool h_pressed  = false;
 
     bool s   = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
     bool r   = glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS;
     bool w   = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
     bool one = glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS;
     bool f1  = glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS;
+    bool h   = glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS;
 
     if (one && !one_pressed)
     {
@@ -116,13 +123,17 @@ static void process_input(GLFWwindow * window)
     {
         help_dialog_show();
     }
-
+    if (h && !h_pressed)
+    {
+        gl_render_toggle_histogram();
+    }
 
     s_pressed   = s;
     r_pressed   = r;
     w_pressed   = w;
     one_pressed = one;
     f1_pressed  = f1;
+    h_pressed   = h;
 }
 
 int main(int argc, char ** argv)
@@ -152,12 +163,13 @@ int main(int argc, char ** argv)
     bool seen_o = false;
 
     static struct option long_opts[] = {
-        {"help",  no_argument, nullptr, 'h'},
-        {nullptr, 0,           nullptr, 0  }
+        {"help",    no_argument, nullptr, 'h'},
+        {"version", no_argument, nullptr, 'V'},
+        {nullptr,   0,           nullptr, 0  }
     };
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "x:y:p:f:e:s:b:t:l:o:Sh", long_opts, nullptr)) != -1)
+    while ((opt = getopt_long(argc, argv, "x:y:p:f:e:s:b:t:l:o:ShV", long_opts, nullptr)) != -1)
     {
         switch (opt)
         {
@@ -345,6 +357,10 @@ int main(int argc, char ** argv)
                 print_usage(argv[0]);
                 return EXIT_SUCCESS;
 
+            case 'V':
+                printf("%s v%s\n%s\n", RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR, RTP_VIEWER_COPYRIGHT);
+                return EXIT_SUCCESS;
+
             case '?':
             default:
                 print_usage(argv[0]);
@@ -414,6 +430,8 @@ int main(int argc, char ** argv)
             }
         }
     }
+
+    fprintf(stderr, "%s v%s\n", RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR);
 
     stats_init(logfile);
 

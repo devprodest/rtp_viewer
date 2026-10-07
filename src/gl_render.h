@@ -13,11 +13,12 @@ GLFWwindow * gl_render_get_window(void);
 void gl_render_update_texture(const uint8_t * data);
 void gl_render_poll_events(void);
 void gl_render_cleanup(void);
-void gl_render_toggle_smoothing(void);
 void gl_render_set_demosaic_mode(int mode);
 int gl_render_get_bytes_per_pixel(void);
 
 void gl_render_refresh_title(void);
-void gl_render_toggle_fullscreen(void);
 
 void gl_render_request_screenshot(void);
+void gl_render_toggle_smoothing(void);
+void gl_render_toggle_fullscreen(void);
+void gl_render_toggle_histogram(void);
