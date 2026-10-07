@@ -12,8 +12,6 @@
 #include <string.h>
 #include <time.h>
 
-#define HIST_TEX_H 192 // 3 полосы по 64 px для RGB, одна на всю высоту для grayscale
-
 static GLFWwindow * g_window          = nullptr;
 static GLuint g_texture               = 0;
 static GLuint g_program               = 0;
@@ -39,7 +37,22 @@ static bool g_histogram_enabled = false;
 static GLuint g_hist_tex        = 0;
 static GLuint g_hist_program    = 0;
 static GLint g_hist_uniform_tex = -1;
-static uint8_t g_hist_pixels[HIST_BINS * HIST_TEX_H * 4];
+
+#define HIST_BAND_ROWS          (64)
+#define HIST_TEX_H              (HIST_BAND_ROWS * 3) // 3 полосы по 64 px для RGB, одна на всю высоту для grayscale
+#define HIST_BACKGROUND_OPACITY (20)
+#define HIST_BIN_OPACITY        (255)
+
+_Static_assert(HIST_TEX_H % 3 == 0, "HIST_TEX_H must be divisible by 3");
+
+
+typedef uint8_t hist_pixel_t[4]; // [R, G, B, A]
+
+static union
+{
+    hist_pixel_t by_channel[HIST_CHANNELS][HIST_BAND_ROWS][HIST_BINS];
+    hist_pixel_t by_row[HIST_TEX_H][HIST_BINS];
+} g_hist_pixels;
 
 // Для переключения fullscreen двойным кликом
 static bool g_is_fullscreen     = false;
@@ -48,6 +61,7 @@ static int g_windowed_y         = 0;
 static int g_windowed_w         = 0;
 static int g_windowed_h         = 0;
 static double g_last_click_time = 0.0;
+
 
 // Для заголовка окна
 static char g_format_name[64] = {0};
@@ -282,47 +296,50 @@ static bool hist_format_is_ycbcr(void)
 // RGB: три полосы (R/G/B), полный диапазон 0..255.
 // YCbCr: три полосы (Y/Cb/Cr); Y — по всей ширине, Cb/Cr — окно [96..160]
 //        вокруг нейтрального 128, растянутое на всю ширину.
-// Высота столбика — по логарифмической шкале, с нормировкой на максимум своего канала (иначе один доминирующий пик подавит остальные каналы).
+// Высота столбика — по логарифмической шкале, с нормировкой на максимум своего канала (иначе один доминирующий пик
+// подавит остальные каналы).
+// Заполняет g_hist_pixels растр для текстуры гистограммы.
+// Grayscale: одна белая гистограмма на всю высоту.
+// RGB: три полосы (R/G/B), полный диапазон 0..255.
+// YCbCr: три полосы (Y/Cb/Cr); Y — по всей ширине, Cb/Cr — окно [96..160]
+//        вокруг нейтрального 128, растянутое на всю ширину.
+// Высота столбика — линейная, но нормируется на максимум СВОЕГО канала,
+// иначе один доминирующий пик (в G или Y) подавит остальные каналы.
 static void build_histogram_image(void)
 {
-    const int W = HIST_BINS;
-    const int H = HIST_TEX_H;
-
-    memset(g_hist_pixels, 0, sizeof(g_hist_pixels));
-
-    if (g_histogram.active_channels == 0)
-    {
-        return;
-    }
-
-    const bool is_ycbcr = hist_format_is_ycbcr();
+    memset(&g_hist_pixels, 0, sizeof(g_hist_pixels));
 
     if (g_histogram.active_channels == 1)
     {
-        double denom = log(1.0 + (double)g_histogram.max_per_channel[0]);
-        if (denom <= 0.0)
+        for (size_t y = 0; y < HIST_TEX_H; y++)
         {
-            return;
+            for (size_t x = 0; x < HIST_BINS; x++)
+            {
+                g_hist_pixels.by_row[y][x][0] = 255;
+                g_hist_pixels.by_row[y][x][1] = 255;
+                g_hist_pixels.by_row[y][x][2] = 255;
+                g_hist_pixels.by_row[y][x][3] = HIST_BACKGROUND_OPACITY;
+            }
         }
 
-        for (int x = 0; x < W; x++)
+        // Grayscale: один столбик на всю высоту.
+        const uint32_t maxv = g_histogram.max_per_channel[0];
+        if (maxv > 0)
         {
-            double t = log(1.0 + (double)g_histogram.bins[0][x]) / denom;
-            int bar  = (int)(t * H);
-
-            for (int y = 0; y < bar; y++)
+            for (int x = 0; x < HIST_BINS; x++)
             {
-                int yy                 = H - 1 - y;
-                size_t idx             = ((size_t)yy * W + x) * 4;
-                g_hist_pixels[idx + 0] = 255;
-                g_hist_pixels[idx + 1] = 255;
-                g_hist_pixels[idx + 2] = 255;
-                g_hist_pixels[idx + 3] = 255;
+                int bar = (int)((uint64_t)g_histogram.bins[0][x] * HIST_TEX_H / maxv);
+
+                for (int y = 0; y < bar; y++)
+                {
+                    g_hist_pixels.by_row[HIST_TEX_H - 1 - y][x][3] = HIST_BIN_OPACITY;
+                }
             }
         }
     }
-    else
+    else if (g_histogram.active_channels == 3)
     {
+        // RGB / YCbCr: три полосы, вью by_channel.
         static const uint8_t col_rgb[3][3] = {
             {255, 0,   0  }, // R
             {0,   255, 0  }, // G
@@ -333,9 +350,24 @@ static void build_histogram_image(void)
             {80,  120, 255}, // Cb
             {255, 80,  80 }, // Cr
         };
-        const uint8_t (*col)[3] = is_ycbcr ? col_ycbcr : col_rgb;
+        const bool is_ycbcr = hist_format_is_ycbcr();
 
-        const int band_h = H / 3;
+        const uint8_t (*color)[3][3] = is_ycbcr ? &col_ycbcr : &col_rgb;
+
+        for (size_t c = 0; c < 3; c++)
+        {
+            for (size_t y = 0; y < HIST_BAND_ROWS; y++)
+            {
+                for (size_t x = 0; x < HIST_BINS; x++)
+                {
+                    g_hist_pixels.by_channel[c][y][x][0] = (*color)[c][0];
+                    g_hist_pixels.by_channel[c][y][x][1] = (*color)[c][1];
+                    g_hist_pixels.by_channel[c][y][x][2] = (*color)[c][2];
+                    g_hist_pixels.by_channel[c][y][x][3] = HIST_BACKGROUND_OPACITY;
+                }
+            }
+        }
+
 
         for (int c = 0; c < 3; c++)
         {
@@ -344,29 +376,20 @@ static void build_histogram_image(void)
             const int hi          = use_window ? 160 : (HIST_BINS - 1);
             const int span        = hi - lo + 1;
 
-            double denom = log(1.0 + (double)g_histogram.max_per_channel[c]);
-            if (denom <= 0.0)
+            const uint32_t maxv = g_histogram.max_per_channel[c];
+            if (maxv == 0)
             {
                 continue;
             }
 
-            int y0 = c * band_h;
-
             for (int x = lo; x <= hi; x++)
             {
-                const int xs = (x - lo) * W / span;
-
-                double t = log(1.0 + (double)g_histogram.bins[c][x]) / denom;
-                int bar  = (int)(t * band_h);
+                int xs  = (x - lo) * HIST_BINS / span;
+                int bar = (int)((uint64_t)g_histogram.bins[c][x] * HIST_BAND_ROWS / maxv);
 
                 for (int y = 0; y < bar; y++)
                 {
-                    int yy                 = y0 + band_h - 1 - y;
-                    size_t idx             = ((size_t)yy * W + xs) * 4;
-                    g_hist_pixels[idx + 0] = col[c][0];
-                    g_hist_pixels[idx + 1] = col[c][1];
-                    g_hist_pixels[idx + 2] = col[c][2];
-                    g_hist_pixels[idx + 3] = 255;
+                    g_hist_pixels.by_channel[c][HIST_BAND_ROWS - 1 - y][xs][3] = HIST_BIN_OPACITY;
                 }
             }
         }
@@ -374,7 +397,7 @@ static void build_histogram_image(void)
 
     glBindTexture(GL_TEXTURE_2D, g_hist_tex);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE, g_hist_pixels);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HIST_BINS, HIST_TEX_H, GL_RGBA, GL_UNSIGNED_BYTE, &g_hist_pixels);
 }
 
 // Считаем гистограмму по сырому буферу кадра.

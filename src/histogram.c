@@ -14,6 +14,7 @@ void histogram_add(histogram_s * h, int channel, uint32_t bin)
     {
         h->bins[channel][bin]++;
     }
+    // h->bins[channel][0]  = 0;
 }
 
 void histogram_finalize(histogram_s * h)
