@@ -94,6 +94,7 @@ static void print_usage(const char * prog)
         "  R          Toggle recording (on/off)\n"
         "  W          Force save current accumulated frames\n"
         "  H          Toggle histogram overlay\n"
+        "  Ctrl+H     Toggle histogram scale (linear/log)\n"
         "  Space      Pause / resume display and analysis\n"
         "  F1         Show this help\n",
         RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR, prog, DEFAULT_BATCH_SIZE);
@@ -119,8 +120,10 @@ static void process_input(GLFWwindow * window)
     static bool one_pressed   = false;
     static bool f1_pressed    = false;
     static bool h_pressed     = false;
+    static bool h_was_down    = false; // для edge-trigger на Ctrl+H
     static bool space_pressed = false;
     static bool e_pressed     = false;
+
 
     bool s     = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
     bool r     = glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS;
@@ -130,37 +133,50 @@ static void process_input(GLFWwindow * window)
     bool h     = glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS;
     bool space = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
     bool e     = glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS;
+    bool ctrl  = glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS ||
+                 glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS;
 
 
     if (e && !e_pressed)
     {
         gl_render_toggle_saturation();
     }
+
     if (one && !one_pressed)
     {
         gl_render_toggle_smoothing();
     }
+
     if (s && !s_pressed)
     {
         gl_render_request_screenshot();
     }
+
     if (r && !r_pressed)
     {
         saver_toggle_recording();
         gl_render_refresh_title();
     }
+
     if (w && !w_pressed)
     {
         saver_flush();
     }
+
     if (f1 && !f1_pressed)
     {
         help_dialog_show();
     }
-    if (h && !h_pressed)
+
+    if (h && ctrl && !h_was_down)
+    {
+        gl_render_toggle_histogram_scale();
+    }
+    else if (h && !ctrl && !h_pressed)
     {
         gl_render_toggle_histogram();
     }
+
     if (space && !space_pressed)
     {
         g_paused = !g_paused;
@@ -177,7 +193,8 @@ static void process_input(GLFWwindow * window)
     w_pressed     = w;
     one_pressed   = one;
     f1_pressed    = f1;
-    h_pressed     = h;
+    h_pressed     = h && !ctrl;
+    h_was_down    = h;
     space_pressed = space;
 }
 

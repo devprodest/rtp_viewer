@@ -35,10 +35,11 @@ static GLuint g_shot_tex = 0;
 
 // Гистограммы
 static histogram_s g_histogram;
-static bool g_histogram_enabled = false;
-static GLuint g_hist_tex        = 0;
-static GLuint g_hist_program    = 0;
-static GLint g_hist_uniform_tex = -1;
+static bool g_histogram_log_scale = false; ///< true — логарифмическая шкала, false — линейная
+static bool g_histogram_enabled   = false;
+static GLuint g_hist_tex          = 0;
+static GLuint g_hist_program      = 0;
+static GLint g_hist_uniform_tex   = -1;
 
 static GLuint g_format_fbo             = 0; ///< FBO с результатом форматного шейдера
 static GLuint g_format_tex             = 0; ///< Текстура внутри g_format_fbo
@@ -411,7 +412,15 @@ static void build_histogram_image(void)
         {
             for (int x = 0; x < HIST_BINS; x++)
             {
-                int bar = (int)((uint64_t)g_histogram.bins[ 0 ][ x ] * HIST_TEX_H / maxv);
+                int bar;
+                if (g_histogram_log_scale)
+                {
+                    bar = (int)(log(1.0 + (double)g_histogram.bins[ 0 ][ x ]) / log(1.0 + (double)maxv) * HIST_TEX_H);
+                }
+                else
+                {
+                    bar = (int)((uint64_t)g_histogram.bins[ 0 ][ x ] * HIST_TEX_H / maxv);
+                }
 
                 for (int y = 0; y < bar; y++)
                 {
@@ -467,8 +476,18 @@ static void build_histogram_image(void)
 
             for (int x = lo; x <= hi; x++)
             {
-                int xs  = (x - lo) * HIST_BINS / span;
-                int bar = (int)((uint64_t)g_histogram.bins[ c ][ x ] * HIST_BAND_ROWS / maxv);
+                int bar;
+                if (g_histogram_log_scale)
+                {
+                    bar =
+                        (int)(log(1.0 + (double)g_histogram.bins[ c ][ x ]) / log(1.0 + (double)maxv) * HIST_BAND_ROWS);
+                }
+                else
+                {
+                    bar = (int)((uint64_t)g_histogram.bins[ c ][ x ] * HIST_BAND_ROWS / maxv);
+                }
+
+                int xs = (x - lo) * HIST_BINS / span;
 
                 for (int y = 0; y < bar; y++)
                 {
@@ -1284,6 +1303,15 @@ void gl_render_toggle_histogram(void)
     g_histogram_enabled = !g_histogram_enabled;
     gl_render_refresh_title();
     printf("Histogram %s\n", g_histogram_enabled ? "enabled" : "disabled");
+}
+
+void gl_render_toggle_histogram_scale(void)
+{
+    g_histogram_log_scale = !g_histogram_log_scale;
+    printf("Histogram scale: %s\n", g_histogram_log_scale ? "log" : "linear");
+    // Перерисовывать немедленно не нужно: build_histogram_image вызывается
+    // на следующем кадре в update_texture. Если хочется увидеть сразу —
+    // потребуется доступ к последнему сырому буферу, что усложнит API.
 }
 
 void gl_render_toggle_saturation(void)
