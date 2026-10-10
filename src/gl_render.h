@@ -23,7 +23,8 @@ void gl_render_request_screenshot(void);
 void gl_render_toggle_smoothing(void);
 void gl_render_toggle_fullscreen(void);
 void gl_render_toggle_histogram(void);
-void gl_render_toggle_saturation(void);
 void gl_render_toggle_histogram_scale(void);
+void gl_render_toggle_histogram_cdf(void);
+void gl_render_toggle_saturation(void);
 
 void gl_render_set_paused(bool paused);

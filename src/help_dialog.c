@@ -16,6 +16,7 @@ static const char * HELP_BODY =
     "  W \tForce save accumulated frames\n"
     "  S \tSave screenshot (PNG)\n"
     "  H \tToggle histogram overlay. Ctrl+H - linear/log\n"
+    "  C \tToggle histogram CDF overlay\n"
     "  E \tToggle saturation markers (blue=under, red=over)\n"
     "  Space \tPause / resume display and analysis\n"
     "\n"

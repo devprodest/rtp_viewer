@@ -35,11 +35,12 @@ static GLuint g_shot_tex = 0;
 
 // Гистограммы
 static histogram_s g_histogram;
-static bool g_histogram_log_scale = false; ///< true — логарифмическая шкала, false — линейная
-static bool g_histogram_enabled   = false;
-static GLuint g_hist_tex          = 0;
-static GLuint g_hist_program      = 0;
-static GLint g_hist_uniform_tex   = -1;
+static bool g_histogram_log_scale   = false; ///< true — логарифмическая шкала, false — линейная
+static bool g_histogram_enabled     = false;
+static bool g_histogram_cdf_enabled = false;
+static GLuint g_hist_tex            = 0;
+static GLuint g_hist_program        = 0;
+static GLint g_hist_uniform_tex     = -1;
 
 static GLuint g_format_fbo             = 0; ///< FBO с результатом форматного шейдера
 static GLuint g_format_tex             = 0; ///< Текстура внутри g_format_fbo
@@ -375,6 +376,104 @@ static bool hist_format_is_ycbcr(void)
     return g_format_name[ 0 ] != '\0' && strcmp(g_format_name, "ycbcr") == 0;
 }
 
+// Рисует CDF-линию поверх гистограммы.
+// cdf — массив HIST_BINS значений в [0..1] (нормированный кумулятив).
+// x_lo, x_hi — диапазон бинов, попадающий на всю ширину полосы.
+// y_top — верхняя строка полосы (куда рисовать CDF).
+// band_rows — высота полосы в строках.
+// x_map — указатель на массив отображения бина в X-координату (HIST_BINS значений
+//         или NULL, если отображение 1:1 — тогда используется x в диапазоне [x_lo..x_hi]).
+//
+// Здесь мы не используем x_map, а вычисляем xs так же, как build_histogram_image.
+static void draw_cdf_line_channel(const float * cdf, int band_index, int x_lo, int x_hi, int span, uint8_t r, uint8_t g,
+                                  uint8_t b)
+{
+    int y0 = band_index * HIST_BAND_ROWS;
+
+    int prev_y = -1;
+
+    for (int x = x_lo; x <= x_hi; x++)
+    {
+        int xs = (x - x_lo) * HIST_BINS / span;
+        if (xs >= HIST_BINS)
+        {
+            xs = HIST_BINS - 1;
+        }
+
+        // CDF = 0 рисуется в самом низу полосы, CDF = 1 — в самом верху.
+        int y_local = (int)(cdf[ x ] * (float)(HIST_BAND_ROWS - 1) + 0.5f);
+        int y_pix   = y0 + (HIST_BAND_ROWS - 1 - y_local);
+
+        if (prev_y >= 0)
+        {
+            int ya = prev_y < y_pix ? prev_y : y_pix;
+            int yb = prev_y > y_pix ? prev_y : y_pix;
+            for (int y = ya; y <= yb; y++)
+            {
+                if (y >= y0 && y < y0 + HIST_BAND_ROWS)
+                {
+                    g_hist_pixels.by_channel[ band_index ][ y - y0 ][ xs ][ 0 ] = r;
+                    g_hist_pixels.by_channel[ band_index ][ y - y0 ][ xs ][ 1 ] = g;
+                    g_hist_pixels.by_channel[ band_index ][ y - y0 ][ xs ][ 2 ] = b;
+                    g_hist_pixels.by_channel[ band_index ][ y - y0 ][ xs ][ 3 ] = 255;
+                }
+            }
+        }
+        prev_y = y_pix;
+    }
+}
+
+static void draw_cdf_line_gray(const float * cdf, uint8_t r, uint8_t g, uint8_t b)
+{
+    int prev_y = -1;
+
+    for (int x = 0; x < HIST_BINS; x++)
+    {
+        int y_local = (int)(cdf[ x ] * (float)(HIST_TEX_H - 1) + 0.5f);
+        int y_pix   = HIST_TEX_H - 1 - y_local;
+
+        if (prev_y >= 0)
+        {
+            int ya = prev_y < y_pix ? prev_y : y_pix;
+            int yb = prev_y > y_pix ? prev_y : y_pix;
+            for (int y = ya; y <= yb; y++)
+            {
+                g_hist_pixels.by_row[ y ][ x ][ 0 ] = r;
+                g_hist_pixels.by_row[ y ][ x ][ 1 ] = g;
+                g_hist_pixels.by_row[ y ][ x ][ 2 ] = b;
+                g_hist_pixels.by_row[ y ][ x ][ 3 ] = 255;
+            }
+        }
+        prev_y = y_pix;
+    }
+}
+
+// Считает нормированный CDF по бинам одного канала.
+// cdf_out — массив HIST_BINS, значения в [0..1].
+static void compute_cdf_channel(const uint32_t * bins, float * cdf_out)
+{
+    uint64_t total = 0;
+    for (int i = 0; i < HIST_BINS; i++)
+    {
+        total += bins[ i ];
+    }
+    if (total == 0)
+    {
+        for (int i = 0; i < HIST_BINS; i++)
+        {
+            cdf_out[ i ] = 0.0f;
+        }
+        return;
+    }
+
+    uint64_t acc = 0;
+    for (int i = 0; i < HIST_BINS; i++)
+    {
+        acc += bins[ i ];
+        cdf_out[ i ] = (float)acc / (float)total;
+    }
+}
+
 // Заполняет g_hist_pixels растр для текстуры гистограммы.
 // Grayscale: одна белая гистограмма на всю высоту.
 // RGB: три полосы (R/G/B), полный диапазон 0..255.
@@ -427,6 +526,13 @@ static void build_histogram_image(void)
                     g_hist_pixels.by_row[ HIST_TEX_H - 1 - y ][ x ][ 3 ] = HIST_BIN_OPACITY;
                 }
             }
+        }
+
+        if (g_histogram_cdf_enabled && maxv > 0)
+        {
+            float cdf[ HIST_BINS ];
+            compute_cdf_channel(g_histogram.bins[ 0 ], cdf);
+            draw_cdf_line_gray(cdf, 255, 255, 0);
         }
     }
     else if (g_histogram.active_channels == 3)
@@ -492,6 +598,29 @@ static void build_histogram_image(void)
                 for (int y = 0; y < bar; y++)
                 {
                     g_hist_pixels.by_channel[ c ][ HIST_BAND_ROWS - 1 - y ][ xs ][ 3 ] = HIST_BIN_OPACITY;
+                }
+            }
+
+            if (g_histogram_cdf_enabled)
+            {
+                static const uint8_t cdf_colors[ 3 ][ 3 ] = {
+                    {255, 255, 0  }, // жёлтый
+                    {0,   255, 255}, // cyan
+                    {255, 0,   255}, // magenta
+                };
+
+                for (int c = 0; c < 3; c++)
+                {
+                    float cdf[ HIST_BINS ];
+                    compute_cdf_channel(g_histogram.bins[ c ], cdf);
+
+                    const bool use_window = is_ycbcr && c != 0;
+                    const int lo          = use_window ? 96 : 0;
+                    const int hi          = use_window ? 160 : (HIST_BINS - 1);
+                    const int span        = hi - lo + 1;
+
+                    draw_cdf_line_channel(cdf, c, lo, hi, span, cdf_colors[ c ][ 0 ], cdf_colors[ c ][ 1 ],
+                                          cdf_colors[ c ][ 2 ]);
                 }
             }
         }
@@ -1000,8 +1129,8 @@ bool gl_render_init(int width, int height, const char * format_name, int effecti
     // ---- Оверлей гистограммы ----
     glGenTextures(1, &g_hist_tex);
     glBindTexture(GL_TEXTURE_2D, g_hist_tex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, HIST_BINS, HIST_TEX_H, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
@@ -1312,6 +1441,12 @@ void gl_render_toggle_histogram_scale(void)
     // Перерисовывать немедленно не нужно: build_histogram_image вызывается
     // на следующем кадре в update_texture. Если хочется увидеть сразу —
     // потребуется доступ к последнему сырому буферу, что усложнит API.
+}
+
+void gl_render_toggle_histogram_cdf(void)
+{
+    g_histogram_cdf_enabled = !g_histogram_cdf_enabled;
+    printf("Histogram CDF %s\n", g_histogram_cdf_enabled ? "enabled" : "disabled");
 }
 
 void gl_render_toggle_saturation(void)

@@ -95,6 +95,7 @@ static void print_usage(const char * prog)
         "  W          Force save current accumulated frames\n"
         "  H          Toggle histogram overlay\n"
         "  Ctrl+H     Toggle histogram scale (linear/log)\n"
+        "  C          Toggle histogram CDF overlay\n"
         "  Space      Pause / resume display and analysis\n"
         "  F1         Show this help\n",
         RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR, prog, DEFAULT_BATCH_SIZE);
@@ -123,8 +124,9 @@ static void process_input(GLFWwindow * window)
     static bool h_was_down    = false; // для edge-trigger на Ctrl+H
     static bool space_pressed = false;
     static bool e_pressed     = false;
+    static bool c_pressed     = false;
 
-
+    bool c     = glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS;
     bool s     = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
     bool r     = glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS;
     bool w     = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
@@ -187,6 +189,12 @@ static void process_input(GLFWwindow * window)
         gl_render_set_paused(g_paused);
     }
 
+    if (c && !c_pressed)
+    {
+        gl_render_toggle_histogram_cdf();
+    }
+
+    c_pressed     = c;
     e_pressed     = e;
     s_pressed     = s;
     r_pressed     = r;
