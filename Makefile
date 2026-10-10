@@ -16,23 +16,14 @@ PUBLISH_DIR  = publish
 VERSION := $(shell sed -n 's/.*RTP_VIEWER_VERSION_STR *"\([^"]*\)".*/\1/p' $(SRC_DIR)/version.h)
 ARCHIVE  = rtp_viewer_$(VERSION).zip
 
-SRCS  = $(SRC_DIR)/main.c
-SRCS += $(SRC_DIR)/rtp.c
-SRCS += $(SRC_DIR)/gl_render.c
-SRCS += $(SRC_DIR)/gl_api.c
-SRCS += $(SRC_DIR)/stats.c
-SRCS += $(SRC_DIR)/saver.c
-SRCS += $(SRC_DIR)/utils.c
-SRCS += $(SRC_DIR)/png_writer.c
-SRCS += $(SRC_DIR)/help_dialog.c
-SRCS += $(SRC_DIR)/histogram.c
+SRCS := $(wildcard $(SRC_DIR)/*.c)
 
 # --- Windows resources ---
 RES_OBJ = obj/version.o
 
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o) $(RES_OBJ)
 
-CFLAGS  = -std=gnu2x -Wall -Wextra -O2 -g -Isrc -Ilib/glfw/include
+CFLAGS  = -std=gnu2x -Wall -Wextra -O2 -g -Isrc -Ilib/glfw/include -Ilib
 LDFLAGS = -Llib/glfw/lib -lglfw3 -lopengl32 -lgdi32 -luser32 -lshell32 -lws2_32
 
 all: $(TARGET)

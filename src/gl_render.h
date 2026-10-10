@@ -22,3 +22,4 @@ void gl_render_request_screenshot(void);
 void gl_render_toggle_smoothing(void);
 void gl_render_toggle_fullscreen(void);
 void gl_render_toggle_histogram(void);
+void gl_render_set_paused(bool paused);

@@ -35,6 +35,8 @@ PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer                 = nullptr;
 PFNGLFRAMEBUFFERTEXTURE2DPROC glFramebufferTexture2D       = nullptr;
 PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus   = nullptr;
 PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers           = nullptr;
+PFNGLDELETEBUFFERSPROC glDeleteBuffers                     = nullptr;
+;
 
 #define LOAD(name)                                                          \
     ({                                                                      \
@@ -78,6 +80,7 @@ int gl_api_load(void)
     LOAD(glFramebufferTexture2D);
     LOAD(glCheckFramebufferStatus);
     LOAD(glDeleteFramebuffers);
+    LOAD(glDeleteBuffers);
 
     return 0;
 }

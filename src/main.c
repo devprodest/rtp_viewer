@@ -10,8 +10,10 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include "file_source.h"
 #include "gl_render.h"
 #include "help_dialog.h"
+#include "mouse_state.h"
 #include "rtp.h"
 #include "saver.h"
 #include "stats.h"
@@ -31,6 +33,23 @@
 
 static volatile bool g_running = true;
 
+static uint8_t * g_frame_buffers[ NUM_FRAME_BUFFERS ] = {nullptr, nullptr};
+
+static bool g_paused             = false;
+static uint8_t * g_paused_buffer = nullptr;
+static int g_last_rendered_idx   = 0;
+static bool g_has_rendered       = false;
+static size_t g_frame_bytes      = 0;
+
+const char * source_file = nullptr;
+int mock_fps             = 25;
+bool seen_i              = false;
+
+static const uint8_t * frame_buffers_for_pause(void)
+{
+    return g_frame_buffers[ g_last_rendered_idx ];
+}
+
 static void signal_handler(int sig)
 {
     (void)sig;
@@ -42,14 +61,18 @@ static void print_usage(const char * prog)
     printf(
         "%s v%s\n"
         "\n"
-        "Usage: %s -x <width> -y <height> -p <port> -f <format> [options]\n"
+        "Usage: %s -x <width> -y <height> [-p <port> | -i <file>] -f <format> [options]\n"
         "\n"
         "Required:\n"
         "  -x <width>          Video width in pixels (1..65535)\n"
         "  -y <height>         Video height in pixels (1..65535)\n"
-        "  -p <port>           UDP port to listen on (1..65535)\n"
         "  -f <format>         Pixel format name (e.g. gray8, rgb888, bayerRGGB)\n"
         "                      File formats/<format>.fmt must exist\n"
+        "\n"
+        "Input (one of):\n"
+        "  -p <port>           UDP port to listen on (1..65535)\n"
+        "  -i <file>           Replay .raw file instead of UDP\n"
+        "                      Frames are read at mock speed and looped\n"
         "\n"
         "Optional:\n"
         "  -e <bits>           Effective bits for gray16 (1..16, default 16)\n"
@@ -70,6 +93,7 @@ static void print_usage(const char * prog)
         "  R          Toggle recording (on/off)\n"
         "  W          Force save current accumulated frames\n"
         "  H          Toggle histogram overlay\n"
+        "  Space      Pause / resume display and analysis\n"
         "  F1         Show this help\n",
         RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR, prog, DEFAULT_BATCH_SIZE);
 }
@@ -88,19 +112,21 @@ static bool dir_exists(const char * path)
 
 static void process_input(GLFWwindow * window)
 {
-    static bool s_pressed   = false;
-    static bool r_pressed   = false;
-    static bool w_pressed   = false;
-    static bool one_pressed = false;
-    static bool f1_pressed  = false;
-    static bool h_pressed  = false;
+    static bool s_pressed     = false;
+    static bool r_pressed     = false;
+    static bool w_pressed     = false;
+    static bool one_pressed   = false;
+    static bool f1_pressed    = false;
+    static bool h_pressed     = false;
+    static bool space_pressed = false;
 
-    bool s   = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
-    bool r   = glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS;
-    bool w   = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
-    bool one = glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS;
-    bool f1  = glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS;
-    bool h   = glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS;
+    bool s     = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
+    bool r     = glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS;
+    bool w     = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
+    bool one   = glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS;
+    bool f1    = glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS;
+    bool h     = glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS;
+    bool space = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
 
     if (one && !one_pressed)
     {
@@ -127,13 +153,23 @@ static void process_input(GLFWwindow * window)
     {
         gl_render_toggle_histogram();
     }
+    if (space && !space_pressed)
+    {
+        g_paused = !g_paused;
+        if (g_paused && g_has_rendered && g_paused_buffer)
+        {
+            memcpy(g_paused_buffer, frame_buffers_for_pause(), g_frame_bytes);
+        }
+        gl_render_set_paused(g_paused);
+    }
 
-    s_pressed   = s;
-    r_pressed   = r;
-    w_pressed   = w;
-    one_pressed = one;
-    f1_pressed  = f1;
-    h_pressed   = h;
+    s_pressed     = s;
+    r_pressed     = r;
+    w_pressed     = w;
+    one_pressed   = one;
+    f1_pressed    = f1;
+    h_pressed     = h;
+    space_pressed = space;
 }
 
 int main(int argc, char ** argv)
@@ -163,13 +199,14 @@ int main(int argc, char ** argv)
     bool seen_o = false;
 
     static struct option long_opts[] = {
-        {"help",    no_argument, nullptr, 'h'},
-        {"version", no_argument, nullptr, 'V'},
-        {nullptr,   0,           nullptr, 0  }
+        {"help",    no_argument,       nullptr, 'h'},
+        {"version", no_argument,       nullptr, 'V'},
+        {"input",   required_argument, nullptr, 'i'},
+        {nullptr,   0,                 nullptr, 0  }
     };
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "x:y:p:f:e:s:b:t:l:o:ShV", long_opts, nullptr)) != -1)
+    while ((opt = getopt_long(argc, argv, "x:y:p:f:e:s:b:t:l:o:i:ShV", long_opts, nullptr)) != -1)
     {
         switch (opt)
         {
@@ -224,6 +261,23 @@ int main(int argc, char ** argv)
                 }
                 port   = (int)v;
                 seen_p = true;
+            }
+            break;
+
+            case 'i':
+            {
+                if (seen_i)
+                {
+                    fprintf(stderr, "Error: -i определен более одного раза\n");
+                    return EXIT_FAILURE;
+                }
+                if (*optarg == '\0')
+                {
+                    fprintf(stderr, "Error: -i ожидается путь к .raw-файлу\n");
+                    return EXIT_FAILURE;
+                }
+                source_file = optarg;
+                seen_i      = true;
             }
             break;
 
@@ -349,41 +403,42 @@ int main(int argc, char ** argv)
             }
             break;
 
-            case 'S':
-                smooth_start = true;
-                break;
+            case 'S': smooth_start = true; break;
 
-            case 'h':
-                print_usage(argv[0]);
-                return EXIT_SUCCESS;
+            case 'h': print_usage(argv[ 0 ]); return EXIT_SUCCESS;
 
             case 'V':
                 printf("%s v%s\n%s\n", RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR, RTP_VIEWER_COPYRIGHT);
                 return EXIT_SUCCESS;
 
             case '?':
-            default:
-                print_usage(argv[0]);
-                return EXIT_FAILURE;
+            default: print_usage(argv[ 0 ]); return EXIT_FAILURE;
         }
     }
 
     if (optind < argc)
     {
-        fprintf(stderr, "Error: неизвестный аргумент: '%s'\n", argv[optind]);
-        print_usage(argv[0]);
+        fprintf(stderr, "Error: неизвестный аргумент: '%s'\n", argv[ optind ]);
+        print_usage(argv[ 0 ]);
         return EXIT_FAILURE;
     }
 
-    if (width == 0 || height == 0 || port == 0 || format == nullptr)
+    if (width == 0 || height == 0 || format == nullptr)
     {
-        fprintf(stderr, "Error: -x, -y, -p и -f обязательные аргументы\n");
-        print_usage(argv[0]);
+        fprintf(stderr, "Error: -x, -y и -f обязательные аргументы\n");
+        print_usage(argv[ 0 ]);
+        return EXIT_FAILURE;
+    }
+
+    if (!source_file && port == 0)
+    {
+        fprintf(stderr, "Error: -p обязателен, если не задан -i\n");
+        print_usage(argv[ 0 ]);
         return EXIT_FAILURE;
     }
 
     {
-        char fmt_path[512];
+        char fmt_path[ 512 ];
         snprintf(fmt_path, sizeof(fmt_path), "formats/%s.fmt", format);
         if (!file_exists(fmt_path))
         {
@@ -414,7 +469,7 @@ int main(int argc, char ** argv)
 
         if (slash && slash != logfile)
         {
-            char dirbuf[512];
+            char dirbuf[ 512 ];
             size_t n = (size_t)(slash - logfile);
             if (n >= sizeof(dirbuf))
             {
@@ -422,7 +477,7 @@ int main(int argc, char ** argv)
                 return EXIT_FAILURE;
             }
             memcpy(dirbuf, logfile, n);
-            dirbuf[n] = '\0';
+            dirbuf[ n ] = '\0';
             if (!dir_exists(dirbuf))
             {
                 fprintf(stderr, "Error: Директория для сохранения лога не сужществует: %s\n", dirbuf);
@@ -449,27 +504,45 @@ int main(int argc, char ** argv)
     // Заголовок окна содержит актуальное состояние записи
     gl_render_refresh_title();
 
-    int sock = rtp_socket_open(port);
-    if (sock < 0)
+    int sock             = -1;
+    bool use_file_source = (source_file != nullptr);
+
+    if (use_file_source)
     {
-        fprintf(stderr, "Error: Не удалось открыть UDP сокет на порту %d\n", port);
-        gl_render_cleanup();
-        stats_cleanup();
-        return EXIT_FAILURE;
+        if (!file_source_open(source_file, width, height, gl_render_get_bytes_per_pixel(), mock_fps))
+        {
+            fprintf(stderr, "Error: Не удалось открыть источник %s\n", source_file);
+            saver_cleanup();
+            gl_render_cleanup();
+            stats_cleanup();
+            return EXIT_FAILURE;
+        }
+    }
+    else
+    {
+        sock = rtp_socket_open(port);
+        if (sock < 0)
+        {
+            fprintf(stderr, "Error: Не удалось открыть UDP сокет на порту %d\n", port);
+            gl_render_cleanup();
+            stats_cleanup();
+            return EXIT_FAILURE;
+        }
     }
 
     signal(SIGINT, signal_handler);
 
-    uint8_t * frame_buffers[NUM_FRAME_BUFFERS];
+    g_frame_bytes = (size_t)width * (size_t)height * (size_t)bpp;
+
     for (int i = 0; i < NUM_FRAME_BUFFERS; i++)
     {
-        frame_buffers[i] = calloc(1, (size_t)width * height * (size_t)bpp);
-        if (!frame_buffers[i])
+        g_frame_buffers[ i ] = calloc(1, g_frame_bytes);
+        if (!g_frame_buffers[ i ])
         {
             perror("calloc frame buffer");
             for (int j = 0; j < i; j++)
             {
-                free(frame_buffers[j]);
+                free(g_frame_buffers[ j ]);
             }
             gl_render_cleanup();
             RTP_CLOSE_SOCKET(sock);
@@ -478,31 +551,80 @@ int main(int argc, char ** argv)
         }
     }
 
+    // Буфер для pause: третий, не участвует в обороте RTP.
+    g_paused_buffer = calloc(1, g_frame_bytes);
+    if (!g_paused_buffer)
+    {
+        perror("calloc paused buffer");
+        for (int i = 0; i < NUM_FRAME_BUFFERS; i++)
+        {
+            free(g_frame_buffers[ i ]);
+        }
+        gl_render_cleanup();
+        RTP_CLOSE_SOCKET(sock);
+        stats_cleanup();
+        return EXIT_FAILURE;
+    }
+
+
     int recv_idx = 0;
 
     rtp_frame_state_s state;
     rtp_frame_state_init(&state, (uint16_t)width, (uint16_t)height, (uint16_t)bpp);
 
     GLFWwindow * window = gl_render_get_window();
+    mouse_state_init(window);
+
+    mouse_state_s mouse;
 
     while (g_running && !glfwWindowShouldClose(window))
     {
         gl_render_poll_events();
+        mouse_state_update(window, &mouse);
         process_input(window);
 
-        int received = rtp_receive_packets(sock, &state, frame_buffers[recv_idx]);
-        if (received > 0)
-        {
-            stats_add_packets(received);
-        }
+        int received;
+        bool frame_ready;
 
-        bool frame_ready = rtp_frame_is_ready(&state) || rtp_frame_check_timeout(&state);
+        if (use_file_source)
+        {
+            received = file_source_receive_frame(&state, g_frame_buffers[ recv_idx ]);
+            if (received < 0)
+            {
+                fprintf(stderr, "Error: file_source read error\n");
+                break;
+            }
+            // Кадр готов ровно тогда, когда receive вернул 1.
+            state.frame_ready = (received == 1);
+            frame_ready       = state.frame_ready;
+        }
+        else
+        {
+            received = rtp_receive_packets(sock, &state, g_frame_buffers[ recv_idx ]);
+            if (received > 0)
+            {
+                stats_add_packets(received);
+            }
+            frame_ready = rtp_frame_is_ready(&state) || rtp_frame_check_timeout(&state);
+        }
 
         if (frame_ready)
         {
-            gl_render_update_texture(frame_buffers[recv_idx]);
-            saver_add_frame(frame_buffers[recv_idx]);
+            if (g_paused)
+            {
+                // Показываем снапшот. Saver продолжает писать живые кадры.
+                gl_render_update_texture(g_paused_buffer);
+            }
+            else
+            {
+                gl_render_update_texture(g_frame_buffers[ recv_idx ]);
+            }
+
+            saver_add_frame(g_frame_buffers[ recv_idx ]);
             stats_frame_rendered();
+
+            g_last_rendered_idx = recv_idx;
+            g_has_rendered      = true;
 
             recv_idx = (recv_idx + 1) % NUM_FRAME_BUFFERS;
             rtp_frame_state_reset(&state);
@@ -514,13 +636,17 @@ int main(int argc, char ** argv)
 
     for (int i = 0; i < NUM_FRAME_BUFFERS; i++)
     {
-        free(frame_buffers[i]);
+        free(g_frame_buffers[ i ]);
     }
 
     saver_cleanup();
     stats_cleanup();
     gl_render_cleanup();
-    RTP_CLOSE_SOCKET(sock);
+    file_source_close();
+    if (sock >= 0)
+    {
+        RTP_CLOSE_SOCKET(sock);
+    }
 
     return EXIT_SUCCESS;
 }

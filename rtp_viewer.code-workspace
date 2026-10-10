@@ -24,10 +24,12 @@
 		],
 		"make-to-cpp-props.configurations": [
 			{
-				"name": "default",
+				"name": "rtp-viewer",
 				"includePath": [
-					"lib/GLFW/include/GLFW",
-					"src",
+					"./lib/GLFW/include/GLFW",
+					"./lib/**",
+					"./lib",
+					"./src",
 				],
 			}
 		]

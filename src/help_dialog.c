@@ -10,22 +10,26 @@
 
 static const char * HELP_BODY =
     "\n"
+    "  F1 \tShow this help\n"
     "  1 \tToggle smoothing (linear / nearest)\n"
-    "  S \tSave screenshot (PNG)\n"
     "  R \tToggle recording (on / off)\n"
     "  W \tForce save accumulated frames\n"
+    "  S \tSave screenshot (PNG)\n"
     "  H \tToggle histogram overlay\n"
-    "  F1 \tShow this help\n"
+    "  Space \tPause / resume display and analysis\n"
     "\n"
-    "  Double-click   Toggle fullscreen\n";
+    "  Double-click   Toggle fullscreen\n"
+    "\n"
+    "Replay: run with -i <file.raw> to play a recorded stream.\n";
 
-static char g_help_text[1024];
+
+static char g_help_text[ 1024 ];
 
 static const char * build_help_text(void)
 {
     snprintf(g_help_text, sizeof(g_help_text), "%s v%s\n%s", //
              RTP_VIEWER_PRODUCT_NAME,
-             RTP_VIEWER_VERSION_STR,                         //
+             RTP_VIEWER_VERSION_STR, //
              HELP_BODY);
     return g_help_text;
 }

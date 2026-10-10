@@ -4,6 +4,7 @@
 #include "png_writer.h"
 #include "saver.h"
 #include "stats.h"
+#include "text_overlay.h"
 #include "utils.h"
 
 #include <math.h>
@@ -26,6 +27,7 @@ static int g_eff_bits                 = 16;
 static bool g_smoothing               = false;
 static int g_demosaic_mode            = 0;
 static bool g_screenshot_requested    = false;
+static bool g_paused                  = false;
 
 static GLuint g_vao      = 0;
 static GLuint g_shot_fbo = 0;
@@ -46,12 +48,12 @@ static GLint g_hist_uniform_tex = -1;
 _Static_assert(HIST_TEX_H % 3 == 0, "HIST_TEX_H must be divisible by 3");
 
 
-typedef uint8_t hist_pixel_t[4]; // [R, G, B, A]
+typedef uint8_t hist_pixel_t[ 4 ]; // [R, G, B, A]
 
 static union
 {
-    hist_pixel_t by_channel[HIST_CHANNELS][HIST_BAND_ROWS][HIST_BINS];
-    hist_pixel_t by_row[HIST_TEX_H][HIST_BINS];
+    hist_pixel_t by_channel[ HIST_CHANNELS ][ HIST_BAND_ROWS ][ HIST_BINS ];
+    hist_pixel_t by_row[ HIST_TEX_H ][ HIST_BINS ];
 } g_hist_pixels;
 
 // Для переключения fullscreen двойным кликом
@@ -64,18 +66,18 @@ static double g_last_click_time = 0.0;
 
 
 // Для заголовка окна
-static char g_format_name[64] = {0};
+static char g_format_name[ 64 ] = {0};
 
 typedef struct format_config_s
 {
-    char name[64];
+    char name[ 64 ];
     int bytes_per_pixel;
     int gl_internal_format;
     int gl_format;
     int gl_type;
-    char shader_file[256];
+    char shader_file[ 256 ];
     bool needs_demosaic;
-    char bayer_pattern[8];
+    char bayer_pattern[ 8 ];
 } format_config_s;
 
 static format_config_s g_format;
@@ -135,7 +137,7 @@ static int parse_gl_enum(const char * value)
 
 static bool parse_format_file(const char * format_name, format_config_s * cfg)
 {
-    char path[256];
+    char path[ 256 ];
     snprintf(path, sizeof(path), "formats/%s.fmt", format_name);
 
     FILE * f = fopen(path, "r");
@@ -154,7 +156,7 @@ static bool parse_format_file(const char * format_name, format_config_s * cfg)
     cfg->needs_demosaic = false;
     strcpy(cfg->bayer_pattern, "RGGB");
 
-    char line[256];
+    char line[ 256 ];
     while (fgets(line, sizeof(line), f))
     {
         char * comment = strchr(line, '#');
@@ -224,7 +226,7 @@ static bool parse_format_file(const char * format_name, format_config_s * cfg)
         else if (strcmp(key, "shader_file") == 0)
         {
             strncpy(cfg->shader_file, value, sizeof(cfg->shader_file) - 1);
-            cfg->shader_file[sizeof(cfg->shader_file) - 1] = '\0';
+            cfg->shader_file[ sizeof(cfg->shader_file) - 1 ] = '\0';
         }
         else if (strcmp(key, "needs_demosaic") == 0)
         {
@@ -288,7 +290,7 @@ static bool ensure_shot_fbo(void)
 // вынести признак в .fmt.
 static bool hist_format_is_ycbcr(void)
 {
-    return g_format_name[0] != '\0' && strcmp(g_format_name, "ycbcr") == 0;
+    return g_format_name[ 0 ] != '\0' && strcmp(g_format_name, "ycbcr") == 0;
 }
 
 // Заполняет g_hist_pixels растр для текстуры гистограммы.
@@ -315,24 +317,24 @@ static void build_histogram_image(void)
         {
             for (size_t x = 0; x < HIST_BINS; x++)
             {
-                g_hist_pixels.by_row[y][x][0] = 255;
-                g_hist_pixels.by_row[y][x][1] = 255;
-                g_hist_pixels.by_row[y][x][2] = 255;
-                g_hist_pixels.by_row[y][x][3] = HIST_BACKGROUND_OPACITY;
+                g_hist_pixels.by_row[ y ][ x ][ 0 ] = 255;
+                g_hist_pixels.by_row[ y ][ x ][ 1 ] = 255;
+                g_hist_pixels.by_row[ y ][ x ][ 2 ] = 255;
+                g_hist_pixels.by_row[ y ][ x ][ 3 ] = HIST_BACKGROUND_OPACITY;
             }
         }
 
         // Grayscale: один столбик на всю высоту.
-        const uint32_t maxv = g_histogram.max_per_channel[0];
+        const uint32_t maxv = g_histogram.max_per_channel[ 0 ];
         if (maxv > 0)
         {
             for (int x = 0; x < HIST_BINS; x++)
             {
-                int bar = (int)((uint64_t)g_histogram.bins[0][x] * HIST_TEX_H / maxv);
+                int bar = (int)((uint64_t)g_histogram.bins[ 0 ][ x ] * HIST_TEX_H / maxv);
 
                 for (int y = 0; y < bar; y++)
                 {
-                    g_hist_pixels.by_row[HIST_TEX_H - 1 - y][x][3] = HIST_BIN_OPACITY;
+                    g_hist_pixels.by_row[ HIST_TEX_H - 1 - y ][ x ][ 3 ] = HIST_BIN_OPACITY;
                 }
             }
         }
@@ -340,19 +342,19 @@ static void build_histogram_image(void)
     else if (g_histogram.active_channels == 3)
     {
         // RGB / YCbCr: три полосы, вью by_channel.
-        static const uint8_t col_rgb[3][3] = {
+        static const uint8_t col_rgb[ 3 ][ 3 ] = {
             {255, 0,   0  }, // R
             {0,   255, 0  }, // G
             {0,   0,   255}, // B
         };
-        static const uint8_t col_ycbcr[3][3] = {
+        static const uint8_t col_ycbcr[ 3 ][ 3 ] = {
             {220, 220, 220}, // Y
             {80,  120, 255}, // Cb
             {255, 80,  80 }, // Cr
         };
         const bool is_ycbcr = hist_format_is_ycbcr();
 
-        const uint8_t (*color)[3][3] = is_ycbcr ? &col_ycbcr : &col_rgb;
+        const uint8_t (*color)[ 3 ][ 3 ] = is_ycbcr ? &col_ycbcr : &col_rgb;
 
         for (size_t c = 0; c < 3; c++)
         {
@@ -360,10 +362,10 @@ static void build_histogram_image(void)
             {
                 for (size_t x = 0; x < HIST_BINS; x++)
                 {
-                    g_hist_pixels.by_channel[c][y][x][0] = (*color)[c][0];
-                    g_hist_pixels.by_channel[c][y][x][1] = (*color)[c][1];
-                    g_hist_pixels.by_channel[c][y][x][2] = (*color)[c][2];
-                    g_hist_pixels.by_channel[c][y][x][3] = HIST_BACKGROUND_OPACITY;
+                    g_hist_pixels.by_channel[ c ][ y ][ x ][ 0 ] = (*color)[ c ][ 0 ];
+                    g_hist_pixels.by_channel[ c ][ y ][ x ][ 1 ] = (*color)[ c ][ 1 ];
+                    g_hist_pixels.by_channel[ c ][ y ][ x ][ 2 ] = (*color)[ c ][ 2 ];
+                    g_hist_pixels.by_channel[ c ][ y ][ x ][ 3 ] = HIST_BACKGROUND_OPACITY;
                 }
             }
         }
@@ -376,7 +378,7 @@ static void build_histogram_image(void)
             const int hi          = use_window ? 160 : (HIST_BINS - 1);
             const int span        = hi - lo + 1;
 
-            const uint32_t maxv = g_histogram.max_per_channel[c];
+            const uint32_t maxv = g_histogram.max_per_channel[ c ];
             if (maxv == 0)
             {
                 continue;
@@ -385,11 +387,11 @@ static void build_histogram_image(void)
             for (int x = lo; x <= hi; x++)
             {
                 int xs  = (x - lo) * HIST_BINS / span;
-                int bar = (int)((uint64_t)g_histogram.bins[c][x] * HIST_BAND_ROWS / maxv);
+                int bar = (int)((uint64_t)g_histogram.bins[ c ][ x ] * HIST_BAND_ROWS / maxv);
 
                 for (int y = 0; y < bar; y++)
                 {
-                    g_hist_pixels.by_channel[c][HIST_BAND_ROWS - 1 - y][xs][3] = HIST_BIN_OPACITY;
+                    g_hist_pixels.by_channel[ c ][ HIST_BAND_ROWS - 1 - y ][ xs ][ 3 ] = HIST_BIN_OPACITY;
                 }
             }
         }
@@ -417,7 +419,7 @@ static void compute_histogram(const uint8_t * data)
         g_histogram.active_channels = 1;
         for (size_t i = 0; i < n; i++)
         {
-            histogram_add(&g_histogram, 0, data[i]);
+            histogram_add(&g_histogram, 0, data[ i ]);
         }
     }
     else if (g_format.gl_format == GL_RED && g_format.gl_type == GL_UNSIGNED_SHORT)
@@ -426,7 +428,7 @@ static void compute_histogram(const uint8_t * data)
         const uint16_t * p          = (const uint16_t *)data;
         for (size_t i = 0; i < n; i++)
         {
-            histogram_add(&g_histogram, 0, p[i] >> 8);
+            histogram_add(&g_histogram, 0, p[ i ] >> 8);
         }
     }
     else if ((g_format.gl_format == GL_RGB || g_format.gl_format == GL_RGBA) && g_format.gl_type == GL_UNSIGNED_BYTE)
@@ -436,9 +438,9 @@ static void compute_histogram(const uint8_t * data)
         for (size_t i = 0; i < n; i++)
         {
             const uint8_t * px = data + (i * (size_t)step);
-            histogram_add(&g_histogram, 0, px[0]);
-            histogram_add(&g_histogram, 1, px[1]);
-            histogram_add(&g_histogram, 2, px[2]);
+            histogram_add(&g_histogram, 0, px[ 0 ]);
+            histogram_add(&g_histogram, 1, px[ 1 ]);
+            histogram_add(&g_histogram, 2, px[ 2 ]);
         }
     }
     else
@@ -513,20 +515,20 @@ static void save_screenshot_internal(void)
         uint8_t * b = pixels + ((size_t)(g_height - 1 - y) * stride);
         for (size_t i = 0; i < stride; i++)
         {
-            uint8_t t = a[i];
-            a[i]      = b[i];
-            b[i]      = t;
+            uint8_t t = a[ i ];
+            a[ i ]    = b[ i ];
+            b[ i ]    = t;
         }
     }
 
     time_t t           = time(nullptr);
     struct tm * tm_now = localtime(&t);
 
-    char stamp[32];
+    char stamp[ 32 ];
     strftime(stamp, sizeof(stamp), "%Y%m%d_%H%M%S", tm_now);
 
     const char * outdir = saver_get_outdir();
-    char path[1024];
+    char path[ 1024 ];
     snprintf(path, sizeof(path), "%s/screenshot_%s.png", outdir, stamp);
 
     if (png_write_rgba(path, pixels, g_width, g_height))
@@ -551,7 +553,7 @@ static GLuint compile_shader(const char * source, GLenum type)
     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
     if (!success)
     {
-        char info[512];
+        char info[ 512 ];
         glGetShaderInfoLog(shader, sizeof(info), nullptr, info);
         fprintf(stderr, "Shader compilation error: %s\n", info);
         glDeleteShader(shader);
@@ -595,7 +597,7 @@ static GLuint build_program(const char * fragment_source)
     glGetProgramiv(prog, GL_LINK_STATUS, &success);
     if (!success)
     {
-        char info[512];
+        char info[ 512 ];
         glGetProgramInfoLog(prog, sizeof(info), nullptr, info);
         fprintf(stderr, "Program linking error: %s\n", info);
         glDeleteShader(vertex);
@@ -645,14 +647,14 @@ void gl_render_refresh_title(void)
         return;
     }
 
-    char title[160];
+    char title[ 160 ];
 
     snprintf(title, sizeof(title), "RTP Viewer - %dx%d %s fps:%.1f%s%s%s", //
              g_width, g_height,                                            //
-             g_format_name[0] ? g_format_name : "?",                       //
+             g_format_name[ 0 ] ? g_format_name : "?",                     //
              stats_get_fps(),                                              //
              g_smoothing ? " [SMOOTH]" : "",                               //
-             g_histogram_enabled ? " [HIST]" : "",                         //
+             g_paused ? " [PAUSE]" : "",                                   //
              saver_is_recording() ? " [REC]" : "");
 
     glfwSetWindowTitle(g_window, title);
@@ -704,9 +706,9 @@ void gl_render_toggle_fullscreen(void)
         for (int i = 0; i < monitor_count; i++)
         {
             int mx = 0, my = 0;
-            glfwGetMonitorPos(monitors[i], &mx, &my);
+            glfwGetMonitorPos(monitors[ i ], &mx, &my);
 
-            const GLFWvidmode * mode = glfwGetVideoMode(monitors[i]);
+            const GLFWvidmode * mode = glfwGetVideoMode(monitors[ i ]);
             if (!mode)
             {
                 continue;
@@ -720,7 +722,7 @@ void gl_render_toggle_fullscreen(void)
 
             if (win_center_x >= m_left && win_center_x < m_right && win_center_y >= m_top && win_center_y < m_bottom)
             {
-                target = monitors[i];
+                target = monitors[ i ];
                 break;
             }
         }
@@ -795,9 +797,11 @@ bool gl_render_init(int width, int height, const char * format_name, int effecti
         return false;
     }
 
+    text_overlay_init();
+
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-    char shader_path[512];
+    char shader_path[ 512 ];
     snprintf(shader_path, sizeof(shader_path), "formats/%s", g_format.shader_file);
 
     char * frag_source = read_file(shader_path);
@@ -1006,6 +1010,12 @@ void gl_render_update_texture(const uint8_t * data)
 
     glBindVertexArray(0);
 
+    // --- Текстовый оверлей ---
+    text_begin(win_w, win_h);
+    // Здесь позже будут вызовы text_draw(...). Пока — пусто, чтобы
+    // убедиться, что pipeline собирается.
+    text_end();
+
     if (g_screenshot_requested)
     {
         g_screenshot_requested = false;
@@ -1055,6 +1065,7 @@ void gl_render_cleanup(void)
         glDeleteTextures(1, &g_hist_tex);
     }
 
+    text_overlay_cleanup();
     glfwTerminate();
 
     g_vao          = 0;
@@ -1107,4 +1118,10 @@ void gl_render_toggle_histogram(void)
     g_histogram_enabled = !g_histogram_enabled;
     gl_render_refresh_title();
     printf("Histogram %s\n", g_histogram_enabled ? "enabled" : "disabled");
+}
+
+void gl_render_set_paused(bool paused)
+{
+    g_paused = paused;
+    gl_render_refresh_title();
 }
