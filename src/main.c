@@ -89,6 +89,7 @@ static void print_usage(const char * prog)
         "\n"
         "Hotkeys:\n"
         "  1          Toggle smoothing (linear/nearest)\n"
+        "  E          Toggle saturation markers (blue=under, red=over)\n"
         "  S          Save screenshot (PNG)\n"
         "  R          Toggle recording (on/off)\n"
         "  W          Force save current accumulated frames\n"
@@ -119,6 +120,7 @@ static void process_input(GLFWwindow * window)
     static bool f1_pressed    = false;
     static bool h_pressed     = false;
     static bool space_pressed = false;
+    static bool e_pressed     = false;
 
     bool s     = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
     bool r     = glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS;
@@ -127,7 +129,13 @@ static void process_input(GLFWwindow * window)
     bool f1    = glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS;
     bool h     = glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS;
     bool space = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
+    bool e     = glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS;
 
+
+    if (e && !e_pressed)
+    {
+        gl_render_toggle_saturation();
+    }
     if (one && !one_pressed)
     {
         gl_render_toggle_smoothing();
@@ -163,6 +171,7 @@ static void process_input(GLFWwindow * window)
         gl_render_set_paused(g_paused);
     }
 
+    e_pressed     = e;
     s_pressed     = s;
     r_pressed     = r;
     w_pressed     = w;

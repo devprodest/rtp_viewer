@@ -19,7 +19,10 @@ int gl_render_get_bytes_per_pixel(void);
 void gl_render_refresh_title(void);
 
 void gl_render_request_screenshot(void);
+
 void gl_render_toggle_smoothing(void);
 void gl_render_toggle_fullscreen(void);
 void gl_render_toggle_histogram(void);
+void gl_render_toggle_saturation(void);
+
 void gl_render_set_paused(bool paused);

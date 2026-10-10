@@ -40,6 +40,15 @@ static GLuint g_hist_tex        = 0;
 static GLuint g_hist_program    = 0;
 static GLint g_hist_uniform_tex = -1;
 
+static GLuint g_format_fbo             = 0; ///< FBO с результатом форматного шейдера
+static GLuint g_format_tex             = 0; ///< Текстура внутри g_format_fbo
+static GLuint g_post_program           = 0; ///< Программа пост-обработки
+static GLint g_post_uniform_tex        = -1;
+static GLint g_post_uniform_saturation = -1;
+
+static uint8_t * g_flip_buf = nullptr;
+static size_t g_flip_buf_sz = 0;
+
 #define HIST_BAND_ROWS          (64)
 #define HIST_TEX_H              (HIST_BAND_ROWS * 3) // 3 полосы по 64 px для RGB, одна на всю высоту для grayscale
 #define HIST_BACKGROUND_OPACITY (20)
@@ -64,6 +73,8 @@ static int g_windowed_w         = 0;
 static int g_windowed_h         = 0;
 static double g_last_click_time = 0.0;
 
+
+static bool g_saturation_enabled = false;
 
 // Для заголовка окна
 static char g_format_name[ 64 ] = {0};
@@ -238,6 +249,76 @@ static bool parse_format_file(const char * format_name, format_config_s * cfg)
         }
     }
     fclose(f);
+    return true;
+}
+
+// Возвращает указатель на данные кадра, пригодные для glTexSubImage2D.
+// OpenGL ожидает строки снизу вверх, а наши буферы — сверху вниз.
+// Переворачиваем построчно. Буфер переиспользуется между кадрами.
+static const uint8_t * flip_for_upload(const uint8_t * data)
+{
+    if (!data)
+    {
+        return nullptr;
+    }
+
+    size_t need = (size_t)g_width * (size_t)g_height * (size_t)g_format.bytes_per_pixel;
+    if (need == 0)
+    {
+        return data;
+    }
+
+    if (g_flip_buf_sz < need)
+    {
+        uint8_t * nb = realloc(g_flip_buf, need);
+        if (!nb)
+        {
+            fprintf(stderr, "gl_render: flip buffer alloc failed (%zu bytes)\n", need);
+            return data; // отдаём как есть, лучше кривая ориентация, чем ничего
+        }
+        g_flip_buf    = nb;
+        g_flip_buf_sz = need;
+    }
+
+    size_t row_bytes = (size_t)g_width * (size_t)g_format.bytes_per_pixel;
+
+    for (int y = 0; y < g_height; y++)
+    {
+        const uint8_t * src = data + (size_t)y * row_bytes;
+        uint8_t * dst       = g_flip_buf + (size_t)(g_height - 1 - y) * row_bytes;
+        memcpy(dst, src, row_bytes);
+    }
+
+    return g_flip_buf;
+}
+
+// Создаёт FBO с RGBA8-текстурой размером W×H. Результат форматного
+// шейдера (после демозаики, ycbcr→rgb, gray16-масштаба) кладётся сюда,
+// а на экран он попадает уже через пост-шейдер. Пост-шейдер читает
+// эту текстуру как обычную sampler2D.
+static bool create_format_fbo(void)
+{
+    glGenTextures(1, &g_format_tex);
+    glBindTexture(GL_TEXTURE_2D, g_format_tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, g_width, g_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    glGenFramebuffers(1, &g_format_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, g_format_fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_format_tex, 0);
+
+    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    if (status != GL_FRAMEBUFFER_COMPLETE)
+    {
+        fprintf(stderr, "format FBO incomplete: 0x%x\n", status);
+        return false;
+    }
     return true;
 }
 
@@ -798,9 +879,15 @@ bool gl_render_init(int width, int height, const char * format_name, int effecti
     }
 
     text_overlay_init();
-
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
+    // ---- Размеры и имя формата — до всего, что их использует ----
+    g_width    = width;
+    g_height   = height;
+    g_eff_bits = effective_bits;
+    snprintf(g_format_name, sizeof(g_format_name), "%s", format_name);
+
+    // ---- Форматный шейдер ----
     char shader_path[ 512 ];
     snprintf(shader_path, sizeof(shader_path), "formats/%s", g_format.shader_file);
 
@@ -846,12 +933,7 @@ bool gl_render_init(int width, int height, const char * format_name, int effecti
         glUniform1i(g_uniform_demosaic_mode, 0);
     }
 
-    g_width    = width;
-    g_height   = height;
-    g_eff_bits = effective_bits;
-
-    snprintf(g_format_name, sizeof(g_format_name), "%s", format_name);
-
+    // ---- Сырая текстура ----
     glGenTextures(1, &g_texture);
     glBindTexture(GL_TEXTURE_2D, g_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -859,11 +941,44 @@ bool gl_render_init(int width, int height, const char * format_name, int effecti
     glTexImage2D(GL_TEXTURE_2D, 0, g_format.gl_internal_format, width, height, 0, g_format.gl_format, g_format.gl_type,
                  nullptr);
 
-    // Начальное состояние фильтра: toggle инвертирует флаг
+    // ---- FBO форматного прохода (g_width/g_height уже заданы) ----
+    if (!create_format_fbo())
+    {
+        glDeleteProgram(g_program);
+        glfwDestroyWindow(g_window);
+        glfwTerminate();
+        return false;
+    }
+
+    // ---- Пост-шейдер ----
+    char * post_src = read_file("formats/post.glsl");
+    if (!post_src)
+    {
+        fprintf(stderr, "Failed to load formats/post.glsl\n");
+        glDeleteProgram(g_program);
+        glfwDestroyWindow(g_window);
+        glfwTerminate();
+        return false;
+    }
+    g_post_program = build_program(post_src);
+    free(post_src);
+    if (!g_post_program)
+    {
+        glDeleteProgram(g_program);
+        glfwDestroyWindow(g_window);
+        glfwTerminate();
+        return false;
+    }
+
+    glUseProgram(g_post_program);
+    g_post_uniform_tex        = glGetUniformLocation(g_post_program, "tex");
+    g_post_uniform_saturation = glGetUniformLocation(g_post_program, "saturation_enabled");
+
+    // ---- Сглаживание — после создания g_format_tex ----
     g_smoothing = !smooth_start;
     gl_render_toggle_smoothing();
 
-    // --- Оверлей гистограммы ---
+    // ---- Оверлей гистограммы ----
     glGenTextures(1, &g_hist_tex);
     glBindTexture(GL_TEXTURE_2D, g_hist_tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -885,7 +1000,11 @@ bool gl_render_init(int width, int height, const char * format_name, int effecti
     g_hist_program = build_program(hist_frag);
     if (!g_hist_program)
     {
+        glDeleteProgram(g_program);
+        glDeleteProgram(g_post_program);
         glDeleteTextures(1, &g_texture);
+        glDeleteTextures(1, &g_format_tex);
+        glDeleteFramebuffers(1, &g_format_fbo);
         glfwDestroyWindow(g_window);
         glfwTerminate();
         return false;
@@ -901,7 +1020,6 @@ bool gl_render_init(int width, int height, const char * format_name, int effecti
 
     return true;
 }
-
 GLFWwindow * gl_render_get_window(void)
 {
     return g_window;
@@ -909,8 +1027,13 @@ GLFWwindow * gl_render_get_window(void)
 
 void gl_render_update_texture(const uint8_t * data)
 {
+    // Загрузка сырого кадра. OpenGL ожидает bottom-up, у нас top-down —
+    // переворачиваем через отдельный буфер, чтобы не портить frame_buffer
+    // (он нужен saver’у и гистограмме в исходной ориентации).
+    const uint8_t * upload = flip_for_upload(data);
+
     glBindTexture(GL_TEXTURE_2D, g_texture);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, g_width, g_height, g_format.gl_format, g_format.gl_type, data);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, g_width, g_height, g_format.gl_format, g_format.gl_type, upload);
 
     if (g_histogram_enabled)
     {
@@ -927,26 +1050,9 @@ void gl_render_update_texture(const uint8_t * data)
         return;
     }
 
-    float aspect_img = (float)g_width / (float)g_height;
-    float aspect_win = (float)win_w / (float)win_h;
-
-    int vp_w = 0, vp_h = 0, vp_x = 0, vp_y = 0;
-
-    if (aspect_win > aspect_img)
-    {
-        vp_h = win_h;
-        vp_w = (int)(win_h * aspect_img);
-        vp_x = (win_w - vp_w) / 2;
-    }
-    else
-    {
-        vp_w = win_w;
-        vp_h = (int)(win_w / aspect_img);
-        vp_y = (win_h - vp_h) / 2;
-    }
-
-    // --- Основной кадр ---
-    glViewport(vp_x, vp_y, vp_w, vp_h);
+    // --- Pass 1: форматный шейдер → g_format_fbo ---
+    glBindFramebuffer(GL_FRAMEBUFFER, g_format_fbo);
+    glViewport(0, 0, g_width, g_height);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
@@ -977,7 +1083,46 @@ void gl_render_update_texture(const uint8_t * data)
     glBindVertexArray(g_vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 
-    // --- Оверлей гистограммы в правом верхнем углу ---
+    // --- Pass 2: пост-шейдер → default FB ---
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    float aspect_img = (float)g_width / (float)g_height;
+    float aspect_win = (float)win_w / (float)win_h;
+
+    int vp_w = 0, vp_h = 0, vp_x = 0, vp_y = 0;
+    if (aspect_win > aspect_img)
+    {
+        vp_h = win_h;
+        vp_w = (int)(win_h * aspect_img);
+        vp_x = (win_w - vp_w) / 2;
+    }
+    else
+    {
+        vp_w = win_w;
+        vp_h = (int)(win_w / aspect_img);
+        vp_y = (win_h - vp_h) / 2;
+    }
+
+    glViewport(vp_x, vp_y, vp_w, vp_h);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glUseProgram(g_post_program);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g_format_tex);
+    if (g_post_uniform_tex >= 0)
+    {
+        glUniform1i(g_post_uniform_tex, 0);
+    }
+    if (g_post_uniform_saturation >= 0)
+    {
+        glUniform1i(g_post_uniform_saturation, g_saturation_enabled ? 1 : 0);
+    }
+
+    glBindVertexArray(g_vao);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    // --- Оверлей гистограммы ---
     if (g_histogram_enabled && g_histogram.active_channels > 0)
     {
         const int ov_w   = 320;
@@ -985,7 +1130,7 @@ void gl_render_update_texture(const uint8_t * data)
         const int margin = 10;
 
         int ov_x = win_w - ov_w - margin;
-        int ov_y = win_h - ov_h - margin; // в OpenGL Y растёт вверх
+        int ov_y = win_h - ov_h - margin;
         if (ov_x < 0)
         {
             ov_x = 0;
@@ -1012,10 +1157,10 @@ void gl_render_update_texture(const uint8_t * data)
 
     // --- Текстовый оверлей ---
     text_begin(win_w, win_h);
-    // Здесь позже будут вызовы text_draw(...). Пока — пусто, чтобы
-    // убедиться, что pipeline собирается.
+    // ... здесь позже появятся text_draw(...)
     text_end();
 
+    // --- Скриншот (чистый кадр, без пост-обработки и оверлеев) ---
     if (g_screenshot_requested)
     {
         g_screenshot_requested = false;
@@ -1064,10 +1209,25 @@ void gl_render_cleanup(void)
     {
         glDeleteTextures(1, &g_hist_tex);
     }
-
+    if (g_post_program)
+    {
+        glDeleteProgram(g_post_program);
+    }
+    if (g_format_tex)
+    {
+        glDeleteTextures(1, &g_format_tex);
+    }
+    if (g_format_fbo)
+    {
+        glDeleteFramebuffers(1, &g_format_fbo);
+    }
     text_overlay_cleanup();
     glfwTerminate();
 
+    free(g_flip_buf);
+
+    g_flip_buf     = nullptr;
+    g_flip_buf_sz  = 0;
     g_vao          = 0;
     g_shot_tex     = 0;
     g_shot_fbo     = 0;
@@ -1081,7 +1241,14 @@ void gl_render_cleanup(void)
 void gl_render_toggle_smoothing(void)
 {
     g_smoothing = !g_smoothing;
+
+    // Сырая текстура всегда NEAREST — форматный шейдер берёт точные тексели
     glBindTexture(GL_TEXTURE_2D, g_texture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    // Сглаживание применяется к результату форматного шейдера
+    glBindTexture(GL_TEXTURE_2D, g_format_tex);
     if (g_smoothing)
     {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -1094,7 +1261,6 @@ void gl_render_toggle_smoothing(void)
     }
 
     gl_render_refresh_title();
-
     printf("Smoothing %s\n", g_smoothing ? "enabled" : "disabled");
 }
 
@@ -1118,6 +1284,13 @@ void gl_render_toggle_histogram(void)
     g_histogram_enabled = !g_histogram_enabled;
     gl_render_refresh_title();
     printf("Histogram %s\n", g_histogram_enabled ? "enabled" : "disabled");
+}
+
+void gl_render_toggle_saturation(void)
+{
+    g_saturation_enabled = !g_saturation_enabled;
+    gl_render_refresh_title();
+    printf("Saturation markers %s\n", g_saturation_enabled ? "enabled" : "disabled");
 }
 
 void gl_render_set_paused(bool paused)
