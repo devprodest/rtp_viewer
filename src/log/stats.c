@@ -1,6 +1,6 @@
 
 #include "stats.h"
-#include "render/gl_render.h"
+#include "render/renderer.h"
 #include "util/utils.h"
 
 #include <inttypes.h>
@@ -57,7 +57,7 @@ void stats_update(void)
         fps        = (double)g_last_second_frames / (double)delta;
         double pps = (double)g_last_second_packets / (double)delta;
 
-        gl_render_refresh_title();
+        renderer_refresh_title();
         printf("Packets: %" PRIu64 " (%.0f pkts/s), Frames: %" PRIu64 " (%.1f fps)\n", g_total_packets, pps,
                g_total_frames, fps);
 

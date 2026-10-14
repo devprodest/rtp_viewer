@@ -13,7 +13,7 @@
 #include "control/mouse.h"
 #include "help/help_dialog.h"
 #include "log/stats.h"
-#include "render/gl_render.h"
+#include "render/renderer.h"
 #include "save/saver.h"
 #include "source/source_file.h"
 #include "source/source_rtp.h"
@@ -141,23 +141,23 @@ static void process_input(GLFWwindow * window)
 
     if (e && !e_pressed)
     {
-        gl_render_toggle_saturation();
+        renderer_toggle_saturation();
     }
 
     if (one && !one_pressed)
     {
-        gl_render_toggle_smoothing();
+        renderer_toggle_smoothing();
     }
 
     if (s && !s_pressed)
     {
-        gl_render_request_screenshot();
+        renderer_request_screenshot();
     }
 
     if (r && !r_pressed)
     {
         saver_toggle_recording();
-        gl_render_refresh_title();
+        renderer_refresh_title();
     }
 
     if (w && !w_pressed)
@@ -172,11 +172,11 @@ static void process_input(GLFWwindow * window)
 
     if (h && ctrl && !h_was_down)
     {
-        gl_render_toggle_histogram_scale();
+        renderer_toggle_histogram_scale();
     }
     else if (h && !ctrl && !h_pressed)
     {
-        gl_render_toggle_histogram();
+        renderer_toggle_histogram();
     }
 
     if (space && !space_pressed)
@@ -186,12 +186,12 @@ static void process_input(GLFWwindow * window)
         {
             memcpy(g_paused_buffer, frame_buffers_for_pause(), g_frame_bytes);
         }
-        gl_render_set_paused(g_paused);
+        renderer_set_paused(g_paused);
     }
 
     if (c && !c_pressed)
     {
-        gl_render_toggle_histogram_cdf();
+        renderer_toggle_histogram_cdf();
     }
 
     c_pressed     = c;
@@ -524,30 +524,30 @@ int main(int argc, char ** argv)
 
     stats_init(logfile);
 
-    if (!gl_render_init(width, height, format, effective_bits, smooth_start))
+    if (!renderer_init(width, height, format, effective_bits, smooth_start))
     {
         fprintf(stderr, "Error: Не удалось инициализировать OpenGL\n");
         stats_cleanup();
         return EXIT_FAILURE;
     }
 
-    int bpp = gl_render_get_bytes_per_pixel();
+    int bpp = renderer_get_bytes_per_pixel();
 
     saver_init(save_prefix, outdir, batch_size, time_window, width, height, bpp, format);
 
     // Заголовок окна содержит актуальное состояние записи
-    gl_render_refresh_title();
+    renderer_refresh_title();
 
     int sock             = -1;
     bool use_file_source = (source_file != nullptr);
 
     if (use_file_source)
     {
-        if (!file_source_open(source_file, width, height, gl_render_get_bytes_per_pixel(), mock_fps))
+        if (!file_source_open(source_file, width, height, renderer_get_bytes_per_pixel(), mock_fps))
         {
             fprintf(stderr, "Error: Не удалось открыть источник %s\n", source_file);
             saver_cleanup();
-            gl_render_cleanup();
+            renderer_cleanup();
             stats_cleanup();
             return EXIT_FAILURE;
         }
@@ -558,7 +558,7 @@ int main(int argc, char ** argv)
         if (sock < 0)
         {
             fprintf(stderr, "Error: Не удалось открыть UDP сокет на порту %d\n", port);
-            gl_render_cleanup();
+            renderer_cleanup();
             stats_cleanup();
             return EXIT_FAILURE;
         }
@@ -578,7 +578,7 @@ int main(int argc, char ** argv)
             {
                 free(g_frame_buffers[ j ]);
             }
-            gl_render_cleanup();
+            renderer_cleanup();
             RTP_CLOSE_SOCKET(sock);
             stats_cleanup();
             return EXIT_FAILURE;
@@ -594,7 +594,7 @@ int main(int argc, char ** argv)
         {
             free(g_frame_buffers[ i ]);
         }
-        gl_render_cleanup();
+        renderer_cleanup();
         RTP_CLOSE_SOCKET(sock);
         stats_cleanup();
         return EXIT_FAILURE;
@@ -606,14 +606,14 @@ int main(int argc, char ** argv)
     rtp_frame_state_s state;
     rtp_frame_state_init(&state, (uint16_t)width, (uint16_t)height, (uint16_t)bpp);
 
-    GLFWwindow * window = gl_render_get_window();
+    GLFWwindow * window = renderer_get_window();
     mouse_state_init(window);
 
     mouse_state_s mouse;
 
     while (g_running && !glfwWindowShouldClose(window))
     {
-        gl_render_poll_events();
+        renderer_poll_events();
         mouse_state_update(window, &mouse);
         process_input(window);
 
@@ -646,12 +646,13 @@ int main(int argc, char ** argv)
         {
             if (g_paused)
             {
+                
                 // Показываем снапшот. Saver продолжает писать живые кадры.
-                gl_render_update_texture(g_paused_buffer);
+                renderer_update_texture(g_paused_buffer);
             }
             else
             {
-                gl_render_update_texture(g_frame_buffers[ recv_idx ]);
+                renderer_update_texture(g_frame_buffers[ recv_idx ]);
             }
 
             saver_add_frame(g_frame_buffers[ recv_idx ]);
@@ -675,7 +676,7 @@ int main(int argc, char ** argv)
 
     saver_cleanup();
     stats_cleanup();
-    gl_render_cleanup();
+    renderer_cleanup();
     file_source_close();
     if (sock >= 0)
     {
