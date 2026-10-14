@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include "help/help.h"
+#include "log/logger.h"
 #include "util/utils.h"
 #include "util/version.h"
 
@@ -13,51 +15,6 @@
 
 #define DEFAULT_BATCH_SIZE 500
 
-void app_config_print_usage(const char * prog)
-{
-    printf(
-        "%s v%s\n"
-        "\n"
-        "Usage: %s -x <width> -y <height> [-p <port> | -i <file>] -f <format> [options]\n"
-        "\n"
-        "Required:\n"
-        "  -x <width>          Video width in pixels (1..65535)\n"
-        "  -y <height>         Video height in pixels (1..65535)\n"
-        "  -f <format>         Pixel format name (e.g. gray8, rgb888, bayerRGGB)\n"
-        "                      File formats/<format>.fmt must exist\n"
-        "\n"
-        "Input (one of):\n"
-        "  -p <port>           UDP port to listen on (1..65535)\n"
-        "  -i <file>           Replay .raw file instead of UDP\n"
-        "                      Frames are read at mock speed and looped\n"
-        "\n"
-        "Optional:\n"
-        "  -e <bits>           Effective bits for gray16 (1..16, default 16)\n"
-        "  -s <prefix>         Save raw frames from start (prefix for file names).\n"
-        "                      If not given, files still can be recorded with 'R'\n"
-        "                      using default prefix 'rtp'.\n"
-        "  -b <N>              Frames per saved file (>=1, default %d)\n"
-        "  -t <seconds>        Save interval in seconds (>=0, default 0 = off)\n"
-        "  -l <logfile>        Log statistics to file\n"
-        "  -o <dir>            Output directory for saved files (default \".\")\n"
-        "  -S                  Start with smoothing enabled (default off)\n"
-        "  -h, --help          Show this help\n"
-        "  -V, --version       Show program version\n"
-        "\n"
-        "Hotkeys:\n"
-        "  1          Toggle smoothing (linear/nearest)\n"
-        "  E          Toggle saturation markers (blue=under, red=over)\n"
-        "  S          Save screenshot (PNG)\n"
-        "  R          Toggle recording (on/off)\n"
-        "  W          Force save current accumulated frames\n"
-        "  H          Toggle histogram overlay\n"
-        "  Ctrl+H     Toggle histogram scale (linear/log)\n"
-        "  C          Toggle histogram CDF overlay\n"
-        "  Space      Pause / resume display and analysis\n"
-        "  F1         Show this help\n",
-        RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR, prog, DEFAULT_BATCH_SIZE);
-}
-
 static bool file_exists(const char * path)
 {
     struct stat st;
@@ -68,6 +25,11 @@ static bool dir_exists(const char * path)
 {
     struct stat st;
     return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+void app_config_print_usage(const char * prog)
+{
+    help_print(prog);
 }
 
 bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok)
@@ -98,14 +60,14 @@ bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok
             case 'x':
                 if (seen_x)
                 {
-                    fprintf(stderr, "Error: -x определен более одного раза\n");
+                    log_error("config: -x specified more than once");
                     return false;
                 }
                 {
                     long v = 0;
                     if (parse_int(optarg, 1, 65535, &v) != 0)
                     {
-                        fprintf(stderr, "Error: -x должен быть в диапазоне [1..65535], сейчас '%s'\n", optarg);
+                        log_error("config: -x expects integer in [1..65535], got '%s'", optarg);
                         return false;
                     }
                     cfg->width = (int)v;
@@ -116,14 +78,14 @@ bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok
             case 'y':
                 if (seen_y)
                 {
-                    fprintf(stderr, "Error: -y определен более одного раза\n");
+                    log_error("config: -y specified more than once");
                     return false;
                 }
                 {
                     long v = 0;
                     if (parse_int(optarg, 1, 65535, &v) != 0)
                     {
-                        fprintf(stderr, "Error: -y должен быть в диапазоне [1..65535], сейчас '%s'\n", optarg);
+                        log_error("config: -y expects integer in [1..65535], got '%s'", optarg);
                         return false;
                     }
                     cfg->height = (int)v;
@@ -134,14 +96,14 @@ bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok
             case 'p':
                 if (seen_p)
                 {
-                    fprintf(stderr, "Error: -p определен более одного раза\n");
+                    log_error("config: -p specified more than once");
                     return false;
                 }
                 {
                     long v = 0;
                     if (parse_int(optarg, 1, 65535, &v) != 0)
                     {
-                        fprintf(stderr, "Error: -p UDP порт [1..65535], сейчас '%s'\n", optarg);
+                        log_error("config: -p expects UDP port in [1..65535], got '%s'", optarg);
                         return false;
                     }
                     cfg->port = (int)v;
@@ -152,12 +114,12 @@ bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok
             case 'i':
                 if (seen_i)
                 {
-                    fprintf(stderr, "Error: -i определен более одного раза\n");
+                    log_error("config: -i specified more than once");
                     return false;
                 }
                 if (*optarg == '\0')
                 {
-                    fprintf(stderr, "Error: -i ожидается путь к .raw-файлу\n");
+                    log_error("config: -i expects a path to .raw file");
                     return false;
                 }
                 cfg->source_file = optarg;
@@ -167,12 +129,12 @@ bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok
             case 'f':
                 if (seen_f)
                 {
-                    fprintf(stderr, "Error: -f определен более одного раза\n");
+                    log_error("config: -f specified more than once");
                     return false;
                 }
                 if (*optarg == '\0')
                 {
-                    fprintf(stderr, "Error: -f должен быть именем формата\n");
+                    log_error("config: -f expects a format name");
                     return false;
                 }
                 cfg->format = optarg;
@@ -182,14 +144,14 @@ bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok
             case 'e':
                 if (seen_e)
                 {
-                    fprintf(stderr, "Error: -e определен более одного раза\n");
+                    log_error("config: -e specified more than once");
                     return false;
                 }
                 {
                     long v = 0;
                     if (parse_int(optarg, 1, 16, &v) != 0)
                     {
-                        fprintf(stderr, "Error: -e должен быть в диапазоне [1..16], сейчас '%s'\n", optarg);
+                        log_error("config: -e expects integer in [1..16], got '%s'", optarg);
                         return false;
                     }
                     cfg->effective_bits = (int)v;
@@ -200,12 +162,12 @@ bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok
             case 's':
                 if (seen_s)
                 {
-                    fprintf(stderr, "Error: -s определен более одного раза\n");
+                    log_error("config: -s specified more than once");
                     return false;
                 }
                 if (*optarg == '\0')
                 {
-                    fprintf(stderr, "Error: -s Ожидается префикс имени\n");
+                    log_error("config: -s expects a non-empty prefix");
                     return false;
                 }
                 cfg->save_prefix = optarg;
@@ -215,14 +177,14 @@ bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok
             case 'b':
                 if (seen_b)
                 {
-                    fprintf(stderr, "Error: -b определен более одного раза\n");
+                    log_error("config: -b specified more than once");
                     return false;
                 }
                 {
                     long v = 0;
                     if (parse_int(optarg, 1, INT_MAX, &v) != 0)
                     {
-                        fprintf(stderr, "Error: -b ожидается число >= 1, сейчас '%s'\n", optarg);
+                        log_error("config: -b expects integer >= 1, got '%s'", optarg);
                         return false;
                     }
                     cfg->batch_size = (int)v;
@@ -233,14 +195,14 @@ bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok
             case 't':
                 if (seen_t)
                 {
-                    fprintf(stderr, "Error: -t определен более одного раза\n");
+                    log_error("config: -t specified more than once");
                     return false;
                 }
                 {
                     long v = 0;
                     if (parse_int(optarg, 0, INT_MAX, &v) != 0)
                     {
-                        fprintf(stderr, "Error: -t  ожидается число >= 0, сейчас '%s'\n", optarg);
+                        log_error("config: -t expects integer >= 0, got '%s'", optarg);
                         return false;
                     }
                     cfg->time_window = (int)v;
@@ -251,12 +213,12 @@ bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok
             case 'l':
                 if (seen_l)
                 {
-                    fprintf(stderr, "Error: -l определен более одного раза\n");
+                    log_error("config: -l specified more than once");
                     return false;
                 }
                 if (*optarg == '\0')
                 {
-                    fprintf(stderr, "Error: -l ожидается имя файла\n");
+                    log_error("config: -l expects a file name");
                     return false;
                 }
                 cfg->logfile = optarg;
@@ -266,12 +228,12 @@ bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok
             case 'o':
                 if (seen_o)
                 {
-                    fprintf(stderr, "Error: -o определен более одного раза\n");
+                    log_error("config: -o specified more than once");
                     return false;
                 }
                 if (*optarg == '\0')
                 {
-                    fprintf(stderr, "Error: -o ожидается путь к директории для сохранения\n");
+                    log_error("config: -o expects a directory path");
                     return false;
                 }
                 cfg->outdir = optarg;
@@ -281,31 +243,32 @@ bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok
             case 'S': cfg->smooth_start = true; break;
 
             case 'h':
-                app_config_print_usage(argv[ 0 ]);
+                help_print(argv[0]);
                 *exit_ok = true;
                 return false;
 
             case 'V':
-                printf("%s v%s\n%s\n", RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR, RTP_VIEWER_COPYRIGHT);
+                log_info("%s v%s", RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR);
+                log_info("%s", RTP_VIEWER_COPYRIGHT);
                 *exit_ok = true;
                 return false;
 
             case '?':
-            default: app_config_print_usage(argv[ 0 ]); return false;
+            default: help_print(argv[0]); return false;
         }
     }
 
     if (optind < argc)
     {
-        fprintf(stderr, "Error: неизвестный аргумент: '%s'\n", argv[ optind ]);
-        app_config_print_usage(argv[ 0 ]);
+        log_error("config: unknown argument '%s'", argv[optind]);
+        help_print(argv[0]);
         return false;
     }
 
     if (cfg->width == 0 || cfg->height == 0 || cfg->format == nullptr)
     {
-        fprintf(stderr, "Error: -x, -y и -f обязательные аргументы\n");
-        app_config_print_usage(argv[ 0 ]);
+        log_error("config: -x, -y and -f are required");
+        help_print(argv[0]);
         return false;
     }
 
@@ -313,24 +276,24 @@ bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok
 
     if (!cfg->use_file_source && cfg->port == 0)
     {
-        fprintf(stderr, "Error: -p обязателен, если не задан -i\n");
-        app_config_print_usage(argv[ 0 ]);
+        log_error("config: -p is required when -i is not given");
+        help_print(argv[0]);
         return false;
     }
 
     {
-        char fmt_path[ 512 ];
+        char fmt_path[512];
         snprintf(fmt_path, sizeof(fmt_path), "formats/%s.fmt", cfg->format);
         if (!file_exists(fmt_path))
         {
-            fprintf(stderr, "Error: Не найден файл описания формата: %s\n", fmt_path);
+            log_error("config: format file not found: %s", fmt_path);
             return false;
         }
     }
 
     if (cfg->save_prefix && !dir_exists(cfg->outdir))
     {
-        fprintf(stderr, "Error: Директория для сохранения файлов не существует: %s\n", cfg->outdir);
+        log_error("config: output directory does not exist: %s", cfg->outdir);
         return false;
     }
 
@@ -346,18 +309,18 @@ bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok
 #endif
         if (slash && slash != cfg->logfile)
         {
-            char dirbuf[ 512 ];
+            char dirbuf[512];
             size_t n = (size_t)(slash - cfg->logfile);
             if (n >= sizeof(dirbuf))
             {
-                fprintf(stderr, "Error: Слишком длинный путь к файлу лога\n");
+                log_error("config: logfile path is too long");
                 return false;
             }
             memcpy(dirbuf, cfg->logfile, n);
-            dirbuf[ n ] = '\0';
+            dirbuf[n] = '\0';
             if (!dir_exists(dirbuf))
             {
-                fprintf(stderr, "Error: Директория для сохранения лога не существует: %s\n", dirbuf);
+                log_error("config: logfile directory does not exist: %s", dirbuf);
                 return false;
             }
         }

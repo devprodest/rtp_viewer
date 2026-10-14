@@ -1,12 +1,14 @@
 #include "format_pass.h"
 
+#include "gl_api.h"
+#include "gl_utils.h"
+#include "log/logger.h"
+#include "util/utils.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "gl_api.h"
-#include "gl_utils.h"
-#include "util/utils.h"
 
 static int g_width    = 0;
 static int g_height   = 0;
@@ -49,7 +51,7 @@ static const uint8_t * flip_for_upload(const uint8_t * data)
         uint8_t * nb = realloc(g_flip_buf, need);
         if (!nb)
         {
-            fprintf(stderr, "format_pass: flip buffer alloc failed (%zu bytes)\n", need);
+            log_error("format_pass: flip buffer alloc failed (%zu bytes)\n", need);
             return data;
         }
         g_flip_buf    = nb;
@@ -88,7 +90,7 @@ static bool create_format_fbo(void)
 
     if (status != GL_FRAMEBUFFER_COMPLETE)
     {
-        fprintf(stderr, "format FBO incomplete: 0x%x\n", status);
+        log_error("format_pass: format FBO incomplete: 0x%x\n", status);
         return false;
     }
     return true;
@@ -104,7 +106,7 @@ bool format_pass_init(int width, int height, GLuint quad_vao, int effective_bits
 
     if (g_quad_vao == 0)
     {
-        fprintf(stderr, "format_pass: quad VAO is 0\n");
+        log_error("format_pass: quad VAO is 0\n");
         return false;
     }
 
@@ -114,7 +116,7 @@ bool format_pass_init(int width, int height, GLuint quad_vao, int effective_bits
     char * frag_source = read_file(shader_path);
     if (!frag_source)
     {
-        fprintf(stderr, "Failed to load shader file: %s\n", shader_path);
+        log_error("format_pass: Failed to load shader file: %s\n", shader_path);
         return false;
     }
 
@@ -154,7 +156,7 @@ bool format_pass_init(int width, int height, GLuint quad_vao, int effective_bits
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexImage2D(GL_TEXTURE_2D, 0, g_format.gl_internal_format, width, height, 0, g_format.gl_format, g_format.gl_type,
                  nullptr);
 
@@ -204,7 +206,6 @@ void format_pass_upload(const uint8_t * data)
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, g_texture);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, g_width, g_height, g_format.gl_format, g_format.gl_type, upload);
-
 }
 
 void format_pass_render_to_fbo(void)

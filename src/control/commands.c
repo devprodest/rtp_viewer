@@ -1,6 +1,6 @@
 #include "commands.h"
 
-#include "help/help_dialog.h"
+#include "help/help.h"
 #include "render/renderer.h"
 #include "save/saver.h"
 

@@ -11,9 +11,11 @@
 
 #include "text_overlay.h"
 #include "gl_api.h"
+#include "log/logger.h"
 
 #include <stdint.h>
 #include <stdio.h>
+#include "log/logger.h"
 #include <stdlib.h>
 
 #include "stb_easy_font.h"
@@ -24,7 +26,7 @@
 ///
 /// \details Формат: float x, y, z; uint8 color[4]. Итого 16 байт.
 ///          Менять не нужно, определяется stb_easy_font.h.
-#define TEXT_STB_VERTEX_BYTES 16
+#define TEXT_STB_VERTEX_BYTES   16
 
 /// \brief Вершин на квад в формате stb_easy_font.
 #define TEXT_STB_VERTS_PER_QUAD 4
@@ -34,18 +36,18 @@
 /// \details 6 вершин на квад × ~50 квадов на строку × ~300 строк.
 ///          При 24 байтах на вершину = 43 МБ — с большим запасом.
 ///          Допустимый диапазон: 4096..500000. По умолчанию: 100000.
-#define TEXT_MAX_VERTS 100000
+#define TEXT_MAX_VERTS          100000
 
 /// \brief Стартовая ёмкость буфера вершин.
 ///
 /// \details Растёт при необходимости до TEXT_MAX_VERTS.
-#define TEXT_INITIAL_VERTS 4096
+#define TEXT_INITIAL_VERTS      4096
 
 /// \brief Размер scratch-буфера под одну строку для stb_easy_font_print.
 ///
 /// \details stb_easy_font потребляет ~270 байт на символ. 64 КБ хватает
 ///          на ~200 символов одной строки.
-#define TEXT_SCRATCH_SIZE 65536
+#define TEXT_SCRATCH_SIZE       65536
 
 //----------------------------------------------------- Typedefs -------------------------------------------------------
 
@@ -62,18 +64,18 @@ typedef struct text_vertex_s
 
 //---------------------------------------------------- Variables -------------------------------------------------------
 
-static text_vertex_t * g_verts = NULL;    ///< Накопленные вершины кадра
-static int g_vert_count        = 0;       ///< Текущее число вершин
-static int g_vert_capacity     = 0;       ///< Ёмкость буфера
+static text_vertex_t * g_verts = NULL; ///< Накопленные вершины кадра
+static int g_vert_count        = 0;    ///< Текущее число вершин
+static int g_vert_capacity     = 0;    ///< Ёмкость буфера
 
-static int g_win_w = 1;                   ///< Ширина окна, пиксели
-static int g_win_h = 1;                   ///< Высота окна, пиксели
+static int g_win_w = 1; ///< Ширина окна, пиксели
+static int g_win_h = 1; ///< Высота окна, пиксели
 
-static GLuint g_vao     = 0;              ///< VAO для атрибутов
-static GLuint g_vbo     = 0;              ///< VBO с вершинами
-static GLuint g_program = 0;              ///< Шейдерная программа
+static GLuint g_vao     = 0; ///< VAO для атрибутов
+static GLuint g_vbo     = 0; ///< VBO с вершинами
+static GLuint g_program = 0; ///< Шейдерная программа
 
-static char g_scratch[TEXT_SCRATCH_SIZE]; ///< Буфер под строку для stb_easy_font
+static char g_scratch[ TEXT_SCRATCH_SIZE ]; ///< Буфер под строку для stb_easy_font
 
 //------------------------------------------------- Static Functions ---------------------------------------------------
 
@@ -130,9 +132,9 @@ static GLuint compile_shader(const char * source, GLenum type)
     glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
     if (!ok)
     {
-        char info[512];
+        char info[ 512 ];
         glGetShaderInfoLog(shader, sizeof(info), NULL, info);
-        fprintf(stderr, "text_overlay shader error: %s\n", info);
+        log_error("text_overlay shader error: %s\n", info);
         glDeleteShader(shader);
         return 0;
     }
@@ -161,15 +163,15 @@ static void emit_quad_ndc(float x0, float y0, float x1, float y1, float r, float
     float ny0 = 1.0f - (y0 / (float)g_win_h) * 2.0f;
     float ny1 = 1.0f - (y1 / (float)g_win_h) * 2.0f;
 
-    text_vertex_t * v = &g_verts[g_vert_count];
+    text_vertex_t * v = &g_verts[ g_vert_count ];
 
-    v[0] = (text_vertex_t) {nx0, ny0, r, g, b, a};
-    v[1] = (text_vertex_t) {nx1, ny0, r, g, b, a};
-    v[2] = (text_vertex_t) {nx1, ny1, r, g, b, a};
+    v[ 0 ] = (text_vertex_t) {nx0, ny0, r, g, b, a};
+    v[ 1 ] = (text_vertex_t) {nx1, ny0, r, g, b, a};
+    v[ 2 ] = (text_vertex_t) {nx1, ny1, r, g, b, a};
 
-    v[3] = (text_vertex_t) {nx0, ny0, r, g, b, a};
-    v[4] = (text_vertex_t) {nx1, ny1, r, g, b, a};
-    v[5] = (text_vertex_t) {nx0, ny1, r, g, b, a};
+    v[ 3 ] = (text_vertex_t) {nx0, ny0, r, g, b, a};
+    v[ 4 ] = (text_vertex_t) {nx1, ny1, r, g, b, a};
+    v[ 5 ] = (text_vertex_t) {nx0, ny1, r, g, b, a};
 
     g_vert_count += 6;
 }
@@ -221,9 +223,9 @@ void text_overlay_init(void)
     glGetProgramiv(g_program, GL_LINK_STATUS, &ok);
     if (!ok)
     {
-        char info[512];
+        char info[ 512 ];
         glGetProgramInfoLog(g_program, sizeof(info), NULL, info);
-        fprintf(stderr, "text_overlay link error: %s\n", info);
+        log_error("text_overlay link error: %s\n", info);
         glDeleteProgram(g_program);
         g_program = 0;
         return;

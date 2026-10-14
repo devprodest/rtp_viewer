@@ -1,5 +1,6 @@
 #include "source_rtp.h"
 
+#include "log/logger.h"
 #include "util/utils.h"
 
 #include <errno.h>
@@ -207,7 +208,7 @@ static int rtp_receive(source_s * self, frame_state_s * state, uint8_t * frame_b
             {
                 break;
             }
-            fprintf(stderr, "recvfrom failed: %d\n", err);
+            log_error("rtp: recvfrom failed: %d\n", err);
             return -1;
         }
 #else
@@ -250,7 +251,7 @@ static int open_socket(int port)
     {
         if (WSAStartup(MAKEWORD(2, 2), &(WSADATA) {}) != 0)
         {
-            fprintf(stderr, "WSAStartup failed\n");
+            log_error("rtp: WSAStartup failed\n");
             return -1;
         }
         wsa_inited = true;
@@ -261,7 +262,7 @@ static int open_socket(int port)
 #ifdef _WIN32
     if (sock == (int)INVALID_SOCKET)
     {
-        fprintf(stderr, "socket() failed: %d\n", WSAGetLastError());
+        log_error("rtp: socket() failed: %d\n", WSAGetLastError());
         return -1;
     }
 #else
@@ -292,7 +293,7 @@ static int open_socket(int port)
         return -1;
     }
 
-    fprintf(stderr, "UDP socket bound to port %d\n", port);
+    log_error("rtp: UDP socket bound to port %d\n", port);
 
 #ifdef _WIN32
     u_long mode = 1;

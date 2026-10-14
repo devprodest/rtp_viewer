@@ -1,4 +1,5 @@
 #include "gl_utils.h"
+#include "log/logger.h"
 
 #include <stdio.h>
 
@@ -15,7 +16,7 @@ GLuint gl_utils_compile_shader(const char * source, GLenum type)
     {
         char info[ 512 ];
         glGetShaderInfoLog(shader, sizeof(info), nullptr, info);
-        fprintf(stderr, "Shader compilation error: %s\n", info);
+        log_error("Shader compilation error: %s\n", info);
         glDeleteShader(shader);
         return 0;
     }
@@ -60,7 +61,7 @@ GLuint gl_utils_build_program(const char * fragment_source)
     {
         char info[ 512 ];
         glGetProgramInfoLog(prog, sizeof(info), nullptr, info);
-        fprintf(stderr, "Program linking error: %s\n", info);
+        log_error("Program linking error: %s\n", info);
         glDeleteShader(vertex);
         glDeleteShader(fragment);
         glDeleteProgram(prog);

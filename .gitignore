@@ -3,3 +3,4 @@ publish/**/*
 *.exe
 .PVS-Studio/*
 *.raw
+rgb-mock.bat

@@ -1,4 +1,5 @@
 #include "window.h"
+#include "log/logger.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -38,7 +39,7 @@ bool window_init(int width, int height, const char * title)
 {
     if (!glfwInit())
     {
-        fprintf(stderr, "GLFW init failed\n");
+        log_error("GLFW init failed\n");
         return false;
     }
 
@@ -50,7 +51,7 @@ bool window_init(int width, int height, const char * title)
     g_window = glfwCreateWindow(width, height, title ? title : "RTP Viewer", nullptr, nullptr);
     if (!g_window)
     {
-        fprintf(stderr, "GLFW window creation failed\n");
+        log_error("GLFW window creation failed\n");
         glfwTerminate();
         return false;
     }

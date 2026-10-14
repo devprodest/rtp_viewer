@@ -1,11 +1,12 @@
 #include "format_config.h"
 
+#include "log/logger.h"
+#include "render/gl_api.h"
 #include "util/utils.h"
 
 #include <stdio.h>
 #include <string.h>
 
-#include "render/gl_api.h"
 
 static char * trim_inplace(char * s)
 {
@@ -25,27 +26,54 @@ static char * trim_inplace(char * s)
 
 static int parse_gl_enum(const char * value)
 {
-    if (strcmp(value, "GL_RGB8") == 0) return GL_RGB8;
-    if (strcmp(value, "GL_RED") == 0)                            return GL_RED;
-    if (strcmp(value, "GL_RGB") == 0)                            return GL_RGB;
-    if (strcmp(value, "GL_RGBA") == 0)                           return GL_RGBA;
-    if (strcmp(value, "GL_R16") == 0)                            return GL_R16;
-    if (strcmp(value, "GL_RGB10_A2") == 0)                       return GL_RGB10_A2;
-    if (strcmp(value, "GL_UNSIGNED_BYTE") == 0)                  return GL_UNSIGNED_BYTE;
-    if (strcmp(value, "GL_UNSIGNED_SHORT") == 0)                 return GL_UNSIGNED_SHORT;
-    if (strcmp(value, "GL_UNSIGNED_INT_2_10_10_10_REV") == 0)    return GL_UNSIGNED_INT_2_10_10_10_REV;
+    if (strcmp(value, "GL_RGB8") == 0)
+    {
+        return GL_RGB8;
+    }
+    if (strcmp(value, "GL_RED") == 0)
+    {
+        return GL_RED;
+    }
+    if (strcmp(value, "GL_RGB") == 0)
+    {
+        return GL_RGB;
+    }
+    if (strcmp(value, "GL_RGBA") == 0)
+    {
+        return GL_RGBA;
+    }
+    if (strcmp(value, "GL_R16") == 0)
+    {
+        return GL_R16;
+    }
+    if (strcmp(value, "GL_RGB10_A2") == 0)
+    {
+        return GL_RGB10_A2;
+    }
+    if (strcmp(value, "GL_UNSIGNED_BYTE") == 0)
+    {
+        return GL_UNSIGNED_BYTE;
+    }
+    if (strcmp(value, "GL_UNSIGNED_SHORT") == 0)
+    {
+        return GL_UNSIGNED_SHORT;
+    }
+    if (strcmp(value, "GL_UNSIGNED_INT_2_10_10_10_REV") == 0)
+    {
+        return GL_UNSIGNED_INT_2_10_10_10_REV;
+    }
     return -1;
 }
 
 bool format_config_load(const char * format_name, format_config_s * cfg)
 {
-    char path[256];
+    char path[ 256 ];
     snprintf(path, sizeof(path), "formats/%s.fmt", format_name);
 
     FILE * f = fopen(path, "r");
     if (!f)
     {
-        fprintf(stderr, "Cannot open format file: %s\n", path);
+        log_error("format: Cannot open format file: %s\n", path);
         return false;
     }
 
@@ -58,7 +86,7 @@ bool format_config_load(const char * format_name, format_config_s * cfg)
     cfg->needs_demosaic = false;
     strcpy(cfg->bayer_pattern, "RGGB");
 
-    char line[256];
+    char line[ 256 ];
     while (fgets(line, sizeof(line), f))
     {
         char * comment = strchr(line, '#');
@@ -100,7 +128,7 @@ bool format_config_load(const char * format_name, format_config_s * cfg)
             }
             else
             {
-                fprintf(stderr, "Unknown internal format: %s\n", value);
+                log_error("format: Unknown internal format: %s\n", value);
             }
         }
         else if (strcmp(key, "gl_format") == 0)
@@ -112,7 +140,7 @@ bool format_config_load(const char * format_name, format_config_s * cfg)
             }
             else
             {
-                fprintf(stderr, "Unknown format: %s\n", value);
+                log_error("format: Unknown format: %s\n", value);
             }
         }
         else if (strcmp(key, "gl_type") == 0)
@@ -124,13 +152,13 @@ bool format_config_load(const char * format_name, format_config_s * cfg)
             }
             else
             {
-                fprintf(stderr, "Unknown type: %s\n", value);
+                log_error("format: Unknown type: %s\n", value);
             }
         }
         else if (strcmp(key, "shader_file") == 0)
         {
             strncpy(cfg->shader_file, value, sizeof(cfg->shader_file) - 1);
-            cfg->shader_file[sizeof(cfg->shader_file) - 1] = '\0';
+            cfg->shader_file[ sizeof(cfg->shader_file) - 1 ] = '\0';
         }
         else if (strcmp(key, "needs_demosaic") == 0)
         {

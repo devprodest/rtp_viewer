@@ -1,13 +1,12 @@
 #include "renderer.h"
 
-#include <stdio.h>
-#include <string.h>
-
+#include "analysis/analytics.h"
 #include "format/format_config.h"
 #include "format_pass.h"
 #include "gl_api.h"
 #include "gl_utils.h"
 #include "histogram_view.h"
+#include "log/logger.h"
 #include "log/stats.h"
 #include "post_pass.h"
 #include "save/saver.h"
@@ -15,19 +14,23 @@
 #include "text_overlay.h"
 #include "window.h"
 
+#include <stdio.h>
+#include <string.h>
+
 static GLuint g_quad_vao = 0;
 
-static int  g_width     = 0;
-static int  g_height    = 0;
-static int  g_eff_bits  = 16;
+static int g_width      = 0;
+static int g_height     = 0;
+static int g_eff_bits   = 16;
 static bool g_smoothing = false;
 static bool g_paused    = false;
 
 static bool g_saturation_enabled = false;
 
-static char g_format_name[64] = {0};
+static char g_format_name[ 64 ] = {0};
 
 static format_config_s g_format;
+static selection_s g_selection;
 
 static void apply_smoothing(void)
 {
@@ -50,13 +53,10 @@ void renderer_refresh_title(void)
         return;
     }
 
-    char title[160];
+    char title[ 160 ];
 
-    snprintf(title, sizeof(title), "RTP Viewer - %dx%d %s fps:%.1f%s%s",
-             g_width, g_height,
-             g_format_name[0] ? g_format_name : "?",
-             stats_get_fps(),
-             g_paused ? " [PAUSE]" : "",
+    snprintf(title, sizeof(title), "RTP Viewer - %dx%d %s fps:%.1f%s%s", g_width, g_height,
+             g_format_name[ 0 ] ? g_format_name : "?", stats_get_fps(), g_paused ? " [PAUSE]" : "",
              saver_is_recording() ? " [REC]" : "");
 
     window_set_title(title);
@@ -71,7 +71,7 @@ bool renderer_init(int width, int height, const char * format_name, int effectiv
 
     if (gl_api_load() != 0)
     {
-        fprintf(stderr, "Failed to load OpenGL functions\n");
+        log_error("Failed to load OpenGL functions\n");
         window_cleanup();
         return false;
     }
@@ -82,18 +82,20 @@ bool renderer_init(int width, int height, const char * format_name, int effectiv
         return false;
     }
 
+    selection_init(&g_selection);
+
     text_overlay_init();
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-    g_width     = width;
-    g_height    = height;
-    g_eff_bits  = effective_bits;
+    g_width    = width;
+    g_height   = height;
+    g_eff_bits = effective_bits;
     snprintf(g_format_name, sizeof(g_format_name), "%s", format_name);
 
     g_quad_vao = gl_utils_create_fullscreen_quad();
     if (g_quad_vao == 0)
     {
-        fprintf(stderr, "renderer: failed to create fullscreen quad VAO\n");
+        log_error("renderer: failed to create fullscreen quad VAO\n");
         text_overlay_cleanup();
         window_cleanup();
         return false;
@@ -169,9 +171,10 @@ void renderer_update_texture(const uint8_t * data)
 {
     format_pass_upload(data);
 
+    analytics_update(data, g_width, g_height, &g_format, g_format_name, &g_selection);
     if (histogram_view_is_enabled())
     {
-        histogram_view_update(data, g_width, g_height, &g_format, g_format_name);
+        histogram_view_update();
     }
 
     int win_w = 0;
@@ -218,8 +221,14 @@ void renderer_update_texture(const uint8_t * data)
 
         int ov_x = win_w - ov_w - margin;
         int ov_y = win_h - ov_h - margin;
-        if (ov_x < 0) ov_x = 0;
-        if (ov_y < 0) ov_y = 0;
+        if (ov_x < 0)
+        {
+            ov_x = 0;
+        }
+        if (ov_y < 0)
+        {
+            ov_y = 0;
+        }
 
         histogram_view_render(ov_x, ov_y, ov_w, ov_h);
     }
@@ -258,7 +267,7 @@ void renderer_toggle_smoothing(void)
     g_smoothing = !g_smoothing;
     apply_smoothing();
     renderer_refresh_title();
-    printf("Smoothing %s\n", g_smoothing ? "enabled" : "disabled");
+    log_info("Smoothing %s", g_smoothing ? "enabled" : "disabled");
 }
 
 void renderer_toggle_histogram(void)
@@ -282,7 +291,7 @@ void renderer_toggle_saturation(void)
     g_saturation_enabled = !g_saturation_enabled;
     post_pass_set_saturation(g_saturation_enabled);
     renderer_refresh_title();
-    printf("Saturation markers %s\n", g_saturation_enabled ? "enabled" : "disabled");
+    log_info("Saturation markers %s", g_saturation_enabled ? "enabled" : "disabled");
 }
 
 void renderer_request_screenshot(void)

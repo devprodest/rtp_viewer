@@ -1,13 +1,14 @@
 #include "screenshot.h"
+#include "log/logger.h"
+#include "render/format_pass.h"
+#include "render/gl_api.h"
+#include "render/png_writer.h"
+#include "save/saver.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
-#include "render/format_pass.h"
-#include "render/gl_api.h"
-#include "render/png_writer.h"
-#include "save/saver.h"
 
 static bool g_requested = false;
 static GLuint g_fbo     = 0;
@@ -41,7 +42,7 @@ static bool ensure_fbo(void)
 
     if (status != GL_FRAMEBUFFER_COMPLETE)
     {
-        fprintf(stderr, "screenshot FBO incomplete: 0x%x\n", status);
+        log_warn("screenshot FBO incomplete: 0x%x\n", status);
         if (g_tex)
         {
             glDeleteTextures(1, &g_tex);
@@ -108,7 +109,7 @@ void screenshot_process_if_requested(void)
     uint8_t * pixels = malloc(stride * (size_t)g_height);
     if (!pixels)
     {
-        fprintf(stderr, "screenshot: out of memory\n");
+        log_warn("screenshot: out of memory\n");
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         return;
     }
@@ -130,11 +131,11 @@ void screenshot_process_if_requested(void)
 
     if (png_write_rgba(path, pixels, g_width, g_height))
     {
-        printf("Screenshot saved: %s (%dx%d)\n", path, g_width, g_height);
+        log_info("Screenshot saved: %s (%dx%d)\n", path, g_width, g_height);
     }
     else
     {
-        fprintf(stderr, "Failed to save screenshot: %s\n", path);
+        log_warn("Failed to save screenshot: %s\n", path);
     }
 
     free(pixels);

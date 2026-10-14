@@ -1,9 +1,9 @@
 #include "app.h"
+
 #include "config.h"
-
-
 #include "control/hotkeys.h"
 #include "control/mouse.h"
+#include "log/logger.h"
 #include "log/stats.h"
 #include "render/renderer.h"
 #include "save/saver.h"
@@ -29,12 +29,12 @@
 
 static volatile bool g_running = true;
 
-static uint8_t * g_frame_buffers[NUM_FRAME_BUFFERS] = {nullptr, nullptr};
-static uint8_t * g_paused_buffer                    = nullptr;
-static int       g_last_rendered_idx                = 0;
-static bool      g_has_rendered                     = false;
-static size_t    g_frame_bytes                      = 0;
-static bool      g_paused                           = false;
+static uint8_t * g_frame_buffers[ NUM_FRAME_BUFFERS ] = {nullptr, nullptr};
+static uint8_t * g_paused_buffer                      = nullptr;
+static int g_last_rendered_idx                        = 0;
+static bool g_has_rendered                            = false;
+static size_t g_frame_bytes                           = 0;
+static bool g_paused                                  = false;
 
 static const app_config_s * g_cfg = nullptr;
 
@@ -49,7 +49,7 @@ bool app_toggle_pause(void)
     g_paused = !g_paused;
     if (g_paused && g_has_rendered && g_paused_buffer)
     {
-        memcpy(g_paused_buffer, g_frame_buffers[g_last_rendered_idx], g_frame_bytes);
+        memcpy(g_paused_buffer, g_frame_buffers[ g_last_rendered_idx ], g_frame_bytes);
     }
     renderer_set_paused(g_paused);
     return g_paused;
@@ -59,8 +59,8 @@ static void cleanup_buffers(void)
 {
     for (int i = 0; i < NUM_FRAME_BUFFERS; i++)
     {
-        free(g_frame_buffers[i]);
-        g_frame_buffers[i] = nullptr;
+        free(g_frame_buffers[ i ]);
+        g_frame_buffers[ i ] = nullptr;
     }
     free(g_paused_buffer);
     g_paused_buffer = nullptr;
@@ -70,13 +70,13 @@ int app_run(const app_config_s * cfg)
 {
     g_cfg = cfg;
 
-    fprintf(stderr, "%s v%s\n", RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR);
+    log_info("%s v%s", RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR);
 
     stats_init(cfg->logfile);
 
     if (!renderer_init(cfg->width, cfg->height, cfg->format, cfg->effective_bits, cfg->smooth_start))
     {
-        fprintf(stderr, "Error: Не удалось инициализировать OpenGL\n");
+        log_error("app: Не удалось инициализировать OpenGL\n");
         stats_cleanup();
         return EXIT_FAILURE;
     }
@@ -100,7 +100,7 @@ int app_run(const app_config_s * cfg)
     source_s * src = source_create(&src_params);
     if (!source_open(src, &src_params))
     {
-        fprintf(stderr, "Error: Не удалось открыть источник данных\n");
+        log_error("app: Не удалось открыть источник данных\n");
         saver_cleanup();
         renderer_cleanup();
         stats_cleanup();
@@ -113,8 +113,8 @@ int app_run(const app_config_s * cfg)
 
     for (int i = 0; i < NUM_FRAME_BUFFERS; i++)
     {
-        g_frame_buffers[i] = calloc(1, g_frame_bytes);
-        if (!g_frame_buffers[i])
+        g_frame_buffers[ i ] = calloc(1, g_frame_bytes);
+        if (!g_frame_buffers[ i ])
         {
             perror("calloc frame buffer");
             cleanup_buffers();
@@ -152,10 +152,10 @@ int app_run(const app_config_s * cfg)
         mouse_state_update(window, &mouse);
         hotkeys_process(window);
 
-        int received = source_receive(src, &state, g_frame_buffers[recv_idx]);
+        int received = source_receive(src, &state, g_frame_buffers[ recv_idx ]);
         if (received < 0)
         {
-            fprintf(stderr, "Error: source receive failed\n");
+            log_error("app: source receive failed\n");
             break;
         }
 
@@ -164,15 +164,14 @@ int app_run(const app_config_s * cfg)
             stats_add_packets(received);
         }
 
-        bool frame_ready = cfg->use_file_source
-                               ? (received == 1)
-                               : (frame_state_is_ready(&state) || source_check_timeout(src, &state));
+        bool frame_ready = cfg->use_file_source ? (received == 1)
+                                                : (frame_state_is_ready(&state) || source_check_timeout(src, &state));
 
         if (frame_ready)
         {
-            renderer_update_texture(g_paused ? g_paused_buffer : g_frame_buffers[recv_idx]);
+            renderer_update_texture(g_paused ? g_paused_buffer : g_frame_buffers[ recv_idx ]);
 
-            saver_add_frame(g_frame_buffers[recv_idx]);
+            saver_add_frame(g_frame_buffers[ recv_idx ]);
             stats_frame_rendered();
 
             g_last_rendered_idx = recv_idx;

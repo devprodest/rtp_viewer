@@ -1,10 +1,9 @@
 
 #include "gl_api.h"
+#include "log/logger.h"
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
-
-#include <stdio.h>
 
 PFNGLCREATESHADERPROC glCreateShader                       = nullptr;
 PFNGLSHADERSOURCEPROC glShaderSource                       = nullptr;
@@ -43,7 +42,7 @@ PFNGLDELETEBUFFERSPROC glDeleteBuffers                     = nullptr;
         GLFWglproc p = glfwGetProcAddress(#name);                           \
         if (!p)                                                             \
         {                                                                   \
-            fprintf(stderr, "Failed to load OpenGL function: %s\n", #name); \
+            log_error("Failed to load OpenGL function: %s\n", #name); \
             return -1;                                                      \
         }                                                                   \
         *(void **)(&name) = (void *)p;                                      \

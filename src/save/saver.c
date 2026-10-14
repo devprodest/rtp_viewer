@@ -22,6 +22,7 @@
 //----------------------------------------------------- Includes -------------------------------------------------------
 #include "saver.h"
 #include "util/utils.h"
+#include "log/logger.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -335,7 +336,7 @@ static void close_current_file(void)
     {
         fclose(g_saver.current_file);
         g_saver.current_file = nullptr;
-        printf("Saved %s (frames=%u, size=%u bytes)\n", g_saver.current_filename, g_saver.frames_in_file,
+        log_info("Saved %s (frames=%u, size=%u bytes)", g_saver.current_filename, g_saver.frames_in_file,
                g_saver.frames_in_file * g_saver.frame_size);
     }
     g_saver.frames_in_file   = 0;
@@ -373,7 +374,7 @@ static void open_new_file(void)
     g_saver.current_file = fopen(g_saver.current_filename, "wb");
     if (!g_saver.current_file)
     {
-        perror("fopen save");
+        log_error("fopen save");
         g_saver.batch_start_time = 0;
     }
 }
@@ -552,14 +553,14 @@ void saver_init(const char * prefix, const char * outdir, int batch_size, int ti
         {
             break;
         }
-        fprintf(stderr, "saver: could not allocate %u buffers (%zu bytes), trying %u\n", (unsigned)pool_size, bytes,
+        log_warn("saver: could not allocate %u buffers (%zu bytes), trying %u\n", (unsigned)pool_size, bytes,
                 (unsigned)(pool_size / 2));
         pool_size = (uint8_t)(pool_size / 2);
     }
 
     if (!block)
     {
-        fprintf(stderr, "saver: failed to allocate frame pool (frame_size=%u bytes). Recording disabled.\n",
+        log_warn("saver: failed to allocate frame pool (frame_size=%u bytes). Recording disabled.\n",
                 g_saver.frame_size);
         return;
     }
@@ -575,7 +576,7 @@ void saver_init(const char * prefix, const char * outdir, int batch_size, int ti
 
     if (pool_size < SAVER_POOL_MAX)
     {
-        fprintf(stderr, "saver: frame pool reduced to %u buffers (%zu bytes total)\n", (unsigned)pool_size,
+        log_warn("saver: frame pool reduced to %u buffers (%zu bytes total)\n", (unsigned)pool_size,
                 (size_t)pool_size * (size_t)g_saver.frame_size);
     }
 
@@ -586,7 +587,7 @@ void saver_init(const char * prefix, const char * outdir, int batch_size, int ti
     g_saver.thread = CreateThread(nullptr, 0, saver_thread_proc, NULL, 0, nullptr);
     if (!g_saver.thread)
     {
-        fprintf(stderr, "saver: CreateThread failed (%lu)\n", (unsigned long)GetLastError());
+        log_warn("saver: CreateThread failed (%lu)\n", (unsigned long)GetLastError());
         free(g_saver.pool.block);
         g_saver.pool.block = nullptr;
         SAVER_MUTEX_DESTROY(&g_saver.mutex);
@@ -596,7 +597,7 @@ void saver_init(const char * prefix, const char * outdir, int batch_size, int ti
 #else
     if (pthread_create(&g_saver.thread, NULL, saver_thread_proc, NULL) != 0)
     {
-        perror("saver: pthread_create");
+        log_error("saver: pthread_create");
         free(g_saver.pool.block);
         g_saver.pool.block = NULL;
         SAVER_MUTEX_DESTROY(&g_saver.mutex);
@@ -710,7 +711,7 @@ void saver_toggle_recording(void)
     SAVER_COND_SIGNAL(&g_saver.cond);
     SAVER_MUTEX_UNLOCK(&g_saver.mutex);
 
-    printf("Recording %s\n", now_recording ? "enabled" : "disabled");
+    log_info("Recording %s\n", now_recording ? "enabled" : "disabled");
 }
 
 /// \brief Останавливает saver-поток и освобождает ресурсы.
@@ -752,7 +753,7 @@ void saver_cleanup(void)
 
     if (g_saver.dropped > 0)
     {
-        fprintf(stderr, "saver: dropped %llu frames (pool exhausted)\n", (unsigned long long)g_saver.dropped);
+        log_warn("saver: dropped %llu frames (pool exhausted)\n", (unsigned long long)g_saver.dropped);
     }
 
     SAVER_MUTEX_DESTROY(&g_saver.mutex);

@@ -1,5 +1,6 @@
 #include "source_file.h"
 
+#include "log/logger.h"
 #include "util/utils.h"
 
 #include <stdio.h>
@@ -49,7 +50,7 @@ static bool file_open(source_s * self, const source_params_s * params)
 
     if (params->width <= 0 || params->height <= 0 || params->bytes_per_pixel <= 0)
     {
-        fprintf(stderr, "file_source: invalid geometry\n");
+        log_error("file: file_source: invalid geometry\n");
         fclose(f);
         return false;
     }
@@ -73,7 +74,7 @@ static bool file_open(source_s * self, const source_params_s * params)
     size_t frame_size = (size_t)params->width * (size_t)params->height * (size_t)params->bytes_per_pixel;
     if (frame_size == 0 || (size_t)len < frame_size)
     {
-        fprintf(stderr, "file_source: file too small for one frame (%ld < %zu)\n", len, frame_size);
+        log_error("file: file_source: file too small for one frame (%ld < %zu)\n", len, frame_size);
         fclose(f);
         return false;
     }
@@ -97,8 +98,8 @@ static bool file_open(source_s * self, const source_params_s * params)
     impl->interval_us  = 1000000ull / (uint64_t)fps;
     impl->next_send_us = get_time_us();
 
-    fprintf(stderr, "file_source: %s opened, %zu frames (%dx%d, %d bpp, %d fps)\n", params->path, frames_total,
-            params->width, params->height, params->bytes_per_pixel, fps);
+    log_info("file: %s opened, %zu frames (%dx%d, %d bpp, %d fps)", params->path, frames_total,
+              params->width, params->height, params->bytes_per_pixel, fps);
     return true;
 }
 
@@ -146,7 +147,7 @@ static int file_receive(source_s * self, frame_state_s * state, uint8_t * buffer
         got               = fread(buffer, 1, impl->frame_size, impl->file);
         if (got != impl->frame_size)
         {
-            fprintf(stderr, "file_source: short read (%zu / %zu)\n", got, impl->frame_size);
+            log_error("file: file_source: short read (%zu / %zu)\n", got, impl->frame_size);
             return -1;
         }
     }
