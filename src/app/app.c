@@ -7,8 +7,8 @@
 #include "log/stats.h"
 #include "render/renderer.h"
 #include "save/saver.h"
-#include "source/source_file.h"
-#include "source/source_rtp.h"
+#include "source/source.h"
+#include "source/source_factory.h"
 #include "util/version.h"
 
 #include <signal.h>
@@ -88,29 +88,23 @@ int app_run(const app_config_s * cfg)
 
     renderer_refresh_title();
 
-    int  sock = -1;
+    source_params_s src_params = {
+        .width           = cfg->width,
+        .height          = cfg->height,
+        .bytes_per_pixel = bpp,
+        .port            = cfg->port,
+        .path            = cfg->source_file,
+        .mock_fps        = cfg->mock_fps,
+    };
 
-    if (cfg->use_file_source)
+    source_s * src = source_create(&src_params);
+    if (!source_open(src, &src_params))
     {
-        if (!file_source_open(cfg->source_file, cfg->width, cfg->height, bpp, cfg->mock_fps))
-        {
-            fprintf(stderr, "Error: Не удалось открыть источник %s\n", cfg->source_file);
-            saver_cleanup();
-            renderer_cleanup();
-            stats_cleanup();
-            return EXIT_FAILURE;
-        }
-    }
-    else
-    {
-        sock = rtp_socket_open(cfg->port);
-        if (sock < 0)
-        {
-            fprintf(stderr, "Error: Не удалось открыть UDP сокет на порту %d\n", cfg->port);
-            renderer_cleanup();
-            stats_cleanup();
-            return EXIT_FAILURE;
-        }
+        fprintf(stderr, "Error: Не удалось открыть источник данных\n");
+        saver_cleanup();
+        renderer_cleanup();
+        stats_cleanup();
+        return EXIT_FAILURE;
     }
 
     signal(SIGINT, signal_handler);
@@ -124,8 +118,8 @@ int app_run(const app_config_s * cfg)
         {
             perror("calloc frame buffer");
             cleanup_buffers();
+            source_close(src);
             renderer_cleanup();
-            if (sock >= 0) RTP_CLOSE_SOCKET(sock);
             stats_cleanup();
             return EXIT_FAILURE;
         }
@@ -136,16 +130,16 @@ int app_run(const app_config_s * cfg)
     {
         perror("calloc paused buffer");
         cleanup_buffers();
+        source_close(src);
         renderer_cleanup();
-        if (sock >= 0) RTP_CLOSE_SOCKET(sock);
         stats_cleanup();
         return EXIT_FAILURE;
     }
 
     int recv_idx = 0;
 
-    rtp_frame_state_s state;
-    rtp_frame_state_init(&state, (uint16_t)cfg->width, (uint16_t)cfg->height, (uint16_t)bpp);
+    frame_state_s state;
+    frame_state_init(&state, (uint16_t)cfg->width, (uint16_t)cfg->height, (uint16_t)bpp);
 
     GLFWwindow * window = renderer_get_window();
     mouse_state_init(window);
@@ -158,29 +152,21 @@ int app_run(const app_config_s * cfg)
         mouse_state_update(window, &mouse);
         hotkeys_process(window);
 
-        int  received;
-        bool frame_ready;
+        int received = source_receive(src, &state, g_frame_buffers[recv_idx]);
+        if (received < 0)
+        {
+            fprintf(stderr, "Error: source receive failed\n");
+            break;
+        }
 
-        if (cfg->use_file_source)
+        if (received > 0 && !cfg->use_file_source)
         {
-            received = file_source_receive_frame(&state, g_frame_buffers[recv_idx]);
-            if (received < 0)
-            {
-                fprintf(stderr, "Error: file_source read error\n");
-                break;
-            }
-            state.frame_ready = (received == 1);
-            frame_ready       = state.frame_ready;
+            stats_add_packets(received);
         }
-        else
-        {
-            received = rtp_receive_packets(sock, &state, g_frame_buffers[recv_idx]);
-            if (received > 0)
-            {
-                stats_add_packets(received);
-            }
-            frame_ready = rtp_frame_is_ready(&state) || rtp_frame_check_timeout(&state);
-        }
+
+        bool frame_ready = cfg->use_file_source
+                               ? (received == 1)
+                               : (frame_state_is_ready(&state) || source_check_timeout(src, &state));
 
         if (frame_ready)
         {
@@ -193,7 +179,7 @@ int app_run(const app_config_s * cfg)
             g_has_rendered      = true;
 
             recv_idx = (recv_idx + 1) % NUM_FRAME_BUFFERS;
-            rtp_frame_state_reset(&state);
+            frame_state_reset(&state);
         }
 
         stats_update();
@@ -205,11 +191,7 @@ int app_run(const app_config_s * cfg)
     saver_cleanup();
     stats_cleanup();
     renderer_cleanup();
-    file_source_close();
-    if (sock >= 0)
-    {
-        RTP_CLOSE_SOCKET(sock);
-    }
+    source_close(src);
 
     return EXIT_SUCCESS;
 }

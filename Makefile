@@ -39,6 +39,8 @@ SRCS += $(SRC_DIR)/save/saver.c
 SRCS += $(SRC_DIR)/save/screenshot.c
 SRCS += $(SRC_DIR)/source/source_file.c
 SRCS += $(SRC_DIR)/source/source_rtp.c
+SRCS += $(SRC_DIR)/source/source.c
+SRCS += $(SRC_DIR)/source/source_factory.c
 SRCS += $(SRC_DIR)/util/utils.c
 
 # --- Windows resources ---

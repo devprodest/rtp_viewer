@@ -4,40 +4,50 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
-
-/// \brief FPS по умолчанию, если пользователь не задал.
 #define FILE_SOURCE_DEFAULT_FPS 25
-
-/// \brief Верхняя граница FPS (защита от абсурдных значений).
 #define FILE_SOURCE_MAX_FPS     1000
-
-/// \brief Нижняя граница FPS.
 #define FILE_SOURCE_MIN_FPS     1
 
-static struct
+typedef struct file_impl_s
 {
-    FILE * file;           ///< Открытый файл
-    size_t frame_size;     ///< Размер кадра в байтах
-    size_t frames_total;   ///< Всего кадров в файле
-    size_t frame_index;    ///< Номер следующего кадра
-    uint64_t interval_us;  ///< Интервал между кадрами
-    uint64_t next_send_us; ///< Время следующей отдачи
-} g_file;
+    FILE * file;
+    size_t frame_size;
+    size_t frames_total;
+    size_t frame_index;
+    uint64_t interval_us;
+    uint64_t next_send_us;
+} file_impl_t;
 
-bool file_source_open(const char * path, int width, int height, int bytes_per_pixel, int mock_fps)
+static file_impl_t g_file_impl;
+static source_s g_file_source;
+
+static bool file_open(source_s * self, const source_params_s * params);
+static void file_close(source_s * self);
+static int file_receive(source_s * self, frame_state_s * state, uint8_t * buffer);
+static bool file_check_timeout(source_s * self, frame_state_s * state);
+
+static const source_ops_s g_file_ops = {
+    .open          = file_open,
+    .close         = file_close,
+    .receive       = file_receive,
+    .check_timeout = file_check_timeout,
+};
+
+static bool file_open(source_s * self, const source_params_s * params)
 {
-    file_source_close();
+    file_impl_t * impl = (file_impl_t *)self->impl;
 
-    FILE * f = fopen(path, "rb");
+    file_close(self);
+
+    FILE * f = fopen(params->path, "rb");
     if (!f)
     {
         perror("file_source: fopen");
         return false;
     }
 
-    if (width <= 0 || height <= 0 || bytes_per_pixel <= 0)
+    if (params->width <= 0 || params->height <= 0 || params->bytes_per_pixel <= 0)
     {
         fprintf(stderr, "file_source: invalid geometry\n");
         fclose(f);
@@ -60,7 +70,7 @@ bool file_source_open(const char * path, int width, int height, int bytes_per_pi
     }
     rewind(f);
 
-    size_t frame_size = (size_t)width * (size_t)height * (size_t)bytes_per_pixel;
+    size_t frame_size = (size_t)params->width * (size_t)params->height * (size_t)params->bytes_per_pixel;
     if (frame_size == 0 || (size_t)len < frame_size)
     {
         fprintf(stderr, "file_source: file too small for one frame (%ld < %zu)\n", len, frame_size);
@@ -70,7 +80,7 @@ bool file_source_open(const char * path, int width, int height, int bytes_per_pi
 
     size_t frames_total = (size_t)len / frame_size;
 
-    int fps = mock_fps;
+    int fps = params->mock_fps;
     if (fps < FILE_SOURCE_MIN_FPS)
     {
         fps = FILE_SOURCE_DEFAULT_FPS;
@@ -80,78 +90,88 @@ bool file_source_open(const char * path, int width, int height, int bytes_per_pi
         fps = FILE_SOURCE_MAX_FPS;
     }
 
-    g_file.file         = f;
-    g_file.frame_size   = frame_size;
-    g_file.frames_total = frames_total;
-    g_file.frame_index  = 0;
-    g_file.interval_us  = 1000000ull / (uint64_t)fps;
-    g_file.next_send_us = get_time_us();
+    impl->file         = f;
+    impl->frame_size   = frame_size;
+    impl->frames_total = frames_total;
+    impl->frame_index  = 0;
+    impl->interval_us  = 1000000ull / (uint64_t)fps;
+    impl->next_send_us = get_time_us();
 
-    fprintf(stderr, "file_source: %s opened, %zu frames (%dx%d, %d bpp, %d fps)\n", path, frames_total, width, height,
-            bytes_per_pixel, fps);
+    fprintf(stderr, "file_source: %s opened, %zu frames (%dx%d, %d bpp, %d fps)\n", params->path, frames_total,
+            params->width, params->height, params->bytes_per_pixel, fps);
     return true;
 }
 
-void file_source_close(void)
+static void file_close(source_s * self)
 {
-    if (g_file.file)
+    file_impl_t * impl = (file_impl_t *)self->impl;
+
+    if (impl->file)
     {
-        fclose(g_file.file);
-        g_file.file = NULL;
+        fclose(impl->file);
+        impl->file = nullptr;
     }
-    g_file.frame_size   = 0;
-    g_file.frames_total = 0;
-    g_file.frame_index  = 0;
-    g_file.next_send_us = 0;
+    impl->frame_size   = 0;
+    impl->frames_total = 0;
+    impl->frame_index  = 0;
+    impl->next_send_us = 0;
 }
 
-int file_source_receive_frame(rtp_frame_state_s * state, uint8_t * buffer)
+static int file_receive(source_s * self, frame_state_s * state, uint8_t * buffer)
 {
-    if (!g_file.file || !state || !buffer)
+    file_impl_t * impl = (file_impl_t *)self->impl;
+
+    if (!impl->file || !state || !buffer)
     {
         return -1;
     }
 
     uint64_t now = get_time_us();
-    if (now < g_file.next_send_us)
+    if (now < impl->next_send_us)
     {
-        return 0; // ещё рано
+        return 0;
     }
 
-    if (g_file.frame_index >= g_file.frames_total)
+    if (impl->frame_index >= impl->frames_total)
     {
-        // Зацикливаемся
-        rewind(g_file.file);
-        g_file.frame_index = 0;
+        rewind(impl->file);
+        impl->frame_index = 0;
     }
 
-    size_t got = fread(buffer, 1, g_file.frame_size, g_file.file);
-    if (got != g_file.frame_size)
+    size_t got = fread(buffer, 1, impl->frame_size, impl->file);
+    if (got != impl->frame_size)
     {
-        // Частичное чтение — либо конец файла, либо ошибка. Пробуем rewind один раз.
-        rewind(g_file.file);
-        g_file.frame_index = 0;
-        got                = fread(buffer, 1, g_file.frame_size, g_file.file);
-        if (got != g_file.frame_size)
+        rewind(impl->file);
+        impl->frame_index = 0;
+        got               = fread(buffer, 1, impl->frame_size, impl->file);
+        if (got != impl->frame_size)
         {
-            fprintf(stderr, "file_source: short read (%zu / %zu)\n", got, g_file.frame_size);
+            fprintf(stderr, "file_source: short read (%zu / %zu)\n", got, impl->frame_size);
             return -1;
         }
     }
 
-    g_file.frame_index++;
-    g_file.next_send_us = now + g_file.interval_us;
+    impl->frame_index++;
+    impl->next_send_us = now + impl->interval_us;
 
-    // Обновляем поля состояния как при одном «пакете».
-    state->received_bytes = (uint32_t)g_file.frame_size;
+    state->received_bytes = (uint32_t)impl->frame_size;
     state->packet_count++;
     state->last_packet_time_us = now;
 
     return 1;
 }
 
-bool file_source_check_timeout(rtp_frame_state_s * state)
+static bool file_check_timeout(source_s * self, frame_state_s * state)
 {
+    (void)self;
     (void)state;
     return false;
+}
+
+source_s * source_file_create(void)
+{
+    g_file_impl.file   = nullptr;
+    g_file_source.ops  = &g_file_ops;
+    g_file_source.impl = &g_file_impl;
+    return &g_file_source;
 }

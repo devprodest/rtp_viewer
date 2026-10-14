@@ -1,44 +1,10 @@
-
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
+#include "source.h"
 
-#ifdef _WIN32
-    #include <winsock2.h>
-    #include <ws2tcpip.h>
-typedef int socklen_t;
-    #define RTP_CLOSE_SOCKET(s) closesocket(s)
-#else
-    #include <arpa/inet.h>
-    #include <netinet/in.h>
-    #include <sys/socket.h>
-    #include <unistd.h>
-    #define RTP_CLOSE_SOCKET(s) close(s)
-#endif
-
-// Состояние сборки кадра
-typedef struct rtp_frame_state_s
-{
-    uint16_t width;
-    uint16_t height;
-    uint16_t bytes_per_pixel;
-    uint32_t frame_size;
-    uint32_t received_bytes;
-    uint16_t last_seq;
-    uint32_t last_timestamp;
-    uint32_t packet_count;
-    uint32_t lost_packets;
-    bool marker_received;
-    bool frame_ready;
-    uint64_t last_packet_time_us;
-} rtp_frame_state_s;
-
-int rtp_socket_open(int port);
-void rtp_frame_state_init(rtp_frame_state_s * state, uint16_t width, uint16_t height, uint16_t bytes_per_pixel);
-void rtp_frame_state_reset(rtp_frame_state_s * state);
-
-bool rtp_frame_is_ready(const rtp_frame_state_s * state);
-
-bool rtp_frame_check_timeout(rtp_frame_state_s * state);
-int rtp_receive_packets(int sock, rtp_frame_state_s * state, uint8_t * frame_buffer);
+/// \brief Создаёт источник RTP-over-UDP.
+///
+/// \details Возвращает указатель на статически выделенный source_s.
+///          Не освобождать вручную — вызов source_close сбросит внутреннее
+///          состояние, память переиспользуется.
+source_s * source_rtp_create(void);
