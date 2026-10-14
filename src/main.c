@@ -10,15 +10,15 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#include "file_source.h"
-#include "gl_render.h"
-#include "help_dialog.h"
-#include "mouse_state.h"
-#include "rtp.h"
-#include "saver.h"
-#include "stats.h"
-#include "utils.h"
-#include "version.h"
+#include "control/mouse.h"
+#include "help/help_dialog.h"
+#include "log/stats.h"
+#include "render/gl_render.h"
+#include "save/saver.h"
+#include "source/source_file.h"
+#include "source/source_rtp.h"
+#include "util/utils.h"
+#include "util/version.h"
 
 #ifdef _WIN32
     #include <windows.h>

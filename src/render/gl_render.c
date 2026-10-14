@@ -1,11 +1,12 @@
 
 #include "gl_render.h"
-#include "histogram.h"
-#include "png_writer.h"
-#include "saver.h"
-#include "stats.h"
 #include "text_overlay.h"
-#include "utils.h"
+
+#include "analysis/histogram.h"
+#include "log/stats.h"
+#include "png_writer.h"
+#include "save/saver.h"
+#include "util/utils.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -58,6 +59,12 @@ static size_t g_flip_buf_sz = 0;
 
 _Static_assert(HIST_TEX_H % 3 == 0, "HIST_TEX_H must be divisible by 3");
 
+
+static char POST_SHADER_FRAGMENT[] = {
+#embed "../res/post.glsl"
+    ,
+    0,
+};
 
 typedef uint8_t hist_pixel_t[ 4 ]; // [R, G, B, A]
 
@@ -1099,17 +1106,7 @@ bool gl_render_init(int width, int height, const char * format_name, int effecti
     }
 
     // ---- Пост-шейдер ----
-    char * post_src = read_file("formats/post.glsl");
-    if (!post_src)
-    {
-        fprintf(stderr, "Failed to load formats/post.glsl\n");
-        glDeleteProgram(g_program);
-        glfwDestroyWindow(g_window);
-        glfwTerminate();
-        return false;
-    }
-    g_post_program = build_program(post_src);
-    free(post_src);
+    g_post_program = build_program(POST_SHADER_FRAGMENT);
     if (!g_post_program)
     {
         glDeleteProgram(g_program);

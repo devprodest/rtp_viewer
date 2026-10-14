@@ -2,3 +2,4 @@ obj/*.o
 publish/**/*
 *.exe
 .PVS-Studio/*
+*.raw

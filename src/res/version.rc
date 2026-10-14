@@ -1,5 +1,5 @@
 #include <windows.h>
-#include "version.h"
+#include "util/version.h"
 
 VS_VERSION_INFO VERSIONINFO
 FILEVERSION    RTP_VIEWER_VERSION_MAJOR,RTP_VIEWER_VERSION_MINOR,RTP_VIEWER_VERSION_PATCH,0

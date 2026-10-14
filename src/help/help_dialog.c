@@ -1,5 +1,5 @@
 #include "help_dialog.h"
-#include "version.h"
+#include "util/version.h"
 
 #include <stdio.h>
 #include <stdlib.h>

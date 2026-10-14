@@ -1,10 +1,11 @@
-#include "file_source.h"
+#include "source_file.h"
+
+#include "util/utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "utils.h"
 
 /// \brief FPS по умолчанию, если пользователь не задал.
 #define FILE_SOURCE_DEFAULT_FPS 25

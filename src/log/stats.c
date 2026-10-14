@@ -1,7 +1,7 @@
 
 #include "stats.h"
-#include "utils.h"
-#include "gl_render.h"
+#include "render/gl_render.h"
+#include "util/utils.h"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -33,7 +33,7 @@ void stats_cleanup(void)
 
 void stats_add_packets(int count)
 {
-    g_total_packets       += (uint64_t)count;
+    g_total_packets += (uint64_t)count;
     g_last_second_packets += (uint64_t)count;
 }
 
@@ -68,7 +68,7 @@ void stats_update(void)
             {
                 time_t t       = time(nullptr);
                 struct tm * tm = localtime(&t);
-                char time_str[64];
+                char time_str[ 64 ];
                 strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", tm);
                 fprintf(f, "[%s] Total packets: %" PRIu64 ", PPS: %.0f, Frames: %" PRIu64 ", FPS: %.1f\n", time_str,
                         g_total_packets, pps, g_total_frames, fps);

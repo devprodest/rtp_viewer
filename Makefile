@@ -13,17 +13,31 @@ PUBLISH_DIR  = publish
 
 # Версия тянется из единственного источника правды — src/version.h.
 # sed вытаскивает значение RTP_VIEWER_VERSION_STR "...".
-VERSION := $(shell sed -n 's/.*RTP_VIEWER_VERSION_STR *"\([^"]*\)".*/\1/p' $(SRC_DIR)/version.h)
+VERSION := $(shell sed -n 's/.*RTP_VIEWER_VERSION_STR *"\([^"]*\)".*/\1/p' $(SRC_DIR)/util/version.h)
 ARCHIVE  = rtp_viewer_$(VERSION).zip
 
-SRCS := $(wildcard $(SRC_DIR)/*.c)
+SRCS  = $(SRC_DIR)/main.c
+SRCS += $(SRC_DIR)/source/source_rtp.c
+SRCS += $(SRC_DIR)/source/source_file.c
+SRCS += $(SRC_DIR)/render/gl_render.c
+SRCS += $(SRC_DIR)/render/gl_api.c
+SRCS += $(SRC_DIR)/render/text_overlay.c
+SRCS += $(SRC_DIR)/render/png_writer.c
+SRCS += $(SRC_DIR)/log/stats.c
+SRCS += $(SRC_DIR)/save/saver.c
+SRCS += $(SRC_DIR)/util/utils.c
+SRCS += $(SRC_DIR)/help/help_dialog.c
+SRCS += $(SRC_DIR)/analysis/histogram.c
+SRCS += $(SRC_DIR)/control/mouse.c
 
 # --- Windows resources ---
 RES_OBJ = obj/version.o
+VERSION_SRC = $(SRC_DIR)/res/version.rc
 
-OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o) $(RES_OBJ)
+OBJS = $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) $(RES_OBJ)
+vpath %.c $(sort $(dir $(SRCS)))
 
-CFLAGS  = -std=gnu2x -Wall -Wextra -O2 -g -Isrc -Ilib/glfw/include -Ilib
+CFLAGS  = -std=gnu2x -Wall -Wextra -O2 -g -Isrc -Ilib -Ilib/glfw/include
 LDFLAGS = -Llib/glfw/lib -lglfw3 -lopengl32 -lgdi32 -luser32 -lshell32 -lws2_32
 
 all: $(TARGET)
@@ -35,7 +49,7 @@ all: $(TARGET)
 #   3. упаковывает publish/ в rtp_viewer_<version>.zip
 # ---------------------------------------------------------------------------
 
-publish: $(TARGET) $(SRC_DIR)/version.h
+publish: $(TARGET) $(SRC_DIR)/util/version.h
 	@echo "Publishing rtp_viewer $(VERSION)"
 	$(RM_RF) $(PUBLISH_DIR)
 	$(MKDIR_P) $(PUBLISH_DIR)/formats
@@ -52,14 +66,17 @@ publish: $(TARGET) $(SRC_DIR)/version.h
 $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-$(RES_OBJ): $(SRC_DIR)/version.rc $(SRC_DIR)/version.h | $(OBJ_DIR)
-	$(RC) -I $(SRC_DIR) --input-format=rc --output-format=coff -i $< -o $@
+$(RES_OBJ): $(VERSION_SRC) $(SRC_DIR)/util/version.h | $(OBJ_DIR)
+	$(RC) -I $(SRC_DIR) -i $< --input-format=rc --output-format=coff -o $@
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
+$(OBJ_DIR)/%.o: %.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJ_DIR):
 	$(MKDIR_P) $(OBJ_DIR)
+
+
+print-%: ; @echo $*=$($*)
 
 clean:
 	$(RM_RF) $(OBJ_DIR) $(TARGET) $(PUBLISH_DIR) $(ARCHIVE)

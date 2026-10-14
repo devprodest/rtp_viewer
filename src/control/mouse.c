@@ -1,4 +1,4 @@
-#include "mouse_state.h"
+#include "mouse.h"
 
 #include <stddef.h>
 

@@ -4,10 +4,6 @@ uniform int saturation_enabled;
 in vec2 TexCoord;
 out vec4 FragColor;
 
-// Пост-обработка после форматного шейдера.
-// Пиксели, упершиеся в 0 или 1, подсвечиваются:
-//   undershoot → синий
-//   overshoot  → красный
 void main()
 {
     vec4 c = texture(tex, TexCoord);

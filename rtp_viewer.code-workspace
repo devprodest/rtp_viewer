@@ -27,8 +27,10 @@
 				"name": "rtp-viewer",
 				"includePath": [
 					"./lib/GLFW/include/GLFW",
+					"./lib/GLFW/include/",
 					"./lib/**",
 					"./lib",
+					"./src/**",
 					"./src",
 				],
 			}
