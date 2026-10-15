@@ -304,10 +304,10 @@ void text_draw(int x, int y, const char * text, float r, float g, float b, float
         float fx1 = *(const float *)(base + 2 * TEXT_STB_VERTEX_BYTES + 0);
         float fy1 = *(const float *)(base + 2 * TEXT_STB_VERTEX_BYTES + 4);
 
-        float x0 = (float)x + fx0 * scale;
-        float y0 = (float)y + fy0 * scale;
-        float x1 = (float)x + fx1 * scale;
-        float y1 = (float)y + fy1 * scale;
+        float x0 = (float)x + fx0 * scale + 0.5f;
+        float y0 = (float)y + fy0 * scale + 0.5f;
+        float x1 = (float)x + fx1 * scale + 0.5f;
+        float y1 = (float)y + fy1 * scale + 0.5f;
 
         emit_quad_ndc(x0, y0, x1, y1, r, g, b, 1.0f);
     }

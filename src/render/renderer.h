@@ -37,3 +37,7 @@ bool renderer_screen_to_frame(double mx, double my, int * fx, int * fy);
 void renderer_zoom_reset(void);
 void renderer_zoom_apply_wheel(double wheel, double mx, double my);
 void renderer_pan_apply_drag(double mx, double my, bool middle_down);
+
+void renderer_draw_inspector(int mouse_x, int mouse_y);
+void renderer_toggle_inspector(void);
+void renderer_set_mouse_pos(int mx, int my);

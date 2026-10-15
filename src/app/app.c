@@ -165,6 +165,7 @@ int app_run(const app_config_s * cfg)
         int fx       = 0;
         int fy       = 0;
         bool in_view = renderer_screen_to_frame(mouse.x, mouse.y, &fx, &fy);
+        renderer_set_mouse_pos(mouse.x, mouse.y);
         renderer_set_selection_from_mouse(fx, fy, mouse.left, mouse.right, in_view);
 
         int received = source_receive(src, &state, g_frame_buffers[ recv_idx ]);

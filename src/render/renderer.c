@@ -46,6 +46,9 @@ static int g_vp_y = 0;
 static int g_vp_w = 0;
 static int g_vp_h = 0;
 
+static float g_dpi_scale = 1.0f;
+
+
 static float g_zoom        = 1.0f;
 static float g_pan_x       = 0.0f;
 static float g_pan_y       = 0.0f;
@@ -55,6 +58,12 @@ static double g_pan_last_y = 0.0;
 
 static bool g_left_was_down  = false;
 static bool g_right_was_down = false;
+
+static float g_inspector_text_scale = 1.5f;
+static bool g_inspector_enabled     = false;
+static int g_last_mouse_x           = 0;
+static int g_last_mouse_y           = 0;
+static const uint8_t * g_last_frame = nullptr;
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -97,6 +106,14 @@ bool renderer_init(int width, int height, const char * format_name, int effectiv
     if (!window_init(width, height, "RTP Viewer"))
     {
         return false;
+    }
+
+    {
+        float sx = 1.0f;
+        float sy = 1.0f;
+        glfwGetWindowContentScale(window_get(), &sx, &sy);
+        g_dpi_scale = (sx > 0.0f) ? sx : 1.0f;
+        log_info("DPI scale: %.2f", (double)g_dpi_scale);
     }
 
     if (gl_api_load() != 0)
@@ -201,6 +218,8 @@ void renderer_poll_events(void)
 
 void renderer_update_texture(const uint8_t * data)
 {
+    g_last_frame = data;
+
     format_pass_upload(data);
 
     analytics_update(data, g_width, g_height, &g_format, g_format_name, &g_selection);
@@ -269,6 +288,10 @@ void renderer_update_texture(const uint8_t * data)
 
     text_begin(win_w, win_h);
     selection_view_draw(&g_selection, g_vp_x, g_vp_y, g_vp_w, g_vp_h, g_width, g_height);
+    if (g_inspector_enabled)
+    {
+        renderer_draw_inspector(g_last_mouse_x, g_last_mouse_y);
+    }
     text_end();
 
     screenshot_process_if_requested();
@@ -526,4 +549,117 @@ void renderer_pan_apply_drag(double mx, double my, bool middle_down)
         g_pan_x -= dx / g_zoom;
         g_pan_y += dy / g_zoom;
     }
+}
+
+void renderer_draw_inspector(int mouse_x, int mouse_y)
+{
+    int fx = 0;
+    int fy = 0;
+    if (!renderer_screen_to_frame((double)mouse_x, (double)mouse_y, &fx, &fy))
+    {
+        return;
+    }
+
+    if (!g_last_frame)
+    {
+        return;
+    }
+
+    uint8_t r    = 0;
+    uint8_t g    = 0;
+    uint8_t b    = 0;
+    uint32_t raw = 0;
+
+    if (g_format.bytes_per_pixel == 1)
+    {
+        uint8_t v = g_last_frame[ (size_t)fy * (size_t)g_width + (size_t)fx ];
+        r = g = b = v;
+        raw       = v;
+    }
+    else if (g_format.bytes_per_pixel == 2)
+    {
+        const uint16_t * p = (const uint16_t *)g_last_frame;
+        uint16_t v         = p[ (size_t)fy * (size_t)g_width + (size_t)fx ];
+        raw                = v;
+        uint8_t v8         = (uint8_t)(v >> 8);
+        r = g = b = v8;
+    }
+    else if (g_format.bytes_per_pixel == 3)
+    {
+        size_t idx = ((size_t)fy * (size_t)g_width + (size_t)fx) * 3;
+        r          = g_last_frame[ idx + 0 ];
+        g          = g_last_frame[ idx + 1 ];
+        b          = g_last_frame[ idx + 2 ];
+    }
+    else if (g_format.bytes_per_pixel == 4)
+    {
+        size_t idx = ((size_t)fy * (size_t)g_width + (size_t)fx) * 4;
+        r          = g_last_frame[ idx + 0 ];
+        g          = g_last_frame[ idx + 1 ];
+        b          = g_last_frame[ idx + 2 ];
+    }
+
+    int win_w = 0;
+    int win_h = 0;
+    window_get_framebuffer_size(&win_w, &win_h);
+
+    const float text_scale = g_dpi_scale * g_inspector_text_scale;
+    const int margin       = (int)(10 * g_dpi_scale);
+    const int box_size     = (int)(40 * g_dpi_scale);
+    const int gap          = (int)(10 * g_dpi_scale);
+    const int pad          = (int)(6 * g_dpi_scale);
+    const int line_h       = (int)(14 * text_scale);
+
+    const int box_x  = margin;
+    const int box_y  = win_h - margin - box_size;
+    const int text_x = box_x + box_size + gap;
+
+
+    typedef char text_line_t[ 64 ];
+    text_line_t line[ 2 ];
+
+    snprintf(line[ 0 ], sizeof(text_line_t), "x;y=(%d;%d)", fx, fy);
+
+    if (g_format.bytes_per_pixel <= 2)
+    {
+        snprintf(line[ 1 ], sizeof(text_line_t), "val=%u", raw);
+    }
+    else
+    {
+        snprintf(line[ 1 ], sizeof(text_line_t), "RGB=(%u;%u;%u)", r, g, b);
+    }
+
+    int w1     = text_measure(line[ 0 ], text_scale);
+    int w2     = text_measure(line[ 1 ], text_scale);
+    int text_w = (w1 > w2) ? w1 : w2;
+
+    // Плашка под текстом, справа от квадрата
+    int bg_x0 = text_x - pad;
+    int bg_y0 = box_y - pad;
+    int bg_x1 = text_x + text_w + pad;
+    int bg_y1 = box_y + line_h + line_h + pad;
+
+    overlay_rect(bg_x0, bg_y0, bg_x1, bg_y1, 0.0f, 0.0f, 0.0f, 0.6f);
+
+    // Квадрат цвета пикселя + рамка
+    overlay_rect(box_x, box_y, box_x + box_size, box_y + box_size, r / 255.0f, g / 255.0f, b / 255.0f, 1.0f);
+    overlay_rect_outline(box_x, box_y, box_x + box_size, box_y + box_size, 1.0f, 1.0f, 1.0f, 1.0f, 1);
+
+    // Текст
+    for (size_t i = 0; i < 2; i++)
+    {
+        text_draw(text_x, box_y + i * line_h, line[ i ], 1.0f, 1.0f, 1.0f, text_scale);
+    }
+}
+
+void renderer_toggle_inspector(void)
+{
+    g_inspector_enabled = !g_inspector_enabled;
+    log_info("Inspector %s", g_inspector_enabled ? "enabled" : "disabled");
+}
+
+void renderer_set_mouse_pos(int mx, int my)
+{
+    g_last_mouse_x = mx;
+    g_last_mouse_y = my;
 }

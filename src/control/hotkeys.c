@@ -1,18 +1,19 @@
 #include "hotkeys.h"
 #include "commands.h"
 
+static bool f1_pressed    = false;
+static bool key_0_pressed = false;
+static bool key_1_pressed = false;
+static bool space_pressed = false;
+static bool esc_pressed   = false;
 static bool s_pressed     = false;
 static bool r_pressed     = false;
 static bool w_pressed     = false;
-static bool key_0_pressed = false;
-static bool key_1_pressed = false;
-static bool f1_pressed    = false;
 static bool h_pressed     = false;
 static bool h_was_down    = false;
-static bool space_pressed = false;
 static bool e_pressed     = false;
 static bool c_pressed     = false;
-static bool esc_pressed   = false;
+static bool i_pressed     = false;
 
 void hotkeys_process(GLFWwindow * window)
 {
@@ -27,6 +28,7 @@ void hotkeys_process(GLFWwindow * window)
     bool w     = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
     bool h     = glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS;
     bool e     = glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS;
+    bool i     = glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS;
 
     bool ctrl  = glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || //
                  glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS;
@@ -73,6 +75,10 @@ void hotkeys_process(GLFWwindow * window)
     {
         cmd_execute(CMD_CLEAR_SELECTION);
     }
+    if (i && no_modificator && !i_pressed)
+    {
+        cmd_execute(CMD_TOGGLE_INSPECTOR);
+    }
 
     if (h && ctrl && !shift && !alt && !h_was_down)
     {
@@ -89,6 +95,7 @@ void hotkeys_process(GLFWwindow * window)
     }
 
     esc_pressed   = esc;
+    i_pressed     = i;
     c_pressed     = c;
     e_pressed     = e;
     s_pressed     = s;
