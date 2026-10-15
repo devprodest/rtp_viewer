@@ -19,6 +19,13 @@
 #include <stdio.h>
 #include <string.h>
 
+//----------------------------------------------------------------------------------------------------------------------
+
+#define ZOOM_MIN 1.0f
+#define ZOOM_MAX 32.0f
+
+//----------------------------------------------------------------------------------------------------------------------
+
 static GLuint g_quad_vao = 0;
 
 static int g_width      = 0;
@@ -39,9 +46,21 @@ static int g_vp_y = 0;
 static int g_vp_w = 0;
 static int g_vp_h = 0;
 
+static float g_zoom        = 1.0f;
+static float g_pan_x       = 0.0f;
+static float g_pan_y       = 0.0f;
+static bool g_pan_drag     = false;
+static double g_pan_last_x = 0.0;
+static double g_pan_last_y = 0.0;
+
 static bool g_left_was_down  = false;
 static bool g_right_was_down = false;
 
+//----------------------------------------------------------------------------------------------------------------------
+
+static void compute_base_viewport(int win_w, int win_h, int * bx, int * by, int * bw, int * bh);
+
+//----------------------------------------------------------------------------------------------------------------------
 
 static void apply_smoothing(void)
 {
@@ -203,22 +222,19 @@ void renderer_update_texture(const uint8_t * data)
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    float aspect_img = (float)g_width / (float)g_height;
-    float aspect_win = (float)win_w / (float)win_h;
+    // блок расчёта viewport
+    // {
+    int base_x = 0;
+    int base_y = 0;
+    int base_w = 0;
+    int base_h = 0;
+    compute_base_viewport(win_w, win_h, &base_x, &base_y, &base_w, &base_h);
 
-    int vp_w = 0, vp_h = 0, vp_x = 0, vp_y = 0;
-    if (aspect_win > aspect_img)
-    {
-        vp_h = win_h;
-        vp_w = (int)(win_h * aspect_img);
-        vp_x = (win_w - vp_w) / 2;
-    }
-    else
-    {
-        vp_w = win_w;
-        vp_h = (int)(win_w / aspect_img);
-        vp_y = (win_h - vp_h) / 2;
-    }
+    int vp_w = base_w * g_zoom;
+    int vp_h = base_h * g_zoom;
+    int vp_x = base_x - (g_pan_x * g_zoom);
+    int vp_y = base_y - (g_pan_y * g_zoom);
+    // }
 
     g_vp_x = vp_x;
     g_vp_y = vp_y;
@@ -385,4 +401,129 @@ void renderer_set_selection_from_mouse(int frame_x, int frame_y, bool left_down,
 void renderer_clear_selection(void)
 {
     selection_clear(&g_selection);
+}
+
+void renderer_zoom_reset(void)
+{
+    g_zoom  = 1.0f;
+    g_pan_x = 0.0f;
+    g_pan_y = 0.0f;
+}
+
+static void compute_base_viewport(int win_w, int win_h, int * bx, int * by, int * bw, int * bh)
+{
+    float aspect_img = (float)g_width / (float)g_height;
+    float aspect_win = (float)win_w / (float)win_h;
+
+    if (aspect_win > aspect_img)
+    {
+        *bh = win_h;
+        *bw = (int)(win_h * aspect_img);
+        *bx = (win_w - *bw) / 2;
+        *by = 0;
+    }
+    else
+    {
+        *bw = win_w;
+        *bh = (int)(win_w / aspect_img);
+        *bx = 0;
+        *by = (win_h - *bh) / 2;
+    }
+}
+
+void renderer_zoom_apply_wheel(double wheel, double mx, double my)
+{
+    if (wheel == 0.0 || g_vp_w <= 0 || g_vp_h <= 0)
+    {
+        return;
+    }
+
+    // Точка под курсором в координатах кадра до zoom
+    int fx_before = 0;
+    int fy_before = 0;
+    if (!renderer_screen_to_frame(mx, my, &fx_before, &fy_before))
+    {
+        return;
+    }
+
+    float factor = 1.0f + (float)wheel * 0.15f;
+    if (factor < 0.1f)
+    {
+        factor = 0.1f;
+    }
+
+    float new_zoom = g_zoom * factor;
+    if (new_zoom < ZOOM_MIN)
+    {
+        new_zoom = ZOOM_MIN;
+    }
+    if (new_zoom > ZOOM_MAX)
+    {
+        new_zoom = ZOOM_MAX;
+    }
+
+    g_zoom = new_zoom;
+
+    // После zoom та же точка должна остаться под курсором.
+    // Пересчитываем pan так, чтобы frame (fx_before, fy_before) проецировался в (mx, my).
+    // Проекция: x_screen = vp_x + (f_x * vp_w) / W
+    //          = base_x - pan_x*zoom + (f_x * base_w * zoom) / W
+    // Отсюда: pan_x = (base_x + (f_x * base_w * zoom) / W - mx) / zoom
+    // base_x и base_w — исходный letterbox без zoom.
+
+    // Проще пересчитать через текущий g_vp_* и новую позицию:
+    // Не храним base, пересчитаем по текущему состоянию.
+    // Мы только что поменяли g_zoom, но g_vp_* ещё старые. Пересчёт сделаем
+    // на следующем кадре в update_texture, а pan подберём аналитически.
+
+    // Найдём base_w/base_h/base_x/base_y из win размеров — они уже в g_vp_*, но с учётом старого zoom.
+    // Проще: пересчитать base прямо здесь.
+    int win_w = 0;
+    int win_h = 0;
+    window_get_framebuffer_size(&win_w, &win_h);
+    if (win_w <= 0 || win_h <= 0)
+    {
+        return;
+    }
+
+    int base_w = 0;
+    int base_h = 0;
+    int base_x = 0;
+    int base_y = 0;
+    compute_base_viewport(win_w, win_h, &base_x, &base_y, &base_w, &base_h);
+
+
+    float want_x = (float)mx - (float)base_x - ((float)fx_before * (float)base_w * g_zoom) / (float)g_width;
+    float want_y = (float)my - (float)base_y - ((float)fy_before * (float)base_h * g_zoom) / (float)g_height;
+
+    g_pan_x = -want_x / g_zoom;
+    g_pan_y = -want_y / g_zoom;
+}
+
+void renderer_pan_apply_drag(double mx, double my, bool middle_down)
+{
+    if (middle_down && !g_pan_drag)
+    {
+        g_pan_drag   = true;
+        g_pan_last_x = mx;
+        g_pan_last_y = my;
+        return;
+    }
+
+    if (!middle_down && g_pan_drag)
+    {
+        g_pan_drag = false;
+        return;
+    }
+
+    if (middle_down && g_pan_drag)
+    {
+        double dx    = mx - g_pan_last_x;
+        double dy    = my - g_pan_last_y;
+        g_pan_last_x = mx;
+        g_pan_last_y = my;
+
+        g_pan_x -= dx / g_zoom;
+        g_pan_y += dy / g_zoom;
+    }
 }

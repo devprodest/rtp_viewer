@@ -150,6 +150,16 @@ int app_run(const app_config_s * cfg)
     {
         renderer_poll_events();
         mouse_state_update(window, &mouse);
+
+        // Wheel — zoom
+        double wheel = mouse_state_take_wheel(&mouse);
+        if (wheel != 0.0)
+        {
+            renderer_zoom_apply_wheel(wheel, mouse.x, mouse.y);
+        }
+        // СКМ — pan
+        renderer_pan_apply_drag(mouse.x, mouse.y, mouse.middle);
+
         hotkeys_process(window);
 
         int fx       = 0;

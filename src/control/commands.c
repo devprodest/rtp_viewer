@@ -30,8 +30,9 @@ void cmd_execute(commands_e cmd)
             break;
 
         case CMD_REQUEST_SCREENSHOT: renderer_request_screenshot(); break;
-        
+
         case CMD_CLEAR_SELECTION: renderer_clear_selection(); break;
+        case CMD_ZOOM_RESET: renderer_zoom_reset(); break;
 
         case CMD_SHOW_HELP: help_dialog_show(); break;
         default: break;

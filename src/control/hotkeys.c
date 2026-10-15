@@ -4,7 +4,8 @@
 static bool s_pressed     = false;
 static bool r_pressed     = false;
 static bool w_pressed     = false;
-static bool one_pressed   = false;
+static bool key_0_pressed = false;
+static bool key_1_pressed = false;
 static bool f1_pressed    = false;
 static bool h_pressed     = false;
 static bool h_was_down    = false;
@@ -17,7 +18,8 @@ void hotkeys_process(GLFWwindow * window)
 {
     bool f1    = glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS;
     bool esc   = glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
-    bool one   = glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS;
+    bool key_0 = glfwGetKey(window, GLFW_KEY_0) == GLFW_PRESS;
+    bool key_1 = glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS;
     bool space = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
     bool c     = glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS;
     bool s     = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
@@ -39,7 +41,11 @@ void hotkeys_process(GLFWwindow * window)
     {
         cmd_execute(CMD_TOGGLE_SATURATION);
     }
-    if (one && no_modificator && !one_pressed)
+    if (key_0 && no_modificator && !key_0_pressed)
+    {
+        cmd_execute(CMD_ZOOM_RESET);
+    }
+    if (key_1 && no_modificator && !key_1_pressed)
     {
         cmd_execute(CMD_TOGGLE_SMOOTHING);
     }
@@ -88,7 +94,8 @@ void hotkeys_process(GLFWwindow * window)
     s_pressed     = s;
     r_pressed     = r;
     w_pressed     = w;
-    one_pressed   = one;
+    key_0_pressed = key_0;
+    key_1_pressed = key_1;
     f1_pressed    = f1;
     h_pressed     = h && !ctrl;
     h_was_down    = h;

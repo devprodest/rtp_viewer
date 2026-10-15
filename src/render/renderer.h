@@ -33,3 +33,7 @@ void renderer_request_screenshot(void);
 void renderer_set_selection_from_mouse(int frame_x, int frame_y, bool left_down, bool right_down, bool in_view);
 void renderer_clear_selection(void);
 bool renderer_screen_to_frame(double mx, double my, int * fx, int * fy);
+
+void renderer_zoom_reset(void);
+void renderer_zoom_apply_wheel(double wheel, double mx, double my);
+void renderer_pan_apply_drag(double mx, double my, bool middle_down);
