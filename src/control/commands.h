@@ -12,6 +12,7 @@ typedef enum commands_e
     CMD_REQUEST_SCREENSHOT,
     CMD_FLUSH_SAVER,
     CMD_SHOW_HELP,
+    CMD_CLEAR_SELECTION,
 } commands_e;
 
 void cmd_execute(commands_e cmd);

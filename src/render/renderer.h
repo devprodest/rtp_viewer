@@ -28,3 +28,8 @@ void renderer_toggle_histogram_cdf(void);
 void renderer_toggle_saturation(void);
 
 void renderer_request_screenshot(void);
+
+
+void renderer_set_selection_from_mouse(int frame_x, int frame_y, bool left_down, bool right_down, bool in_view);
+void renderer_clear_selection(void);
+bool renderer_screen_to_frame(double mx, double my, int * fx, int * fy);

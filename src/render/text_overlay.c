@@ -13,9 +13,9 @@
 #include "gl_api.h"
 #include "log/logger.h"
 
+#include "log/logger.h"
 #include <stdint.h>
 #include <stdio.h>
-#include "log/logger.h"
 #include <stdlib.h>
 
 #include "stb_easy_font.h"
@@ -311,6 +311,25 @@ void text_draw(int x, int y, const char * text, float r, float g, float b, float
 
         emit_quad_ndc(x0, y0, x1, y1, r, g, b, 1.0f);
     }
+}
+
+
+void overlay_rect(int x0, int y0, int x1, int y1, float r, float g, float b, float a)
+{
+    emit_quad_ndc((float)x0, (float)y0, (float)x1, (float)y1, r, g, b, a);
+}
+
+void overlay_rect_outline(int x0, int y0, int x1, int y1, float r, float g, float b, float a, int thickness)
+{
+    if (thickness < 1)
+    {
+        thickness = 1;
+    }
+
+    emit_quad_ndc(x0, y0, x1, y0 + thickness, r, g, b, a);
+    emit_quad_ndc(x0, y1 - thickness, x1, y1, r, g, b, a);
+    emit_quad_ndc(x0, y0, x0 + thickness, y1, r, g, b, a);
+    emit_quad_ndc(x1 - thickness, y0, x1, y1, r, g, b, a);
 }
 
 int text_measure(const char * text, float scale)

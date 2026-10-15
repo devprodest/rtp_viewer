@@ -1,5 +1,4 @@
 #include "hotkeys.h"
-
 #include "commands.h"
 
 static bool s_pressed     = false;
@@ -12,10 +11,12 @@ static bool h_was_down    = false;
 static bool space_pressed = false;
 static bool e_pressed     = false;
 static bool c_pressed     = false;
+static bool esc_pressed   = false;
 
 void hotkeys_process(GLFWwindow * window)
 {
     bool f1    = glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS;
+    bool esc   = glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
     bool one   = glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS;
     bool space = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
     bool c     = glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS;
@@ -62,6 +63,10 @@ void hotkeys_process(GLFWwindow * window)
     {
         cmd_execute(CMD_TOGGLE_PAUSE);
     }
+    if (esc && no_modificator && !esc_pressed)
+    {
+        cmd_execute(CMD_CLEAR_SELECTION);
+    }
 
     if (h && ctrl && !shift && !alt && !h_was_down)
     {
@@ -77,6 +82,7 @@ void hotkeys_process(GLFWwindow * window)
         cmd_execute(CMD_TOGGLE_HISTOGRAM_CDF);
     }
 
+    esc_pressed   = esc;
     c_pressed     = c;
     e_pressed     = e;
     s_pressed     = s;

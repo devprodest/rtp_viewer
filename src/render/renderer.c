@@ -1,6 +1,7 @@
 #include "renderer.h"
 
 #include "analysis/analytics.h"
+#include "analysis/selection.h"
 #include "format/format_config.h"
 #include "format_pass.h"
 #include "gl_api.h"
@@ -9,6 +10,7 @@
 #include "log/logger.h"
 #include "log/stats.h"
 #include "post_pass.h"
+#include "render/selection_view.h"
 #include "save/saver.h"
 #include "save/screenshot.h"
 #include "text_overlay.h"
@@ -31,6 +33,15 @@ static char g_format_name[ 64 ] = {0};
 
 static format_config_s g_format;
 static selection_s g_selection;
+
+static int g_vp_x = 0;
+static int g_vp_y = 0;
+static int g_vp_w = 0;
+static int g_vp_h = 0;
+
+static bool g_left_was_down  = false;
+static bool g_right_was_down = false;
+
 
 static void apply_smoothing(void)
 {
@@ -83,6 +94,8 @@ bool renderer_init(int width, int height, const char * format_name, int effectiv
     }
 
     selection_init(&g_selection);
+    g_left_was_down  = false;
+    g_right_was_down = false;
 
     text_overlay_init();
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -207,6 +220,11 @@ void renderer_update_texture(const uint8_t * data)
         vp_y = (win_h - vp_h) / 2;
     }
 
+    g_vp_x = vp_x;
+    g_vp_y = vp_y;
+    g_vp_w = vp_w;
+    g_vp_h = vp_h;
+
     glViewport(0, 0, win_w, win_h);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -234,6 +252,7 @@ void renderer_update_texture(const uint8_t * data)
     }
 
     text_begin(win_w, win_h);
+    selection_view_draw(&g_selection, g_vp_x, g_vp_y, g_vp_w, g_vp_h, g_width, g_height);
     text_end();
 
     screenshot_process_if_requested();
@@ -297,4 +316,73 @@ void renderer_toggle_saturation(void)
 void renderer_request_screenshot(void)
 {
     screenshot_request();
+}
+
+bool renderer_screen_to_frame(double mx, double my, int * fx, int * fy)
+{
+    if (g_vp_w <= 0 || g_vp_h <= 0)
+    {
+        return false;
+    }
+
+    if (mx < g_vp_x || mx >= g_vp_x + g_vp_w || my < g_vp_y || my >= g_vp_y + g_vp_h)
+    {
+        return false;
+    }
+
+    int wx = (int)mx - g_vp_x;
+    int wy = (int)my - g_vp_y;
+
+    int frame_x = wx * g_width / g_vp_w;
+    int frame_y = wy * g_height / g_vp_h;
+
+    if (frame_x < 0)
+    {
+        frame_x = 0;
+    }
+    if (frame_x >= g_width)
+    {
+        frame_x = g_width - 1;
+    }
+    if (frame_y < 0)
+    {
+        frame_y = 0;
+    }
+    if (frame_y >= g_height)
+    {
+        frame_y = g_height - 1;
+    }
+
+    *fx = frame_x;
+    *fy = frame_y;
+    return true;
+}
+
+void renderer_set_selection_from_mouse(int frame_x, int frame_y, bool left_down, bool right_down, bool in_view)
+{
+    if (left_down && !g_left_was_down && in_view)
+    {
+        selection_begin(&g_selection, frame_x, frame_y);
+    }
+    else if (!left_down && g_left_was_down)
+    {
+        selection_end(&g_selection);
+    }
+    else if (left_down && g_left_was_down && in_view)
+    {
+        selection_update(&g_selection, frame_x, frame_y);
+    }
+
+    if (right_down && !g_right_was_down)
+    {
+        selection_clear(&g_selection);
+    }
+
+    g_left_was_down  = left_down;
+    g_right_was_down = right_down;
+}
+
+void renderer_clear_selection(void)
+{
+    selection_clear(&g_selection);
 }

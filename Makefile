@@ -27,8 +27,8 @@ SRCS += $(SRC_DIR)/control/hotkeys.c
 SRCS += $(SRC_DIR)/control/mouse.c
 SRCS += $(SRC_DIR)/format/format_config.c
 SRCS += $(SRC_DIR)/help/help.c
-SRCS += $(SRC_DIR)/log/stats.c
 SRCS += $(SRC_DIR)/log/logger.c
+SRCS += $(SRC_DIR)/log/stats.c
 SRCS += $(SRC_DIR)/render/format_pass.c
 SRCS += $(SRC_DIR)/render/gl_api.c
 SRCS += $(SRC_DIR)/render/gl_utils.c
@@ -36,14 +36,15 @@ SRCS += $(SRC_DIR)/render/histogram_view.c
 SRCS += $(SRC_DIR)/render/png_writer.c
 SRCS += $(SRC_DIR)/render/post_pass.c
 SRCS += $(SRC_DIR)/render/renderer.c
+SRCS += $(SRC_DIR)/render/selection_view.c
 SRCS += $(SRC_DIR)/render/text_overlay.c
 SRCS += $(SRC_DIR)/render/window.c
 SRCS += $(SRC_DIR)/save/saver.c
 SRCS += $(SRC_DIR)/save/screenshot.c
+SRCS += $(SRC_DIR)/source/source_factory.c
 SRCS += $(SRC_DIR)/source/source_file.c
 SRCS += $(SRC_DIR)/source/source_rtp.c
 SRCS += $(SRC_DIR)/source/source.c
-SRCS += $(SRC_DIR)/source/source_factory.c
 SRCS += $(SRC_DIR)/util/utils.c
 
 # --- Windows resources ---
