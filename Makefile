@@ -81,6 +81,7 @@ publish: $(TARGET) $(SRC_DIR)/util/version.h
 
 $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+	size $(TARGET)
 
 $(RES_OBJ): $(VERSION_SRC) $(SRC_DIR)/util/version.h | $(OBJ_DIR)
 	$(RC) -I $(SRC_DIR) -i $< --input-format=rc --output-format=coff -o $@

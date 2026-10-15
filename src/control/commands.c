@@ -4,54 +4,34 @@
 #include "render/renderer.h"
 #include "save/saver.h"
 
-void cmd_toggle_smoothing(void)
-{
-    renderer_toggle_smoothing();
-}
+#include <stdbool.h>
 
-void cmd_toggle_saturation(void)
-{
-    renderer_toggle_saturation();
-}
 
-void cmd_toggle_histogram(void)
+void cmd_execute(commands_e cmd)
 {
-    renderer_toggle_histogram();
-}
+    switch (cmd)
+    {
+        case CMD_TOGGLE_SMOOTHING: renderer_toggle_smoothing(); break;
 
-void cmd_toggle_histogram_scale(void)
-{
-    renderer_toggle_histogram_scale();
-}
+        case CMD_TOGGLE_SATURATION: renderer_toggle_saturation(); break;
+        case CMD_TOGGLE_HISTOGRAM: renderer_toggle_histogram(); break;
+        case CMD_TOGGLE_HISTOGRAM_SCALE: renderer_toggle_histogram_scale(); break;
+        case CMD_TOGGLE_HISTOGRAM_CDF: renderer_toggle_histogram_cdf(); break;
 
-void cmd_toggle_histogram_cdf(void)
-{
-    renderer_toggle_histogram_cdf();
-}
+        case CMD_FLUSH_SAVER: saver_flush(); break;
+        case CMD_TOGGLE_RECORDING:
+            saver_toggle_recording();
+            renderer_refresh_title();
+            break;
 
-void cmd_request_screenshot(void)
-{
-    renderer_request_screenshot();
-}
+        case CMD_TOGGLE_PAUSE:
+            extern bool app_toggle_pause(void);
+            app_toggle_pause();
+            break;
 
-void cmd_toggle_recording(void)
-{
-    saver_toggle_recording();
-    renderer_refresh_title();
-}
+        case CMD_REQUEST_SCREENSHOT: renderer_request_screenshot(); break;
 
-void cmd_flush_saver(void)
-{
-    saver_flush();
-}
-
-void cmd_show_help(void)
-{
-    help_dialog_show();
-}
-
-void cmd_toggle_pause(void)
-{
-    extern bool app_toggle_pause(void);
-    app_toggle_pause();
+        case CMD_SHOW_HELP: help_dialog_show(); break;
+        default: break;
+    }
 }

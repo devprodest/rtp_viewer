@@ -1,14 +1,17 @@
 #pragma once
 
-#include <stdbool.h>
+typedef enum commands_e
+{
+    CMD_TOGGLE_SMOOTHING,
+    CMD_TOGGLE_SATURATION,
+    CMD_TOGGLE_HISTOGRAM,
+    CMD_TOGGLE_HISTOGRAM_SCALE,
+    CMD_TOGGLE_HISTOGRAM_CDF,
+    CMD_TOGGLE_RECORDING,
+    CMD_TOGGLE_PAUSE,
+    CMD_REQUEST_SCREENSHOT,
+    CMD_FLUSH_SAVER,
+    CMD_SHOW_HELP,
+} commands_e;
 
-void cmd_toggle_smoothing(void);
-void cmd_toggle_saturation(void);
-void cmd_toggle_histogram(void);
-void cmd_toggle_histogram_scale(void);
-void cmd_toggle_histogram_cdf(void);
-void cmd_request_screenshot(void);
-void cmd_toggle_recording(void);
-void cmd_flush_saver(void);
-void cmd_show_help(void);
-void cmd_toggle_pause(void);
+void cmd_execute(commands_e cmd);
