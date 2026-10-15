@@ -35,17 +35,18 @@ PFNGLFRAMEBUFFERTEXTURE2DPROC glFramebufferTexture2D       = nullptr;
 PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus   = nullptr;
 PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers           = nullptr;
 PFNGLDELETEBUFFERSPROC glDeleteBuffers                     = nullptr;
+PFNGLUNIFORM2FPROC glUniform2f                             = nullptr;
 ;
 
-#define LOAD(name)                                                          \
-    ({                                                                      \
-        GLFWglproc p = glfwGetProcAddress(#name);                           \
-        if (!p)                                                             \
-        {                                                                   \
+#define LOAD(name)                                                    \
+    ({                                                                \
+        GLFWglproc p = glfwGetProcAddress(#name);                     \
+        if (!p)                                                       \
+        {                                                             \
             log_error("Failed to load OpenGL function: %s\n", #name); \
-            return -1;                                                      \
-        }                                                                   \
-        *(void **)(&name) = (void *)p;                                      \
+            return -1;                                                \
+        }                                                             \
+        *(void **)(&name) = (void *)p;                                \
     })
 
 int gl_api_load(void)
@@ -80,6 +81,7 @@ int gl_api_load(void)
     LOAD(glCheckFramebufferStatus);
     LOAD(glDeleteFramebuffers);
     LOAD(glDeleteBuffers);
+    LOAD(glUniform2f);
 
     return 0;
 }

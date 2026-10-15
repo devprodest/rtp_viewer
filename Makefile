@@ -20,6 +20,7 @@ SRCS  = $(SRC_DIR)/main.c
 SRCS += $(SRC_DIR)/analysis/analytics.c
 SRCS += $(SRC_DIR)/analysis/histogram.c
 SRCS += $(SRC_DIR)/analysis/selection.c
+SRCS += $(SRC_DIR)/analysis/sharpness.c
 SRCS += $(SRC_DIR)/app/app.c
 SRCS += $(SRC_DIR)/app/config.c
 SRCS += $(SRC_DIR)/control/commands.c

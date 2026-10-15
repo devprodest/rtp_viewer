@@ -2,6 +2,7 @@
 
 #include "analysis/analytics.h"
 #include "analysis/selection.h"
+#include "analysis/sharpness.h"
 #include "format/format_config.h"
 #include "format_pass.h"
 #include "gl_api.h"
@@ -65,6 +66,9 @@ static int g_last_mouse_x           = 0;
 static int g_last_mouse_y           = 0;
 static const uint8_t * g_last_frame = nullptr;
 
+static bool g_gradient_enabled = false;
+static sharpness_s g_sharpness;
+
 //----------------------------------------------------------------------------------------------------------------------
 
 static void compute_base_viewport(int win_w, int win_h, int * bx, int * by, int * bw, int * bh);
@@ -94,9 +98,19 @@ void renderer_refresh_title(void)
 
     char title[ 160 ];
 
-    snprintf(title, sizeof(title), "RTP Viewer - %dx%d %s fps:%.1f%s%s", g_width, g_height,
-             g_format_name[ 0 ] ? g_format_name : "?", stats_get_fps(), g_paused ? " [PAUSE]" : "",
-             saver_is_recording() ? " [REC]" : "");
+    char extra[ 64 ] = "";
+    if (g_gradient_enabled && g_sharpness.valid)
+    {
+        snprintf(extra, sizeof(extra), " Lap=%.1f Ten=%.0f", g_sharpness.lap_var, g_sharpness.tenengrad);
+    }
+
+    snprintf(title, sizeof(title), "RTP Viewer - %dx%d %s fps:%.1f%s%s%s", //
+             g_width, g_height,                                            //
+             g_format_name[ 0 ] ? g_format_name : "?",                     //
+             stats_get_fps(),                                              //
+             g_paused ? " [PAUSE]" : "",                                   //
+             saver_is_recording() ? " [REC]" : "",                         //
+             extra);
 
     window_set_title(title);
 }
@@ -165,6 +179,8 @@ bool renderer_init(int width, int height, const char * format_name, int effectiv
         return false;
     }
 
+    post_pass_set_texel_size(1.0f / (float)g_width, 1.0f / (float)g_height);
+
     if (!histogram_view_init(g_quad_vao))
     {
         post_pass_cleanup();
@@ -223,6 +239,12 @@ void renderer_update_texture(const uint8_t * data)
     format_pass_upload(data);
 
     analytics_update(data, g_width, g_height, &g_format, g_format_name, &g_selection);
+
+    if (g_gradient_enabled)
+    {
+        sharpness_compute(data, g_width, g_height, &g_format, &g_selection, &g_sharpness);
+    }
+
     if (histogram_view_is_enabled())
     {
         histogram_view_update();
@@ -662,4 +684,12 @@ void renderer_set_mouse_pos(int mx, int my)
 {
     g_last_mouse_x = mx;
     g_last_mouse_y = my;
+}
+
+void renderer_toggle_gradient(void)
+{
+    g_gradient_enabled = !g_gradient_enabled;
+    post_pass_set_gradient(g_gradient_enabled);
+    renderer_refresh_title();
+    log_info("Gradient %s", g_gradient_enabled ? "enabled" : "disabled");
 }

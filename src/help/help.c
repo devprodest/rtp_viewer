@@ -26,6 +26,8 @@ static const char * build_hotkeys_text(void)
              "  S \tSave screenshot (PNG)\n"
              "  R \tToggle recording (on / off)\n"
              "  W \tForce save accumulated frames\n"
+             "  F \tToggle gradient view (Sobel) + sharpness metrics\n"
+             "  I \tToggle pixel inspector\n"
              "  H \tToggle histogram overlay\n"
              "  Ctrl+H \tToggle histogram scale (linear / log)\n"
              "  C \tToggle histogram CDF overlay\n"

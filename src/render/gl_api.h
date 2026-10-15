@@ -35,6 +35,7 @@ extern PFNGLFRAMEBUFFERTEXTURE2DPROC glFramebufferTexture2D;
 extern PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus;
 extern PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers;
 extern PFNGLDELETEBUFFERSPROC glDeleteBuffers;
+extern PFNGLUNIFORM2FPROC glUniform2f;
 
 // Загрузить указатели (вызывать после glfwMakeContextCurrent)
 int gl_api_load(void);

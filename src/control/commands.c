@@ -13,6 +13,7 @@ void cmd_execute(commands_e cmd)
     {
         case CMD_TOGGLE_SMOOTHING: renderer_toggle_smoothing(); break;
 
+        case CMD_TOGGLE_GRADIENT: renderer_toggle_gradient(); break;
         case CMD_TOGGLE_INSPECTOR: renderer_toggle_inspector(); break;
         case CMD_TOGGLE_SATURATION: renderer_toggle_saturation(); break;
         case CMD_TOGGLE_HISTOGRAM: renderer_toggle_histogram(); break;
