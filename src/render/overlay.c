@@ -1,4 +1,4 @@
-/// \file text_overlay.c
+/// \file overlay.c
 /// \brief Отрисовка ASCII-текста поверх GL-сцены через stb_easy_font.
 /// \date 2026
 ///
@@ -9,11 +9,12 @@
 ///
 /// Атрибуты: position (vec2, NDC), color (vec4, RGBA float).
 
-#include "text_overlay.h"
+#include "overlay.h"
 #include "gl_api.h"
+#include "gl_utils.h"
 #include "log/logger.h"
+#include "util/utils.h"
 
-#include "log/logger.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -54,12 +55,8 @@
 /// \brief Вершина текста: NDC-координаты и цвет.
 typedef struct text_vertex_s
 {
-    float x; ///< X в NDC [-1..1]
-    float y; ///< Y в NDC [-1..1]
-    float r; ///< Красный 0..1
-    float g; ///< Зелёный 0..1
-    float b; ///< Синий 0..1
-    float a; ///< Альфа 0..1
+    fpoint_s v;
+    fcolor_rgba_s color;
 } text_vertex_t;
 
 //---------------------------------------------------- Variables -------------------------------------------------------
@@ -68,8 +65,7 @@ static text_vertex_t * g_verts = NULL; ///< Накопленные вершин�
 static int g_vert_count        = 0;    ///< Текущее число вершин
 static int g_vert_capacity     = 0;    ///< Ёмкость буфера
 
-static int g_win_w = 1; ///< Ширина окна, пиксели
-static int g_win_h = 1; ///< Высота окна, пиксели
+static fimage_size_s g_win = {1.0f, 1.0f}; ///< Размер окна, пиксели
 
 static GLuint g_vao     = 0; ///< VAO для атрибутов
 static GLuint g_vbo     = 0; ///< VBO с вершинами
@@ -116,69 +112,39 @@ static bool ensure_vertex_capacity(int need)
     return true;
 }
 
-/// \brief Компилирует один шейдер.
-///
-/// \param source Исходник
-/// \param type   GL_VERTEX_SHADER или GL_FRAGMENT_SHADER
-///
-/// \return ID шейдера или 0
-static GLuint compile_shader(const char * source, GLenum type)
-{
-    GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, &source, NULL);
-    glCompileShader(shader);
-
-    GLint ok = 0;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
-    if (!ok)
-    {
-        char info[ 512 ];
-        glGetShaderInfoLog(shader, sizeof(info), NULL, info);
-        log_error("text_overlay shader error: %s\n", info);
-        glDeleteShader(shader);
-        return 0;
-    }
-    return shader;
-}
-
 /// \brief Выдаёт один квад как два треугольника в NDC.
-///
-/// \param x0 Левая граница в пикселях окна (top-left origin)
-/// \param y0 Верхняя граница
-/// \param x1 Правая граница
-/// \param y1 Нижняя граница
-/// \param r  Красный 0..1
-/// \param g  Зелёный 0..1
-/// \param b  Синий 0..1
-/// \param a  Альфа 0..1
-static void emit_quad_ndc(float x0, float y0, float x1, float y1, float r, float g, float b, float a)
+static void emit_quad_ndc(frect_s rect, fcolor_rgba_s color)
 {
     if (!ensure_vertex_capacity(g_vert_count + 6))
     {
         return;
     }
 
-    float nx0 = (x0 / (float)g_win_w) * 2.0f - 1.0f;
-    float nx1 = (x1 / (float)g_win_w) * 2.0f - 1.0f;
-    float ny0 = 1.0f - (y0 / (float)g_win_h) * 2.0f;
-    float ny1 = 1.0f - (y1 / (float)g_win_h) * 2.0f;
+    float nx0 = (rect.x0 / g_win.x) * 2.0f - 1.0f;
+    float nx1 = (rect.x1 / g_win.x) * 2.0f - 1.0f;
+    float ny0 = 1.0f - (rect.y0 / g_win.y) * 2.0f;
+    float ny1 = 1.0f - (rect.y1 / g_win.y) * 2.0f;
 
     text_vertex_t * v = &g_verts[ g_vert_count ];
 
-    v[ 0 ] = (text_vertex_t) {nx0, ny0, r, g, b, a};
-    v[ 1 ] = (text_vertex_t) {nx1, ny0, r, g, b, a};
-    v[ 2 ] = (text_vertex_t) {nx1, ny1, r, g, b, a};
+    // clang-format off
+    
+    v[ 0 ] = (text_vertex_t) { .v = {nx0, ny0}, .color = color };
+    v[ 1 ] = (text_vertex_t) { .v = {nx1, ny0}, .color = color };
+    v[ 2 ] = (text_vertex_t) { .v = {nx1, ny1}, .color = color };
 
-    v[ 3 ] = (text_vertex_t) {nx0, ny0, r, g, b, a};
-    v[ 4 ] = (text_vertex_t) {nx1, ny1, r, g, b, a};
-    v[ 5 ] = (text_vertex_t) {nx0, ny1, r, g, b, a};
+    v[ 3 ] = (text_vertex_t) { .v = {nx0, ny0}, .color = color };
+    v[ 4 ] = (text_vertex_t) { .v = {nx1, ny1}, .color = color };
+    v[ 5 ] = (text_vertex_t) { .v = {nx0, ny1}, .color = color };
+
+    // clang-format on
 
     g_vert_count += 6;
 }
 
 //---------------------------------------------------- Functions -------------------------------------------------------
 
-void text_overlay_init(void)
+void overlay_init(void)
 {
     static const char * vs =
         "#version 330 core\n"
@@ -200,12 +166,12 @@ void text_overlay_init(void)
         "    FragColor = vColor;\n"
         "}\n";
 
-    GLuint v = compile_shader(vs, GL_VERTEX_SHADER);
+    GLuint v = gl_utils_compile_shader(vs, GL_VERTEX_SHADER);
     if (!v)
     {
         return;
     }
-    GLuint f = compile_shader(fs, GL_FRAGMENT_SHADER);
+    GLuint f = gl_utils_compile_shader(fs, GL_FRAGMENT_SHADER);
     if (!f)
     {
         glDeleteShader(v);
@@ -248,7 +214,7 @@ void text_overlay_init(void)
     ensure_vertex_capacity(TEXT_INITIAL_VERTS);
 }
 
-void text_overlay_cleanup(void)
+void overlay_cleanup(void)
 {
     if (g_vbo)
     {
@@ -272,14 +238,14 @@ void text_overlay_cleanup(void)
     g_vert_count    = 0;
 }
 
-void text_begin(int win_w, int win_h)
+void everlay_begin(image_size_s win)
 {
-    g_win_w      = win_w > 0 ? win_w : 1;
-    g_win_h      = win_h > 0 ? win_h : 1;
+    g_win.x      = win.x > 0 ? win.x : 1;
+    g_win.y      = win.y > 0 ? win.y : 1;
     g_vert_count = 0;
 }
 
-void text_draw(int x, int y, const char * text, float r, float g, float b, float scale)
+void text_draw(point_s s, const char * text, fcolor_rgb_s color, float scale)
 {
     if (!text || !*text || scale <= 0.0f)
     {
@@ -304,32 +270,33 @@ void text_draw(int x, int y, const char * text, float r, float g, float b, float
         float fx1 = *(const float *)(base + 2 * TEXT_STB_VERTEX_BYTES + 0);
         float fy1 = *(const float *)(base + 2 * TEXT_STB_VERTEX_BYTES + 4);
 
-        float x0 = (float)x + fx0 * scale + 0.5f;
-        float y0 = (float)y + fy0 * scale + 0.5f;
-        float x1 = (float)x + fx1 * scale + 0.5f;
-        float y1 = (float)y + fy1 * scale + 0.5f;
-
-        emit_quad_ndc(x0, y0, x1, y1, r, g, b, 1.0f);
+        frect_s rect = {
+            .x0 = (float)s.x + fx0 * scale + 0.5f,
+            .y0 = (float)s.y + fy0 * scale + 0.5f,
+            .x1 = (float)s.x + fx1 * scale + 0.5f,
+            .y1 = (float)s.y + fy1 * scale + 0.5f,
+        };
+        emit_quad_ndc(rect, to_rgba_convert(fcolor_rgba_s, color, 1.f));
     }
 }
 
 
-void overlay_rect(int x0, int y0, int x1, int y1, float r, float g, float b, float a)
+void overlay_rect(rect_s rect, fcolor_rgba_s color)
 {
-    emit_quad_ndc((float)x0, (float)y0, (float)x1, (float)y1, r, g, b, a);
+    emit_quad_ndc(rect_convert(frect_s, rect), color);
 }
 
-void overlay_rect_outline(int x0, int y0, int x1, int y1, float r, float g, float b, float a, int thickness)
+void overlay_rect_outline(rect_s rect, fcolor_rgba_s color, int thickness)
 {
     if (thickness < 1)
     {
         thickness = 1;
     }
 
-    emit_quad_ndc(x0, y0, x1, y0 + thickness, r, g, b, a);
-    emit_quad_ndc(x0, y1 - thickness, x1, y1, r, g, b, a);
-    emit_quad_ndc(x0, y0, x0 + thickness, y1, r, g, b, a);
-    emit_quad_ndc(x1 - thickness, y0, x1, y1, r, g, b, a);
+    emit_quad_ndc((frect_s) {rect.x0, rect.y0, rect.x1, rect.y0 + thickness}, color);
+    emit_quad_ndc((frect_s) {rect.x0, rect.y1 - thickness, rect.x1, rect.y1}, color);
+    emit_quad_ndc((frect_s) {rect.x0, rect.y0, rect.x0 + thickness, rect.y1}, color);
+    emit_quad_ndc((frect_s) {rect.x1 - thickness, rect.y0, rect.x1, rect.y1}, color);
 }
 
 int text_measure(const char * text, float scale)
@@ -343,7 +310,7 @@ int text_measure(const char * text, float scale)
     return (int)((float)w * scale + 0.5f);
 }
 
-void text_end(void)
+void everlay_end(void)
 {
     if (g_vert_count == 0 || !g_program || !g_vao)
     {
@@ -351,7 +318,7 @@ void text_end(void)
     }
 
     // Полнооконный viewport — текст рисуется поверх всего.
-    glViewport(0, 0, g_win_w, g_win_h);
+    glViewport(0, 0, (int)g_win.x, (int)g_win.y);
 
     glUseProgram(g_program);
 

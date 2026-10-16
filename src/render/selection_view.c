@@ -1,6 +1,9 @@
 #include "selection_view.h"
 
-#include "render/text_overlay.h"
+#include "render/overlay.h"
+
+#define SELECTION_COLOR 1.0f, 1.0f, 1.0f
+
 
 void selection_view_draw(const selection_s * sel, int vp_x, int vp_y, int vp_w, int vp_h, int frame_w, int frame_h)
 {
@@ -17,11 +20,16 @@ void selection_view_draw(const selection_s * sel, int vp_x, int vp_y, int vp_w, 
     int sx0, sy0, sx1, sy1;
     selection_rect(sel, &sx0, &sy0, &sx1, &sy1);
 
-    int ex0 = vp_x + (sx0 * vp_w) / frame_w;
-    int ey0 = vp_y + (sy0 * vp_h) / frame_h;
-    int ex1 = vp_x + (sx1 * vp_w) / frame_w;
-    int ey1 = vp_y + (sy1 * vp_h) / frame_h;
+    rect_s rect = {
+        .x0 = vp_x + (sx0 * vp_w) / frame_w,
+        .y0 = vp_y + (sy0 * vp_h) / frame_h,
+        .x1 = vp_x + (sx1 * vp_w) / frame_w,
+        .y1 = vp_y + (sy1 * vp_h) / frame_h,
+    };
 
-    overlay_rect(ex0, ey0, ex1, ey1, 1.0f, 1.0f, 1.0f, 0.08f);
-    overlay_rect_outline(ex0, ey0, ex1, ey1, 1.0f, 1.0f, 1.0f, 0.9f, 1);
+    fcolor_rgb_s color = {1.0f, 1.0f, 1.0f};
+
+
+    overlay_rect(rect, to_rgba_convert(fcolor_rgba_s, color, 0.08f));
+    overlay_rect_outline(rect, to_rgba_convert(fcolor_rgba_s, color, 0.9f), 1);
 }

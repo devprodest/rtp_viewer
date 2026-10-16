@@ -14,7 +14,7 @@
 #include "render/selection_view.h"
 #include "save/saver.h"
 #include "save/screenshot.h"
-#include "text_overlay.h"
+#include "overlay.h"
 #include "window.h"
 
 #include <stdio.h>
@@ -147,7 +147,7 @@ bool renderer_init(int width, int height, const char * format_name, int effectiv
     g_left_was_down  = false;
     g_right_was_down = false;
 
-    text_overlay_init();
+    overlay_init();
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
     g_width    = width;
@@ -159,14 +159,14 @@ bool renderer_init(int width, int height, const char * format_name, int effectiv
     if (g_quad_vao == 0)
     {
         log_error("renderer: failed to create fullscreen quad VAO\n");
-        text_overlay_cleanup();
+        overlay_cleanup();
         window_cleanup();
         return false;
     }
 
     if (!format_pass_init(width, height, g_quad_vao, effective_bits, &g_format))
     {
-        text_overlay_cleanup();
+        overlay_cleanup();
         window_cleanup();
         return false;
     }
@@ -174,7 +174,7 @@ bool renderer_init(int width, int height, const char * format_name, int effectiv
     if (!post_pass_init(g_quad_vao))
     {
         format_pass_cleanup();
-        text_overlay_cleanup();
+        overlay_cleanup();
         window_cleanup();
         return false;
     }
@@ -185,7 +185,7 @@ bool renderer_init(int width, int height, const char * format_name, int effectiv
     {
         post_pass_cleanup();
         format_pass_cleanup();
-        text_overlay_cleanup();
+        overlay_cleanup();
         window_cleanup();
         return false;
     }
@@ -215,7 +215,7 @@ void renderer_cleanup(void)
         g_quad_vao = 0;
     }
 
-    text_overlay_cleanup();
+    overlay_cleanup();
     window_cleanup();
 
     g_width  = 0;
@@ -308,13 +308,13 @@ void renderer_update_texture(const uint8_t * data)
         histogram_view_render(ov_x, ov_y, ov_w, ov_h);
     }
 
-    text_begin(win_w, win_h);
+    everlay_begin((image_size_s) {win_w, win_h});
     selection_view_draw(&g_selection, g_vp_x, g_vp_y, g_vp_w, g_vp_h, g_width, g_height);
     if (g_inspector_enabled)
     {
         renderer_draw_inspector(g_last_mouse_x, g_last_mouse_y);
     }
-    text_end();
+    everlay_end();
 
     screenshot_process_if_requested();
 
@@ -656,21 +656,25 @@ void renderer_draw_inspector(int mouse_x, int mouse_y)
     int text_w = (w1 > w2) ? w1 : w2;
 
     // Плашка под текстом, справа от квадрата
-    int bg_x0 = text_x - pad;
-    int bg_y0 = box_y - pad;
-    int bg_x1 = text_x + text_w + pad;
-    int bg_y1 = box_y + line_h + line_h + pad;
 
-    overlay_rect(bg_x0, bg_y0, bg_x1, bg_y1, 0.0f, 0.0f, 0.0f, 0.6f);
+    rect_s panel = {
+        .x0 = text_x - pad,
+        .y0 = box_y - pad,
+        .x1 = text_x + text_w + pad,
+        .y1 = box_y + line_h + line_h + pad,
+    };
+    overlay_rect(panel, (fcolor_rgba_s) {0.0f, 0.0f, 0.0f, 0.6f});
 
     // Квадрат цвета пикселя + рамка
-    overlay_rect(box_x, box_y, box_x + box_size, box_y + box_size, r / 255.0f, g / 255.0f, b / 255.0f, 1.0f);
-    overlay_rect_outline(box_x, box_y, box_x + box_size, box_y + box_size, 1.0f, 1.0f, 1.0f, 1.0f, 1);
+    rect_s pix_color = {box_x, box_y, box_x + box_size, box_y + box_size};
+
+    overlay_rect(pix_color, (fcolor_rgba_s) {r / 255.0f, g / 255.0f, b / 255.0f, 1.0f});
+    overlay_rect_outline(pix_color, (fcolor_rgba_s) {1.0f, 1.0f, 1.0f, 1.0f}, 1);
 
     // Текст
     for (size_t i = 0; i < 2; i++)
     {
-        text_draw(text_x, box_y + i * line_h, line[ i ], 1.0f, 1.0f, 1.0f, text_scale);
+        text_draw((point_s) {text_x, box_y + i * line_h}, line[ i ], (fcolor_rgb_s) {1.0f, 1.0f, 1.0f}, text_scale);
     }
 }
 
