@@ -20,7 +20,7 @@ static bool g_cdf_enabled = false;
 #define HIST_BAND_ROWS          (64)
 #define HIST_TEX_H              (HIST_BAND_ROWS * 3)
 #define HIST_BACKGROUND_OPACITY (20)
-#define HIST_BIN_OPACITY        (255)
+#define HIST_BIN_OPACITY        (200)
 
 _Static_assert(HIST_TEX_H % 3 == 0, "HIST_TEX_H must be divisible by 3");
 
@@ -316,7 +316,7 @@ void histogram_view_update(void)
     build_histogram_image();
 }
 
-void histogram_view_render(int x, int y, int w, int h)
+void histogram_view_render(point_s s, image_size_s size)
 {
     const histogram_s * hist = analytics_get_histogram();
 
@@ -325,7 +325,7 @@ void histogram_view_render(int x, int y, int w, int h)
         return;
     }
 
-    glViewport(x, y, w, h);
+    glViewport(s.x, s.y, size.x, size.y);
 
     glUseProgram(g_hist_program);
     glActiveTexture(GL_TEXTURE0);

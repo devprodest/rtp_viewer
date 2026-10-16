@@ -17,18 +17,15 @@ void selection_view_draw(const selection_s * sel, int vp_x, int vp_y, int vp_w, 
         return;
     }
 
-    int sx0, sy0, sx1, sy1;
-    selection_rect(sel, &sx0, &sy0, &sx1, &sy1);
-
-    rect_s rect = {
-        .x0 = vp_x + (sx0 * vp_w) / frame_w,
-        .y0 = vp_y + (sy0 * vp_h) / frame_h,
-        .x1 = vp_x + (sx1 * vp_w) / frame_w,
-        .y1 = vp_y + (sy1 * vp_h) / frame_h,
+    rect_s select = selection_rect(sel);
+    rect_s rect   = {
+        .x0 = vp_x + (select.x0 * vp_w) / frame_w,
+        .y0 = vp_y + (select.y0 * vp_h) / frame_h,
+        .x1 = vp_x + (select.x1 * vp_w) / frame_w,
+        .y1 = vp_y + (select.y1 * vp_h) / frame_h,
     };
 
     fcolor_rgb_s color = {1.0f, 1.0f, 1.0f};
-
 
     overlay_rect(rect, to_rgba_convert(fcolor_rgba_s, color, 0.08f));
     overlay_rect_outline(rect, to_rgba_convert(fcolor_rgba_s, color, 0.9f), 1);

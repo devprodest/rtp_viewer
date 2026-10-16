@@ -37,7 +37,6 @@ bool post_pass_init(GLuint quad_vao)
     glUseProgram(g_program);
     g_uniform_tex        = glGetUniformLocation(g_program, "tex");
     g_uniform_saturation = glGetUniformLocation(g_program, "saturation_enabled");
-
     g_uniform_gradient   = glGetUniformLocation(g_program, "gradient_enabled");
     g_uniform_texel_size = glGetUniformLocation(g_program, "texel_size");
 

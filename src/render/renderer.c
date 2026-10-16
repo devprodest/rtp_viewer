@@ -10,11 +10,12 @@
 #include "histogram_view.h"
 #include "log/logger.h"
 #include "log/stats.h"
+#include "overlay.h"
 #include "post_pass.h"
 #include "render/selection_view.h"
 #include "save/saver.h"
 #include "save/screenshot.h"
-#include "overlay.h"
+#include "util/types.h"
 #include "window.h"
 
 #include <stdio.h>
@@ -71,7 +72,7 @@ static sharpness_s g_sharpness;
 
 //----------------------------------------------------------------------------------------------------------------------
 
-static void compute_base_viewport(int win_w, int win_h, int * bx, int * by, int * bw, int * bh);
+static void compute_base_viewport(image_size_s win, point_s * base_start, image_size_s * base);
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -238,11 +239,11 @@ void renderer_update_texture(const uint8_t * data)
 
     format_pass_upload(data);
 
-    analytics_update(data, g_width, g_height, &g_format, g_format_name, &g_selection);
+    analytics_update(data, (image_size_s) {g_width, g_height}, &g_format, g_format_name, &g_selection);
 
     if (g_gradient_enabled)
     {
-        sharpness_compute(data, g_width, g_height, &g_format, &g_selection, &g_sharpness);
+        g_sharpness = sharpness_compute(data, (image_size_s) {g_width, g_height}, &g_format, &g_selection);
     }
 
     if (histogram_view_is_enabled())
@@ -250,11 +251,9 @@ void renderer_update_texture(const uint8_t * data)
         histogram_view_update();
     }
 
-    int win_w = 0;
-    int win_h = 0;
-    window_get_framebuffer_size(&win_w, &win_h);
-
-    if (win_w <= 0 || win_h <= 0)
+    image_size_s win = {0, 0};
+    window_get_framebuffer_size(&win.x, &win.y);
+    if (win.x <= 0 || win.y <= 0)
     {
         return;
     }
@@ -265,16 +264,14 @@ void renderer_update_texture(const uint8_t * data)
 
     // блок расчёта viewport
     // {
-    int base_x = 0;
-    int base_y = 0;
-    int base_w = 0;
-    int base_h = 0;
-    compute_base_viewport(win_w, win_h, &base_x, &base_y, &base_w, &base_h);
+    point_s base_start;
+    image_size_s base;
+    compute_base_viewport(win, &base_start, &base);
 
-    int vp_w = base_w * g_zoom;
-    int vp_h = base_h * g_zoom;
-    int vp_x = base_x - (g_pan_x * g_zoom);
-    int vp_y = base_y - (g_pan_y * g_zoom);
+    int vp_w = base.x * g_zoom;
+    int vp_h = base.y * g_zoom;
+    int vp_x = base_start.x - (g_pan_x * g_zoom);
+    int vp_y = base_start.y - (g_pan_y * g_zoom);
     // }
 
     g_vp_x = vp_x;
@@ -282,7 +279,7 @@ void renderer_update_texture(const uint8_t * data)
     g_vp_w = vp_w;
     g_vp_h = vp_h;
 
-    glViewport(0, 0, win_w, win_h);
+    glViewport(0, 0, win.x, win.y);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
@@ -290,12 +287,11 @@ void renderer_update_texture(const uint8_t * data)
 
     if (histogram_view_is_enabled() && histogram_view_get_active_channels() > 0)
     {
-        const int ov_w   = 320;
-        const int ov_h   = 240;
-        const int margin = 10;
+        const image_size_s hist_view_size = {320, 240};
+        const int margin                  = 10;
 
-        int ov_x = win_w - ov_w - margin;
-        int ov_y = win_h - ov_h - margin;
+        int ov_x = win.x - hist_view_size.x - margin;
+        int ov_y = win.y - hist_view_size.y - margin;
         if (ov_x < 0)
         {
             ov_x = 0;
@@ -305,10 +301,10 @@ void renderer_update_texture(const uint8_t * data)
             ov_y = 0;
         }
 
-        histogram_view_render(ov_x, ov_y, ov_w, ov_h);
+        histogram_view_render((point_s) {ov_x, ov_y}, hist_view_size);
     }
 
-    everlay_begin((image_size_s) {win_w, win_h});
+    everlay_begin(win);
     selection_view_draw(&g_selection, g_vp_x, g_vp_y, g_vp_w, g_vp_h, g_width, g_height);
     if (g_inspector_enabled)
     {
@@ -423,7 +419,7 @@ void renderer_set_selection_from_mouse(int frame_x, int frame_y, bool left_down,
 {
     if (left_down && !g_left_was_down && in_view)
     {
-        selection_begin(&g_selection, frame_x, frame_y);
+        selection_begin(&g_selection, (point_s){frame_x, frame_y});
     }
     else if (!left_down && g_left_was_down)
     {
@@ -431,7 +427,7 @@ void renderer_set_selection_from_mouse(int frame_x, int frame_y, bool left_down,
     }
     else if (left_down && g_left_was_down && in_view)
     {
-        selection_update(&g_selection, frame_x, frame_y);
+        selection_update(&g_selection, (point_s){frame_x, frame_y});
     }
 
     if (right_down && !g_right_was_down)
@@ -455,24 +451,24 @@ void renderer_zoom_reset(void)
     g_pan_y = 0.0f;
 }
 
-static void compute_base_viewport(int win_w, int win_h, int * bx, int * by, int * bw, int * bh)
+static void compute_base_viewport(image_size_s win, point_s * base_start, image_size_s * base)
 {
     float aspect_img = (float)g_width / (float)g_height;
-    float aspect_win = (float)win_w / (float)win_h;
+    float aspect_win = (float)win.x / (float)win.y;
 
     if (aspect_win > aspect_img)
     {
-        *bh = win_h;
-        *bw = (int)(win_h * aspect_img);
-        *bx = (win_w - *bw) / 2;
-        *by = 0;
+        base->y       = win.y;
+        base->x       = win.y * aspect_img;
+        base_start->x = (win.x - base->x) / 2;
+        base_start->y = 0;
     }
     else
     {
-        *bw = win_w;
-        *bh = (int)(win_w / aspect_img);
-        *bx = 0;
-        *by = (win_h - *bh) / 2;
+        base->x       = win.x;
+        base->y       = win.x / aspect_img;
+        base_start->x = 0;
+        base_start->y = (win.y - base->y) / 2;
     }
 }
 
@@ -523,23 +519,21 @@ void renderer_zoom_apply_wheel(double wheel, double mx, double my)
 
     // Найдём base_w/base_h/base_x/base_y из win размеров — они уже в g_vp_*, но с учётом старого zoom.
     // Проще: пересчитать base прямо здесь.
-    int win_w = 0;
-    int win_h = 0;
-    window_get_framebuffer_size(&win_w, &win_h);
-    if (win_w <= 0 || win_h <= 0)
+
+    image_size_s win = {0, 0};
+    window_get_framebuffer_size(&win.x, &win.y);
+    if (win.x <= 0 || win.y <= 0)
     {
         return;
     }
 
-    int base_w = 0;
-    int base_h = 0;
-    int base_x = 0;
-    int base_y = 0;
-    compute_base_viewport(win_w, win_h, &base_x, &base_y, &base_w, &base_h);
+    point_s base_start;
+    image_size_s base;
+    compute_base_viewport(win, &base_start, &base);
 
 
-    float want_x = (float)mx - (float)base_x - ((float)fx_before * (float)base_w * g_zoom) / (float)g_width;
-    float want_y = (float)my - (float)base_y - ((float)fy_before * (float)base_h * g_zoom) / (float)g_height;
+    float want_x = (float)mx - (float)base_start.x - ((float)fx_before * (float)base.x * g_zoom) / (float)g_width;
+    float want_y = (float)my - (float)base_start.y - ((float)fy_before * (float)base.y * g_zoom) / (float)g_height;
 
     g_pan_x = -want_x / g_zoom;
     g_pan_y = -want_y / g_zoom;

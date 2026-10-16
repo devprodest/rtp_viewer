@@ -14,11 +14,12 @@ static bool format_is_ycbcr(const char * format_name)
 }
 
 /// \brief Считает гистограмму по прямоугольной области кадра.
-static void histogram_rect(const uint8_t * data, int img_w, const format_config_s * fmt, int rx, int ry, int rw, int rh)
+static void histogram_rect(const uint8_t * data, int img_w, const format_config_s * fmt, point_s start,
+                           image_size_s size)
 {
     histogram_reset(&g_histogram);
 
-    if (rw <= 0 || rh <= 0)
+    if (size.x <= 0 || size.y <= 0)
     {
         g_histogram.active_channels = 0;
         return;
@@ -29,10 +30,10 @@ static void histogram_rect(const uint8_t * data, int img_w, const format_config_
     if (fmt->gl_format == GL_RED && fmt->gl_type == GL_UNSIGNED_BYTE)
     {
         g_histogram.active_channels = 1;
-        for (int y = ry; y < ry + rh; y++)
+        for (int y = start.y; y < start.y + size.y; y++)
         {
             const uint8_t * row = data + ((size_t)y * (size_t)img_w);
-            for (int x = rx; x < rx + rw; x++)
+            for (int x = start.x; x < start.x + size.x; x++)
             {
                 histogram_add(&g_histogram, 0, row[ x ]);
             }
@@ -41,10 +42,10 @@ static void histogram_rect(const uint8_t * data, int img_w, const format_config_
     else if (fmt->gl_format == GL_RED && fmt->gl_type == GL_UNSIGNED_SHORT)
     {
         g_histogram.active_channels = 1;
-        for (int y = ry; y < ry + rh; y++)
+        for (int y = start.y; y < start.y + size.y; y++)
         {
             const uint16_t * row = (const uint16_t *)(data + ((size_t)y * (size_t)img_w * 2));
-            for (int x = rx; x < rx + rw; x++)
+            for (int x = start.x; x < start.x + size.x; x++)
             {
                 histogram_add(&g_histogram, 0, row[ x ] >> 8);
             }
@@ -53,10 +54,10 @@ static void histogram_rect(const uint8_t * data, int img_w, const format_config_
     else if ((fmt->gl_format == GL_RGB || fmt->gl_format == GL_RGBA) && fmt->gl_type == GL_UNSIGNED_BYTE)
     {
         g_histogram.active_channels = 3;
-        for (int y = ry; y < ry + rh; y++)
+        for (int y = start.y; y < start.y + size.y; y++)
         {
             const uint8_t * row = data + ((size_t)y * (size_t)img_w * (size_t)step);
-            for (int x = rx; x < rx + rw; x++)
+            for (int x = start.x; x < start.x + size.x; x++)
             {
                 const uint8_t * px = row + ((size_t)x * (size_t)step);
                 histogram_add(&g_histogram, 0, px[ 0 ]);
@@ -73,42 +74,43 @@ static void histogram_rect(const uint8_t * data, int img_w, const format_config_
     histogram_finalize(&g_histogram);
 }
 
-void analytics_update(const uint8_t * data, int width, int height, const format_config_s * fmt,
-                      const char * format_name, const selection_s * sel)
+void analytics_update(const uint8_t * data, image_size_s win, const format_config_s * fmt, const char * format_name,
+                      const selection_s * sel)
 {
     g_is_ycbcr = format_is_ycbcr(format_name);
 
-    int rx = 0, ry = 0, rw = width, rh = height;
+    point_s start     = {0};
+    image_size_s size = win;
 
     if (sel && selection_is_meaningful(sel))
     {
-        int x0, y0, x1, y1;
-        selection_rect(sel, &x0, &y0, &x1, &y1);
+        rect_s select = selection_rect(sel);
 
-        if (x0 < 0)
+        if (select.x0 < 0)
         {
-            x0 = 0;
+            select.x0 = 0;
         }
-        if (y0 < 0)
+        if (select.y0 < 0)
         {
-            y0 = 0;
+            select.y0 = 0;
         }
-        if (x1 > width)
+        if (select.x1 > win.x)
         {
-            x1 = width;
+            select.x1 = win.x;
         }
-        if (y1 > height)
+        if (select.y1 > win.y)
         {
-            y1 = height;
+            select.y1 = win.y;
         }
 
-        rx = x0;
-        ry = y0;
-        rw = x1 - x0;
-        rh = y1 - y0;
+
+        start.x = select.x0;
+        start.y = select.y0;
+        size.x  = select.x1 - select.x0;
+        size.y  = select.y1 - select.y0;
     }
 
-    histogram_rect(data, width, fmt, rx, ry, rw, rh);
+    histogram_rect(data, win.x, fmt, start, size);
 }
 
 const histogram_s * analytics_get_histogram(void)

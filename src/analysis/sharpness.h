@@ -2,6 +2,7 @@
 
 #include "analysis/selection.h"
 #include "format/format_config.h"
+#include "util/types.h"
 
 #include <stdint.h>
 
@@ -12,5 +13,5 @@ typedef struct sharpness_s
     int valid;        ///< 1, если удалось посчитать (был хотя бы один внутренний пиксель)
 } sharpness_s;
 
-void sharpness_compute(const uint8_t * data, int width, int height, const format_config_s * fmt,
-                       const selection_s * sel, sharpness_s * out);
+sharpness_s sharpness_compute(const uint8_t * data, image_size_s win, const format_config_s * fmt,
+                              const selection_s * sel);
