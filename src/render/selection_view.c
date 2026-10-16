@@ -5,24 +5,23 @@
 #define SELECTION_COLOR 1.0f, 1.0f, 1.0f
 
 
-void selection_view_draw(const selection_s * sel, int vp_x, int vp_y, int vp_w, int vp_h, int frame_w, int frame_h)
+void selection_view_draw(const selection_s * sel, point_s vpoint, image_size_s vsize, image_size_s win)
 {
     if (!sel || (!sel->active && !sel->dragging))
     {
         return;
     }
-
-    if (frame_w <= 0 || frame_h <= 0 || vp_w <= 0 || vp_h <= 0)
+    if (win.x <= 0 || win.y <= 0 || vsize.x <= 0 || vsize.y <= 0)
     {
         return;
     }
 
     rect_s select = selection_rect(sel);
     rect_s rect   = {
-        .x0 = vp_x + (select.x0 * vp_w) / frame_w,
-        .y0 = vp_y + (select.y0 * vp_h) / frame_h,
-        .x1 = vp_x + (select.x1 * vp_w) / frame_w,
-        .y1 = vp_y + (select.y1 * vp_h) / frame_h,
+        .x0 = vpoint.x + (select.x0 * vsize.x) / win.x,
+        .y0 = vpoint.y + (select.y0 * vsize.y) / win.y,
+        .x1 = vpoint.x + (select.x1 * vsize.x) / win.x,
+        .y1 = vpoint.y + (select.y1 * vsize.y) / win.y,
     };
 
     fcolor_rgb_s color = {1.0f, 1.0f, 1.0f};

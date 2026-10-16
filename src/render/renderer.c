@@ -30,11 +30,10 @@
 
 static GLuint g_quad_vao = 0;
 
-static int g_width      = 0;
-static int g_height     = 0;
-static int g_eff_bits   = 16;
-static bool g_smoothing = false;
-static bool g_paused    = false;
+static image_size_s g_win = {};
+static int g_eff_bits     = 16;
+static bool g_smoothing   = false;
+static bool g_paused      = false;
 
 static bool g_saturation_enabled = false;
 
@@ -43,28 +42,23 @@ static char g_format_name[ 64 ] = {0};
 static format_config_s g_format;
 static selection_s g_selection;
 
-static int g_vp_x = 0;
-static int g_vp_y = 0;
-static int g_vp_w = 0;
-static int g_vp_h = 0;
+static point_s g_vpoint     = {};
+static image_size_s g_vsize = {};
 
 static float g_dpi_scale = 1.0f;
 
 
 static float g_zoom        = 1.0f;
-static float g_pan_x       = 0.0f;
-static float g_pan_y       = 0.0f;
+static fpoint_s g_pan      = {};
+static fpoint_s g_pan_last = {};
 static bool g_pan_drag     = false;
-static double g_pan_last_x = 0.0;
-static double g_pan_last_y = 0.0;
 
 static bool g_left_was_down  = false;
 static bool g_right_was_down = false;
 
-static float g_inspector_text_scale = 1.5f;
 static bool g_inspector_enabled     = false;
-static int g_last_mouse_x           = 0;
-static int g_last_mouse_y           = 0;
+static float g_inspector_text_scale = 1.5f;
+static point_s g_last_mouse         = {};
 static const uint8_t * g_last_frame = nullptr;
 
 static bool g_gradient_enabled = false;
@@ -106,7 +100,7 @@ void renderer_refresh_title(void)
     }
 
     snprintf(title, sizeof(title), "RTP Viewer - %dx%d %s fps:%.1f%s%s%s", //
-             g_width, g_height,                                            //
+             g_win.x, g_win.y,                                             //
              g_format_name[ 0 ] ? g_format_name : "?",                     //
              stats_get_fps(),                                              //
              g_paused ? " [PAUSE]" : "",                                   //
@@ -151,8 +145,8 @@ bool renderer_init(int width, int height, const char * format_name, int effectiv
     overlay_init();
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-    g_width    = width;
-    g_height   = height;
+    g_win.x    = width;
+    g_win.y    = height;
     g_eff_bits = effective_bits;
     snprintf(g_format_name, sizeof(g_format_name), "%s", format_name);
 
@@ -180,7 +174,7 @@ bool renderer_init(int width, int height, const char * format_name, int effectiv
         return false;
     }
 
-    post_pass_set_texel_size(1.0f / (float)g_width, 1.0f / (float)g_height);
+    post_pass_set_texel_size(1.0f / (float)g_win.x, 1.0f / (float)g_win.y);
 
     if (!histogram_view_init(g_quad_vao))
     {
@@ -219,8 +213,8 @@ void renderer_cleanup(void)
     overlay_cleanup();
     window_cleanup();
 
-    g_width  = 0;
-    g_height = 0;
+    g_win.x = 0;
+    g_win.y = 0;
 }
 
 GLFWwindow * renderer_get_window(void)
@@ -239,11 +233,11 @@ void renderer_update_texture(const uint8_t * data)
 
     format_pass_upload(data);
 
-    analytics_update(data, (image_size_s) {g_width, g_height}, &g_format, g_format_name, &g_selection);
+    analytics_update(data, g_win, &g_format, g_format_name, &g_selection);
 
     if (g_gradient_enabled)
     {
-        g_sharpness = sharpness_compute(data, (image_size_s) {g_width, g_height}, &g_format, &g_selection);
+        g_sharpness = sharpness_compute(data, g_win, &g_format, &g_selection);
     }
 
     if (histogram_view_is_enabled())
@@ -263,52 +257,48 @@ void renderer_update_texture(const uint8_t * data)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // блок расчёта viewport
-    // {
     point_s base_start;
-    image_size_s base;
-    compute_base_viewport(win, &base_start, &base);
+    image_size_s base_size;
+    compute_base_viewport(win, &base_start, &base_size);
 
-    int vp_w = base.x * g_zoom;
-    int vp_h = base.y * g_zoom;
-    int vp_x = base_start.x - (g_pan_x * g_zoom);
-    int vp_y = base_start.y - (g_pan_y * g_zoom);
-    // }
-
-    g_vp_x = vp_x;
-    g_vp_y = vp_y;
-    g_vp_w = vp_w;
-    g_vp_h = vp_h;
+    g_vpoint.x = base_start.x - (g_pan.x * g_zoom);
+    g_vpoint.y = base_start.y - (g_pan.y * g_zoom);
+    g_vsize.x  = base_size.x * g_zoom;
+    g_vsize.y  = base_size.y * g_zoom;
 
     glViewport(0, 0, win.x, win.y);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    post_pass_render(format_pass_get_output_tex(), vp_x, vp_y, vp_w, vp_h);
+    post_pass_render(format_pass_get_output_tex(), g_vpoint, g_vsize);
 
     if (histogram_view_is_enabled() && histogram_view_get_active_channels() > 0)
     {
         const image_size_s hist_view_size = {320, 240};
         const int margin                  = 10;
 
-        int ov_x = win.x - hist_view_size.x - margin;
-        int ov_y = win.y - hist_view_size.y - margin;
-        if (ov_x < 0)
+        point_s ov = {
+            .x = win.x - hist_view_size.x - margin,
+            .y = win.y - hist_view_size.y - margin,
+        };
+
+        if (ov.x < 0)
         {
-            ov_x = 0;
+            ov.x = 0;
         }
-        if (ov_y < 0)
+        if (ov.y < 0)
         {
-            ov_y = 0;
+            ov.y = 0;
         }
 
-        histogram_view_render((point_s) {ov_x, ov_y}, hist_view_size);
+        histogram_view_render(ov, hist_view_size);
     }
 
     everlay_begin(win);
-    selection_view_draw(&g_selection, g_vp_x, g_vp_y, g_vp_w, g_vp_h, g_width, g_height);
+    selection_view_draw(&g_selection, g_vpoint, g_vsize, g_win);
     if (g_inspector_enabled)
     {
-        renderer_draw_inspector(g_last_mouse_x, g_last_mouse_y);
+        renderer_draw_inspector(g_last_mouse.x, g_last_mouse.y);
     }
     everlay_end();
 
@@ -377,37 +367,37 @@ void renderer_request_screenshot(void)
 
 bool renderer_screen_to_frame(double mx, double my, int * fx, int * fy)
 {
-    if (g_vp_w <= 0 || g_vp_h <= 0)
+    if (g_vsize.x <= 0 || g_vsize.y <= 0)
     {
         return false;
     }
 
-    if (mx < g_vp_x || mx >= g_vp_x + g_vp_w || my < g_vp_y || my >= g_vp_y + g_vp_h)
+    if (mx < g_vpoint.x || mx >= g_vpoint.x + g_vsize.x || my < g_vpoint.y || my >= g_vpoint.y + g_vsize.y)
     {
         return false;
     }
 
-    int wx = (int)mx - g_vp_x;
-    int wy = (int)my - g_vp_y;
+    int wx = (int)mx - g_vpoint.x;
+    int wy = (int)my - g_vpoint.y;
 
-    int frame_x = wx * g_width / g_vp_w;
-    int frame_y = wy * g_height / g_vp_h;
+    int frame_x = wx * g_win.x / g_vsize.x;
+    int frame_y = wy * g_win.y / g_vsize.y;
 
     if (frame_x < 0)
     {
         frame_x = 0;
     }
-    if (frame_x >= g_width)
+    if (frame_x >= g_win.x)
     {
-        frame_x = g_width - 1;
+        frame_x = g_win.x - 1;
     }
     if (frame_y < 0)
     {
         frame_y = 0;
     }
-    if (frame_y >= g_height)
+    if (frame_y >= g_win.y)
     {
-        frame_y = g_height - 1;
+        frame_y = g_win.y - 1;
     }
 
     *fx = frame_x;
@@ -419,7 +409,7 @@ void renderer_set_selection_from_mouse(int frame_x, int frame_y, bool left_down,
 {
     if (left_down && !g_left_was_down && in_view)
     {
-        selection_begin(&g_selection, (point_s){frame_x, frame_y});
+        selection_begin(&g_selection, (point_s) {frame_x, frame_y});
     }
     else if (!left_down && g_left_was_down)
     {
@@ -427,7 +417,7 @@ void renderer_set_selection_from_mouse(int frame_x, int frame_y, bool left_down,
     }
     else if (left_down && g_left_was_down && in_view)
     {
-        selection_update(&g_selection, (point_s){frame_x, frame_y});
+        selection_update(&g_selection, (point_s) {frame_x, frame_y});
     }
 
     if (right_down && !g_right_was_down)
@@ -447,34 +437,34 @@ void renderer_clear_selection(void)
 void renderer_zoom_reset(void)
 {
     g_zoom  = 1.0f;
-    g_pan_x = 0.0f;
-    g_pan_y = 0.0f;
+    g_pan.x = 0.0f;
+    g_pan.y = 0.0f;
 }
 
-static void compute_base_viewport(image_size_s win, point_s * base_start, image_size_s * base)
+static void compute_base_viewport(image_size_s win, point_s * base_start, image_size_s * base_size)
 {
-    float aspect_img = (float)g_width / (float)g_height;
+    float aspect_img = (float)g_win.x / (float)g_win.y;
     float aspect_win = (float)win.x / (float)win.y;
 
     if (aspect_win > aspect_img)
     {
-        base->y       = win.y;
-        base->x       = win.y * aspect_img;
-        base_start->x = (win.x - base->x) / 2;
+        base_size->y  = win.y;
+        base_size->x  = win.y * aspect_img;
+        base_start->x = (win.x - base_size->x) / 2;
         base_start->y = 0;
     }
     else
     {
-        base->x       = win.x;
-        base->y       = win.x / aspect_img;
+        base_size->x  = win.x;
+        base_size->y  = win.x / aspect_img;
         base_start->x = 0;
-        base_start->y = (win.y - base->y) / 2;
+        base_start->y = (win.y - base_size->y) / 2;
     }
 }
 
 void renderer_zoom_apply_wheel(double wheel, double mx, double my)
 {
-    if (wheel == 0.0 || g_vp_w <= 0 || g_vp_h <= 0)
+    if (wheel == 0.0 || g_vsize.x <= 0 || g_vsize.y <= 0)
     {
         return;
     }
@@ -532,11 +522,11 @@ void renderer_zoom_apply_wheel(double wheel, double mx, double my)
     compute_base_viewport(win, &base_start, &base);
 
 
-    float want_x = (float)mx - (float)base_start.x - ((float)fx_before * (float)base.x * g_zoom) / (float)g_width;
-    float want_y = (float)my - (float)base_start.y - ((float)fy_before * (float)base.y * g_zoom) / (float)g_height;
+    float want_x = (float)mx - (float)base_start.x - ((float)fx_before * (float)base.x * g_zoom) / (float)g_win.x;
+    float want_y = (float)my - (float)base_start.y - ((float)fy_before * (float)base.y * g_zoom) / (float)g_win.y;
 
-    g_pan_x = -want_x / g_zoom;
-    g_pan_y = -want_y / g_zoom;
+    g_pan.x = -want_x / g_zoom;
+    g_pan.y = -want_y / g_zoom;
 }
 
 void renderer_pan_apply_drag(double mx, double my, bool middle_down)
@@ -544,8 +534,8 @@ void renderer_pan_apply_drag(double mx, double my, bool middle_down)
     if (middle_down && !g_pan_drag)
     {
         g_pan_drag   = true;
-        g_pan_last_x = mx;
-        g_pan_last_y = my;
+        g_pan_last.x = mx;
+        g_pan_last.y = my;
         return;
     }
 
@@ -557,13 +547,13 @@ void renderer_pan_apply_drag(double mx, double my, bool middle_down)
 
     if (middle_down && g_pan_drag)
     {
-        double dx    = mx - g_pan_last_x;
-        double dy    = my - g_pan_last_y;
-        g_pan_last_x = mx;
-        g_pan_last_y = my;
+        float dx     = mx - g_pan_last.x;
+        float dy     = my - g_pan_last.y;
+        g_pan_last.x = mx;
+        g_pan_last.y = my;
 
-        g_pan_x -= dx / g_zoom;
-        g_pan_y += dy / g_zoom;
+        g_pan.x -= dx / g_zoom;
+        g_pan.y += dy / g_zoom;
     }
 }
 
@@ -588,28 +578,28 @@ void renderer_draw_inspector(int mouse_x, int mouse_y)
 
     if (g_format.bytes_per_pixel == 1)
     {
-        uint8_t v = g_last_frame[ (size_t)fy * (size_t)g_width + (size_t)fx ];
+        uint8_t v = g_last_frame[ (size_t)fy * (size_t)g_win.x + (size_t)fx ];
         r = g = b = v;
         raw       = v;
     }
     else if (g_format.bytes_per_pixel == 2)
     {
         const uint16_t * p = (const uint16_t *)g_last_frame;
-        uint16_t v         = p[ (size_t)fy * (size_t)g_width + (size_t)fx ];
+        uint16_t v         = p[ (size_t)fy * (size_t)g_win.x + (size_t)fx ];
         raw                = v;
         uint8_t v8         = (uint8_t)(v >> 8);
         r = g = b = v8;
     }
     else if (g_format.bytes_per_pixel == 3)
     {
-        size_t idx = ((size_t)fy * (size_t)g_width + (size_t)fx) * 3;
+        size_t idx = ((size_t)fy * (size_t)g_win.x + (size_t)fx) * 3;
         r          = g_last_frame[ idx + 0 ];
         g          = g_last_frame[ idx + 1 ];
         b          = g_last_frame[ idx + 2 ];
     }
     else if (g_format.bytes_per_pixel == 4)
     {
-        size_t idx = ((size_t)fy * (size_t)g_width + (size_t)fx) * 4;
+        size_t idx = ((size_t)fy * (size_t)g_win.x + (size_t)fx) * 4;
         r          = g_last_frame[ idx + 0 ];
         g          = g_last_frame[ idx + 1 ];
         b          = g_last_frame[ idx + 2 ];
@@ -680,8 +670,8 @@ void renderer_toggle_inspector(void)
 
 void renderer_set_mouse_pos(int mx, int my)
 {
-    g_last_mouse_x = mx;
-    g_last_mouse_y = my;
+    g_last_mouse.x = mx;
+    g_last_mouse.y = my;
 }
 
 void renderer_toggle_gradient(void)

@@ -52,9 +52,9 @@ void post_pass_cleanup(void)
     }
 }
 
-void post_pass_render(GLuint source_tex, int dst_x, int dst_y, int dst_w, int dst_h)
+void post_pass_render(GLuint source_tex, point_s dst, image_size_s size)
 {
-    glViewport(dst_x, dst_y, dst_w, dst_h);
+    glViewport(dst.x, dst.y, size.x, size.y);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
