@@ -1,5 +1,6 @@
 #include "analytics.h"
 #include "render/gl_api.h"
+#include "util/utils.h"
 
 
 #include <string.h>
@@ -86,23 +87,10 @@ void analytics_update(const uint8_t * data, image_size_s win, const format_confi
     {
         rect_s select = selection_rect(sel);
 
-        if (select.x0 < 0)
-        {
-            select.x0 = 0;
-        }
-        if (select.y0 < 0)
-        {
-            select.y0 = 0;
-        }
-        if (select.x1 > win.x)
-        {
-            select.x1 = win.x;
-        }
-        if (select.y1 > win.y)
-        {
-            select.y1 = win.y;
-        }
-
+        select.x0 = utils_max(select.x0, 0);
+        select.y0 = utils_max(select.y0, 0);
+        select.x1 = utils_min(select.x1, win.x);
+        select.y1 = utils_min(select.y1, win.y);
 
         start.x = select.x0;
         start.y = select.y0;

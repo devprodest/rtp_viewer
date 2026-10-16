@@ -6,9 +6,7 @@
 #include "gl_utils.h"
 
 static char POST_SHADER_FRAGMENT[] = {
-#embed "../res/post.glsl"
-    ,
-    0,
+#embed "../res/post.glsl" suffix(, 0)
 };
 
 static GLuint g_program           = 0;
@@ -19,8 +17,8 @@ static GLint g_uniform_saturation = -1;
 static GLint g_uniform_gradient   = -1;
 static GLint g_uniform_texel_size = -1;
 static bool g_gradient_enabled    = false;
-static float g_texel_x            = 0.0f;
-static float g_texel_y            = 0.0f;
+
+static fimage_size_s g_texel = {};
 
 static bool g_saturation_enabled = false;
 
@@ -77,7 +75,7 @@ void post_pass_render(GLuint source_tex, point_s dst, image_size_s size)
     }
     if (g_uniform_texel_size >= 0)
     {
-        glUniform2f(g_uniform_texel_size, g_texel_x, g_texel_y);
+        glUniform2f(g_uniform_texel_size, g_texel.x, g_texel.y);
     }
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
@@ -93,8 +91,7 @@ void post_pass_set_gradient(bool enabled)
     g_gradient_enabled = enabled;
 }
 
-void post_pass_set_texel_size(float texel_x, float texel_y)
+void post_pass_set_texel_size(fimage_size_s size)
 {
-    g_texel_x = texel_x;
-    g_texel_y = texel_y;
+    g_texel = size;
 }

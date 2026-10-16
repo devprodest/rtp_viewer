@@ -12,4 +12,4 @@ void post_pass_render(GLuint source_tex, point_s dst, image_size_s size);
 void post_pass_set_saturation(bool enabled);
 
 void post_pass_set_gradient(bool enabled);
-void post_pass_set_texel_size(float texel_x, float texel_y);
+void post_pass_set_texel_size(fimage_size_s size);

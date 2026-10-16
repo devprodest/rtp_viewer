@@ -21,8 +21,8 @@
 
 //----------------------------------------------------- Includes -------------------------------------------------------
 #include "saver.h"
-#include "util/utils.h"
 #include "log/logger.h"
+#include "util/utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,7 +39,7 @@
 ///          не объявит SleepConditionVariableCS / InitializeConditionVariable.
 ///
 /// Значение: 0x0600 (Vista). Менять не нужно.
-#define SAVER_WIN32_WINNT 0x0600
+#define SAVER_WIN32_WINNT          0x0600
 
 /// \brief Максимальная длина префикса имени файла (с NUL).
 ///
@@ -47,7 +47,7 @@
 ///          обрезаются через strncpy.
 ///
 /// Допустимый диапазон: 2..256. По умолчанию: 256.
-#define SAVER_PREFIX_MAX 256
+#define SAVER_PREFIX_MAX           256
 
 /// \brief Максимальная длина выходной директории (с NUL).
 ///
@@ -55,14 +55,14 @@
 ///          обрезаются.
 ///
 /// Допустимый диапазон: 2..256. По умолчанию: 256.
-#define SAVER_OUTDIR_MAX 256
+#define SAVER_OUTDIR_MAX           256
 
 /// \brief Максимальная длина имени формата (с NUL).
 ///
 /// \details Берётся из -f. Формат — часть имени файла.
 ///
 /// Допустимый диапазон: 2..64. По умолчанию: 64.
-#define SAVER_FORMAT_MAX 64
+#define SAVER_FORMAT_MAX           64
 
 /// \brief Максимальный размер полного пути файла кадра (с NUL).
 ///
@@ -71,7 +71,7 @@
 ///
 /// Допустимый диапазон: >= SAVER_OUTDIR_MAX + SAVER_PREFIX_MAX + 64.
 /// По умолчанию: 1024.
-#define SAVER_NAME_MAX 1024
+#define SAVER_NAME_MAX             1024
 
 /// \brief Максимальное число буферов в пуле.
 ///
@@ -84,7 +84,7 @@
 /// дропы при медленном диске; слишком большое — много памяти.
 ///
 /// Допустимый диапазон: 4..255. По умолчанию: 64.
-#define SAVER_POOL_MAX 64
+#define SAVER_POOL_MAX             64
 
 /// \brief Минимальное число буферов в пуле.
 ///
@@ -94,20 +94,20 @@
 /// Допустимый диапазон: 2..SAVER_POOL_MAX. По умолчанию: 4.
 /// Нельзя ставить меньше 2: очередь и пул рассчитаны на разделение
 /// хотя бы одного буфера «in-flight» и одного «в очереди».
-#define SAVER_POOL_MIN 4
+#define SAVER_POOL_MIN             4
 
 /// \brief Длина строки timestamp для имени файла (с NUL).
 ///
 /// \details Формат: YYYYMMDD_HHMMSS — 15 символов + NUL. 32 — с запасом.
 ///
 /// Допустимый диапазон: >= 16. По умолчанию: 32.
-#define SAVER_STAMP_MAX 32
+#define SAVER_STAMP_MAX            32
 
 /// \brief Формат timestamp в имени файла.
 ///
 /// \details Год-месяц-день_час-минута-секунда, локальное время.
 ///          Не менять без синхронизации с разбором имени где-либо ещё.
-#define SAVER_STAMP_FMT "%Y%m%d_%H%M%S"
+#define SAVER_STAMP_FMT            "%Y%m%d_%H%M%S"
 
 /// \brief Формат счётчика файлов в имени.
 ///
@@ -118,12 +118,12 @@
 /// \brief Префикс имени файла по умолчанию.
 ///
 /// \details Используется, если -s не задан.
-#define SAVER_DEFAULT_PREFIX "rtp"
+#define SAVER_DEFAULT_PREFIX       "rtp"
 
 /// \brief Права доступа к создаваемой выходной директории (POSIX).
 ///
 /// \details 0755 = rwxr-xr-x. На Windows mkdir(path) без режима.
-#define SAVER_DIR_MODE_POSIX 0755
+#define SAVER_DIR_MODE_POSIX       0755
 
 // Проверки на этапе компиляции: сужение до uint8_t корректно только
 // при этих условиях.
@@ -172,12 +172,12 @@ typedef pthread_cond_t saver_cond_t;
 /// \brief Идентификатор потока (POSIX).
 typedef pthread_t saver_thread_t;
 
-    #define SAVER_MUTEX_INIT(m)    pthread_mutex_init((m), NULL)
+    #define SAVER_MUTEX_INIT(m)    pthread_mutex_init((m), nullptr)
     #define SAVER_MUTEX_DESTROY(m) pthread_mutex_destroy(m)
     #define SAVER_MUTEX_LOCK(m)    pthread_mutex_lock(m)
     #define SAVER_MUTEX_UNLOCK(m)  pthread_mutex_unlock(m)
 
-    #define SAVER_COND_INIT(c)     pthread_cond_init((c), NULL)
+    #define SAVER_COND_INIT(c)     pthread_cond_init((c), nullptr)
     #define SAVER_COND_DESTROY(c)  pthread_cond_destroy(c)
     #define SAVER_COND_WAIT(c, m)  pthread_cond_wait((c), (m))
     #define SAVER_COND_SIGNAL(c)   pthread_cond_signal(c)
@@ -196,10 +196,10 @@ typedef pthread_t saver_thread_t;
 ///       _Static_assert выше ловит случай, если MAX когда-нибудь превысит 255.
 typedef struct saver_pool_s
 {
-    uint8_t * block;                ///< Один непрерывный блок на capacity × frame_size
-    uint8_t * bufs[SAVER_POOL_MAX]; ///< Указатели на срезы внутри block
-    uint8_t capacity;               ///< Фактическое число буферов (SAVER_POOL_MIN..MAX)
-    uint8_t free_count;             ///< Текущее число свободных буферов (0..capacity)
+    uint8_t * block;                  ///< Один непрерывный блок на capacity × frame_size
+    uint8_t * bufs[ SAVER_POOL_MAX ]; ///< Указатели на срезы внутри block
+    uint8_t capacity;                 ///< Фактическое число буферов (SAVER_POOL_MIN..MAX)
+    uint8_t free_count;               ///< Текущее число свободных буферов (0..capacity)
 } saver_pool_t;
 
 /// \brief Кольцевая очередь занятых буферов, ожидающих записи.
@@ -208,10 +208,10 @@ typedef struct saver_pool_s
 ///          а не SAVER_POOL_MAX. head/tail/count всегда 0..capacity.
 typedef struct saver_queue_s
 {
-    uint8_t * bufs[SAVER_POOL_MAX]; ///< Буферы в очереди
-    uint8_t head;                   ///< Индекс головы (что забрать следующим)
-    uint8_t tail;                   ///< Индекс хвоста (куда положить следующий)
-    uint8_t count;                  ///< Текущее число элементов
+    uint8_t * bufs[ SAVER_POOL_MAX ]; ///< Буферы в очереди
+    uint8_t head;                     ///< Индекс головы (что забрать следующим)
+    uint8_t tail;                     ///< Индекс хвоста (куда положить следующий)
+    uint8_t count;                    ///< Текущее число элементов
 } saver_queue_t;
 
 /// \brief Контекст сохранятеля (один глобальный экземпляр).
@@ -243,30 +243,29 @@ typedef struct saver_context_s
     uint8_t queue_count;     ///< Копия queue.count
     uint8_t _pad0;           ///< Явный паддинг до 4-байтового выравнивания
 
-    uint32_t file_counter;   ///< Счётчик файлов, растёт на каждый новый
-    uint32_t _pad1;          ///< Паддинг до 8-байтового выравнивания
+    uint32_t file_counter; ///< Счётчик файлов, растёт на каждый новый
+    uint32_t _pad1;        ///< Паддинг до 8-байтового выравнивания
 
-    uint64_t dropped;        ///< Сколько кадров дропнуто из-за пустого пула
+    uint64_t dropped; ///< Сколько кадров дропнуто из-за пустого пула
 
     // ---- WARM: saver-поток, не трогается из main ----
     saver_thread_t thread;   ///< Дескриптор saver-потока
-    FILE * current_file;     ///< Открытый файл или NULL
+    FILE * current_file;     ///< Открытый файл или nullptr
     time_t batch_start_time; ///< Время открытия текущего файла
     uint32_t frames_in_file; ///< Кадров записано в текущий файл
     uint32_t _pad2;          ///< Паддинг до 8-байтового выравнивания
 
     // ---- COLD: config, только чтение после saver_init ----
-    uint32_t frame_size;                ///< Размер кадра в байтах
-    uint32_t batch_size;                ///< Кадров на файл (>= 1)
-    uint32_t time_window;               ///< Секунд на файл (0 = только по количеству)
-    uint16_t width;                     ///< Ширина кадра в пикселях (1..65535)
-    uint16_t height;                    ///< Высота кадра в пикселях (1..65535)
-    char format_name[SAVER_FORMAT_MAX]; ///< Имя формата (для имени файла)
+    uint32_t frame_size;  ///< Размер кадра в байтах
+    uint32_t batch_size;  ///< Кадров на файл (>= 1)
+    uint32_t time_window; ///< Секунд на файл (0 = только по количеству)
+    image_size_s image;
+    char format_name[ SAVER_FORMAT_MAX ]; ///< Имя формата (для имени файла)
 
     // ---- COLD: строковые буферы ----
-    char prefix[SAVER_PREFIX_MAX];         ///< Префикс имён файлов
-    char outdir[SAVER_OUTDIR_MAX];         ///< Директория сохранения
-    char current_filename[SAVER_NAME_MAX]; ///< Путь текущего файла
+    char prefix[ SAVER_PREFIX_MAX ];         ///< Префикс имён файлов
+    char outdir[ SAVER_OUTDIR_MAX ];         ///< Директория сохранения
+    char current_filename[ SAVER_NAME_MAX ]; ///< Путь текущего файла
 
     // ---- BIG: пул и очередь в конце, вне горячей зоны ----
     saver_pool_t pool;   ///< Свободные буферы
@@ -284,13 +283,13 @@ static saver_context_s g_saver; ///< Единственный экземпляр
 /// \return true, если outdir не пуст и не равен "."
 static bool has_outdir(void)
 {
-    return g_saver.outdir[0] != '\0' && strcmp(g_saver.outdir, ".") != 0;
+    return g_saver.outdir[ 0 ] != '\0' && strcmp(g_saver.outdir, ".") != 0;
 }
 
 /// \brief Форматирует локальное время в формате SAVER_STAMP_FMT.
 ///
 /// \param t     Время
-/// \param out   Буфер для результата (не NULL)
+/// \param out   Буфер для результата (не nullptr)
 /// \param outsz Размер буфера (>= SAVER_STAMP_MAX)
 static void format_time_iso(time_t t, char * out, size_t outsz)
 {
@@ -317,14 +316,14 @@ static void build_filename(char * out, size_t outsz)
 {
     time_t t = g_saver.batch_start_time ? g_saver.batch_start_time : time(nullptr);
 
-    char stamp[SAVER_STAMP_MAX];
+    char stamp[ SAVER_STAMP_MAX ];
     format_time_iso(t, stamp, sizeof(stamp));
 
     const char * dir = has_outdir() ? g_saver.outdir : ".";
-    const char * fmt = g_saver.format_name[0] ? g_saver.format_name : "unknown";
+    const char * fmt = g_saver.format_name[ 0 ] ? g_saver.format_name : "unknown";
 
-    snprintf(out, outsz, "%s/%s_%s_%dx%d_%s_" SAVER_FILENAME_COUNTER_FMT ".raw", dir, g_saver.prefix, stamp,
-             (int)g_saver.width, (int)g_saver.height, fmt, g_saver.file_counter);
+    snprintf(out, outsz, "%s/%s_%s_%dx%d_%s_" SAVER_FILENAME_COUNTER_FMT ".raw", //
+             dir, g_saver.prefix, stamp, g_saver.image.x, g_saver.image.y, fmt, g_saver.file_counter);
 }
 
 /// \brief Закрывает текущий файл, если он открыт.
@@ -336,8 +335,8 @@ static void close_current_file(void)
     {
         fclose(g_saver.current_file);
         g_saver.current_file = nullptr;
-        log_info("Saved %s (frames=%u, size=%u bytes)", g_saver.current_filename, g_saver.frames_in_file,
-               g_saver.frames_in_file * g_saver.frame_size);
+        log_info("Saved %s (frames=%u, size=%u bytes)", //
+                 g_saver.current_filename, g_saver.frames_in_file, g_saver.frames_in_file * g_saver.frame_size);
     }
     g_saver.frames_in_file   = 0;
     g_saver.batch_start_time = 0;
@@ -347,7 +346,7 @@ static void close_current_file(void)
 ///
 /// \details Увеличивает file_counter, создаёт директорию (если нужно),
 ///          формирует имя и открывает файл. При ошибке fopen оставляет
-///          current_file == NULL — кадры в этот файл не пойдут.
+///          current_file == nullptr — кадры в этот файл не пойдут.
 ///
 /// \warning Вызывать только из saver-потока.
 static void open_new_file(void)
@@ -389,7 +388,7 @@ static void open_new_file(void)
 /// \param frame Буфер кадра (frame_size байт)
 static void write_frame_to_file(uint8_t * frame)
 {
-    bool need_new = (g_saver.current_file == NULL);
+    bool need_new = (g_saver.current_file == nullptr);
 
     if (!need_new && g_saver.frames_in_file >= g_saver.batch_size)
     {
@@ -422,7 +421,7 @@ static void write_frame_to_file(uint8_t * frame)
 ///
 /// \param arg Не используется (требуется сигнатурой потока)
 ///
-/// \return Win32: код выхода; POSIX: NULL
+/// \return Win32: код выхода; POSIX: nullptr
 #ifdef _WIN32
 static DWORD WINAPI saver_thread_proc(LPVOID arg)
 #else
@@ -446,7 +445,7 @@ static void * saver_thread_proc(void * arg)
 
         if (g_saver.queue.count > 0)
         {
-            buf                = g_saver.queue.bufs[g_saver.queue.head];
+            buf                = g_saver.queue.bufs[ g_saver.queue.head ];
             g_saver.queue.head = (uint8_t)((g_saver.queue.head + 1) % g_saver.pool.capacity);
             g_saver.queue.count--;
         }
@@ -473,7 +472,7 @@ static void * saver_thread_proc(void * arg)
 
             // Возврат буфера в пул.
             SAVER_MUTEX_LOCK(&g_saver.mutex);
-            g_saver.pool.bufs[g_saver.pool.free_count++] = buf;
+            g_saver.pool.bufs[ g_saver.pool.free_count++ ] = buf;
             SAVER_MUTEX_UNLOCK(&g_saver.mutex);
         }
 
@@ -488,33 +487,13 @@ static void * saver_thread_proc(void * arg)
 
 //---------------------------------------------------- Functions -------------------------------------------------------
 
-/// \brief Инициализирует saver: пул буферов + saver-поток.
-///
-/// \details Пытается выделить одну непрерывную область размером
-///          SAVER_POOL_MAX × frame_size. При нехватке памяти уменьшает
-///          число буферов вдвое, пока не дойдёт до SAVER_POOL_MIN.
-///          Если и минимум не влез — saver остаётся выключенным, все
-///          публичные вызовы становятся no-op.
-///
-/// \param prefix          Префикс имён файлов (NULL или "" — запись выключена)
-/// \param outdir          Директория сохранения (NULL — ".")
-/// \param batch_size      Кадров на файл, >= 1
-/// \param time_window     Секунд на файл, 0 = только по количеству
-/// \param width           Ширина кадра (1..65535)
-/// \param height          Высота кадра (1..65535)
-/// \param bytes_per_pixel Размер пикселя в байтах
-/// \param format_name     Имя формата (для имени файла)
-///
-/// \warning Вызывать один раз за всё время жизни программы.
-///          Повторный вызов без saver_cleanup — утечка потока.
-void saver_init(const char * prefix, const char * outdir, int batch_size, int time_window, int width, int height,
-                int bytes_per_pixel, const char * format_name)
+void saver_init(saver_config_s * config)
 {
     memset(&g_saver, 0, sizeof(g_saver));
 
-    if (prefix && *prefix)
+    if (config->prefix && *config->prefix)
     {
-        strncpy(g_saver.prefix, prefix, sizeof(g_saver.prefix) - 1);
+        strncpy(g_saver.prefix, config->prefix, sizeof(g_saver.prefix) - 1);
         g_saver.recording = true;
     }
     else
@@ -523,20 +502,19 @@ void saver_init(const char * prefix, const char * outdir, int batch_size, int ti
         g_saver.recording = false;
     }
 
-    if (outdir)
+    if (config->outdir)
     {
-        strncpy(g_saver.outdir, outdir, sizeof(g_saver.outdir) - 1);
+        strncpy(g_saver.outdir, config->outdir, sizeof(g_saver.outdir) - 1);
     }
 
-    g_saver.batch_size  = batch_size > 0 ? (uint32_t)batch_size : 1u;
-    g_saver.time_window = time_window > 0 ? (uint32_t)time_window : 0u;
-    g_saver.width       = (uint16_t)width;
-    g_saver.height      = (uint16_t)height;
-    g_saver.frame_size  = (uint32_t)(width * height * bytes_per_pixel);
+    g_saver.batch_size  = config->batch_size > 0 ? (uint32_t)config->batch_size : 1u;
+    g_saver.time_window = config->time_window > 0 ? (uint32_t)config->time_window : 0u;
+    g_saver.image       = config->image;
+    g_saver.frame_size  = config->image.x * config->image.y * config->bpp;
 
-    if (format_name)
+    if (config->format_name)
     {
-        strncpy(g_saver.format_name, format_name, sizeof(g_saver.format_name) - 1);
+        strncpy(g_saver.format_name, config->format_name, sizeof(g_saver.format_name) - 1);
     }
 
     // Выделяем пул одной аллокацией. При нехватке памяти половиним число
@@ -547,21 +525,21 @@ void saver_init(const char * prefix, const char * outdir, int batch_size, int ti
 
     while (pool_size >= SAVER_POOL_MIN)
     {
-        size_t bytes = (size_t)pool_size * (size_t)g_saver.frame_size;
+        size_t bytes = g_saver.frame_size * pool_size;
         block        = malloc(bytes);
         if (block)
         {
             break;
         }
-        log_warn("saver: could not allocate %u buffers (%zu bytes), trying %u\n", (unsigned)pool_size, bytes,
-                (unsigned)(pool_size / 2));
-        pool_size = (uint8_t)(pool_size / 2);
+        log_warn("saver: could not allocate %u buffers (%zu bytes), trying %u\n", //
+                 pool_size, bytes, pool_size / 2);
+        pool_size = pool_size / 2;
     }
 
     if (!block)
     {
         log_warn("saver: failed to allocate frame pool (frame_size=%u bytes). Recording disabled.\n",
-                g_saver.frame_size);
+                 g_saver.frame_size);
         return;
     }
 
@@ -569,22 +547,22 @@ void saver_init(const char * prefix, const char * outdir, int batch_size, int ti
     g_saver.pool.block = block;
     for (uint8_t i = 0; i < pool_size; i++)
     {
-        g_saver.pool.bufs[i] = block + ((size_t)i * (size_t)g_saver.frame_size);
+        g_saver.pool.bufs[ i ] = block + ((size_t)i * (size_t)g_saver.frame_size);
     }
     g_saver.pool.capacity   = pool_size;
     g_saver.pool.free_count = pool_size;
 
     if (pool_size < SAVER_POOL_MAX)
     {
-        log_warn("saver: frame pool reduced to %u buffers (%zu bytes total)\n", (unsigned)pool_size,
-                (size_t)pool_size * (size_t)g_saver.frame_size);
+        log_warn("saver: frame pool reduced to %u buffers (%zu bytes total)\n", //
+                 pool_size, g_saver.frame_size * pool_size);
     }
 
     SAVER_MUTEX_INIT(&g_saver.mutex);
     SAVER_COND_INIT(&g_saver.cond);
 
 #ifdef _WIN32
-    g_saver.thread = CreateThread(nullptr, 0, saver_thread_proc, NULL, 0, nullptr);
+    g_saver.thread = CreateThread(nullptr, 0, saver_thread_proc, nullptr, 0, nullptr);
     if (!g_saver.thread)
     {
         log_warn("saver: CreateThread failed (%lu)\n", (unsigned long)GetLastError());
@@ -595,11 +573,11 @@ void saver_init(const char * prefix, const char * outdir, int batch_size, int ti
         return;
     }
 #else
-    if (pthread_create(&g_saver.thread, NULL, saver_thread_proc, NULL) != 0)
+    if (pthread_create(&g_saver.thread, nullptr, saver_thread_proc, nullptr) != 0)
     {
         log_error("saver: pthread_create");
         free(g_saver.pool.block);
-        g_saver.pool.block = NULL;
+        g_saver.pool.block = nullptr;
         SAVER_MUTEX_DESTROY(&g_saver.mutex);
         SAVER_COND_DESTROY(&g_saver.cond);
         return;
@@ -645,7 +623,7 @@ void saver_add_frame(const uint8_t * frame_data)
         return;
     }
 
-    buf = g_saver.pool.bufs[--g_saver.pool.free_count];
+    buf = g_saver.pool.bufs[ --g_saver.pool.free_count ];
     SAVER_MUTEX_UNLOCK(&g_saver.mutex);
 
     // Фаза 2: копирование вне мьютекса — не блокируем saver-поток.
@@ -657,15 +635,15 @@ void saver_add_frame(const uint8_t * frame_data)
     // Между фазами recording мог выключиться — тогда возвращаем буфер в пул.
     if (!g_saver.recording || g_saver.stop_requested)
     {
-        g_saver.pool.bufs[g_saver.pool.free_count++] = buf;
+        g_saver.pool.bufs[ g_saver.pool.free_count++ ] = buf;
         SAVER_MUTEX_UNLOCK(&g_saver.mutex);
         return;
     }
 
     // Инвариант: queue.count < pool.capacity, потому что сумма всех буферов
     // в пуле и очереди == pool.capacity, а один сейчас у нас в руках.
-    g_saver.queue.bufs[g_saver.queue.tail] = buf;
-    g_saver.queue.tail                     = (uint8_t)((g_saver.queue.tail + 1) % g_saver.pool.capacity);
+    g_saver.queue.bufs[ g_saver.queue.tail ] = buf;
+    g_saver.queue.tail                       = (uint8_t)((g_saver.queue.tail + 1) % g_saver.pool.capacity);
     g_saver.queue.count++;
 
     SAVER_COND_SIGNAL(&g_saver.cond);
@@ -739,7 +717,7 @@ void saver_cleanup(void)
     WaitForSingleObject(g_saver.thread, INFINITE);
     CloseHandle(g_saver.thread);
 #else
-    pthread_join(g_saver.thread, NULL);
+    pthread_join(g_saver.thread, nullptr);
 #endif
 
     // Поток уже слил очередь и вернул буферы в пул. Освобождаем
@@ -780,10 +758,10 @@ bool saver_is_recording(void)
 
 /// \brief Возвращает выходную директорию.
 ///
-/// \return Строка пути; никогда не NULL; по умолчанию "."
+/// \return Строка пути; никогда не nullptr; по умолчанию "."
 const char * saver_get_outdir(void)
 {
-    return g_saver.outdir[0] ? g_saver.outdir : ".";
+    return g_saver.outdir[ 0 ] ? g_saver.outdir : ".";
 }
 
 //--------------------------------------------------- End Of File ------------------------------------------------------

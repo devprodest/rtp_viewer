@@ -48,7 +48,7 @@ static bool file_open(source_s * self, const source_params_s * params)
         return false;
     }
 
-    if (params->image.x <= 0 || params->image.y <= 0 || params->bytes_per_pixel <= 0)
+    if (params->image.x <= 0 || params->image.y <= 0 || params->bpp <= 0)
     {
         log_error("file: file_source: invalid geometry\n");
         fclose(f);
@@ -71,7 +71,7 @@ static bool file_open(source_s * self, const source_params_s * params)
     }
     rewind(f);
 
-    size_t frame_size = params->image.x * params->image.y * params->bytes_per_pixel;
+    size_t frame_size = params->image.x * params->image.y * params->bpp;
     if (frame_size == 0 || (size_t)len < frame_size)
     {
         log_error("file: file_source: file too small for one frame (%ld < %zu)\n", len, frame_size);
@@ -99,7 +99,7 @@ static bool file_open(source_s * self, const source_params_s * params)
     impl->next_send_us = get_time_us();
 
     log_info("file: %s opened, %zu frames (%dx%d, %d bpp, %d fps)", params->path, frames_total, params->image.x,
-             params->image.y, params->bytes_per_pixel, fps);
+             params->image.y, params->bpp, fps);
     return true;
 }
 

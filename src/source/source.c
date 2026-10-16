@@ -6,12 +6,12 @@
 
 #define FRAME_TIMEOUT_US 500000ull
 
-void frame_state_init(frame_state_s * state, image_size_s size, uint8_t bytes_per_pixel)
+void frame_state_init(frame_state_s * state, image_size_s size, uint8_t bpp)
 {
     memset(state, 0, sizeof(*state));
     state->image               = size;
-    state->bytes_per_pixel     = bytes_per_pixel;
-    state->frame_size          = state->image.x * state->image.y * bytes_per_pixel;
+    state->bpp     = bpp;
+    state->frame_size          = state->image.x * state->image.y * bpp;
     state->last_packet_time_us = get_time_us();
 }
 
@@ -76,4 +76,9 @@ bool source_check_timeout(source_s * src, frame_state_s * state)
         return false;
     }
     return src->ops->check_timeout(src, state);
+}
+
+bool frame_state_is_ready(const frame_state_s * state)
+{
+    return state->frame_ready;
 }

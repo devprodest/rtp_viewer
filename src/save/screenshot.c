@@ -105,8 +105,8 @@ void screenshot_process_if_requested(void)
     glBindFramebuffer(GL_FRAMEBUFFER, g_fbo);
     format_pass_render_to_bound_fbo();
 
-    size_t stride    = (size_t)g_width * 4;
-    uint8_t * pixels = malloc(stride * (size_t)g_height);
+    size_t stride = (size_t)g_width * 4;
+    void * pixels = malloc(stride * (size_t)g_height);
     if (!pixels)
     {
         log_warn("screenshot: out of memory\n");

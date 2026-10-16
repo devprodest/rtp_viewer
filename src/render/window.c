@@ -98,23 +98,15 @@ void window_swap_buffers(void)
     }
 }
 
-void window_get_framebuffer_size(int * w, int * h)
+image_size_s window_get_framebuffer_size(void)
 {
+    image_size_s size = {0, 0};
+
     if (g_window)
     {
-        glfwGetFramebufferSize(g_window, w, h);
+        glfwGetFramebufferSize(g_window, &size.x, &size.y);
     }
-    else
-    {
-        if (w)
-        {
-            *w = 0;
-        }
-        if (h)
-        {
-            *h = 0;
-        }
-    }
+    return size;
 }
 
 void window_set_title(const char * title)

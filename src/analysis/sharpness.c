@@ -1,4 +1,5 @@
 #include "sharpness.h"
+#include "util/utils.h"
 
 #include <math.h>
 #include <string.h>
@@ -41,22 +42,10 @@ static rect_s get_roi(const selection_s * sel, image_size_s win)
     {
         rect_s select = selection_rect(sel);
 
-        if (select.x0 < 0)
-        {
-            select.x0 = 0;
-        }
-        if (select.y0 < 0)
-        {
-            select.y0 = 0;
-        }
-        if (select.x1 > win.x)
-        {
-            select.x1 = win.x;
-        }
-        if (select.y1 > win.y)
-        {
-            select.y1 = win.y;
-        }
+        select.x0 = utils_max(select.x0, 0);
+        select.y0 = utils_max(select.y0, 0);
+        select.x1 = utils_min(select.x1, win.x);
+        select.y1 = utils_min(select.y1, win.y);
 
         return select;
     }

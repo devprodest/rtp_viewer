@@ -61,7 +61,7 @@ typedef struct text_vertex_s
 
 //---------------------------------------------------- Variables -------------------------------------------------------
 
-static text_vertex_t * g_verts = NULL; ///< Накопленные вершины кадра
+static text_vertex_t * g_verts = nullptr; ///< Накопленные вершины кадра
 static int g_vert_count        = 0;    ///< Текущее число вершин
 static int g_vert_capacity     = 0;    ///< Ёмкость буфера
 
@@ -190,7 +190,7 @@ void overlay_init(void)
     if (!ok)
     {
         char info[ 512 ];
-        glGetProgramInfoLog(g_program, sizeof(info), NULL, info);
+        glGetProgramInfoLog(g_program, sizeof(info), nullptr, info);
         log_error("text_overlay link error: %s\n", info);
         glDeleteProgram(g_program);
         g_program = 0;
@@ -201,7 +201,7 @@ void overlay_init(void)
     glGenBuffers(1, &g_vbo);
     glBindVertexArray(g_vao);
     glBindBuffer(GL_ARRAY_BUFFER, g_vbo);
-    glBufferData(GL_ARRAY_BUFFER, 0, NULL, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 0, nullptr, GL_DYNAMIC_DRAW);
 
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(text_vertex_t), (void *)0);
     glEnableVertexAttribArray(0);
@@ -233,7 +233,7 @@ void overlay_cleanup(void)
     }
 
     free(g_verts);
-    g_verts         = NULL;
+    g_verts         = nullptr;
     g_vert_capacity = 0;
     g_vert_count    = 0;
 }
@@ -252,7 +252,7 @@ void text_draw(point_s s, const char * text, fcolor_rgb_s color, float scale)
         return;
     }
 
-    int num_quads = stb_easy_font_print(0.0f, 0.0f, (char *)text, NULL, g_scratch, sizeof(g_scratch));
+    int num_quads = stb_easy_font_print(0.0f, 0.0f, (char *)text, nullptr, g_scratch, sizeof(g_scratch));
     if (num_quads <= 0)
     {
         return;

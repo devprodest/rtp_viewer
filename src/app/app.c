@@ -83,17 +83,24 @@ int app_run(const app_config_s * cfg)
 
     int bpp = renderer_get_bytes_per_pixel();
 
-    saver_init(cfg->save_prefix, cfg->outdir, cfg->batch_size, cfg->time_window, cfg->image.x, cfg->image.y, bpp,
-               cfg->format);
+    saver_init(&(saver_config_s) {
+        .prefix      = cfg->save_prefix,
+        .outdir      = cfg->outdir,
+        .batch_size  = cfg->batch_size,
+        .time_window = cfg->time_window,
+        .image       = cfg->image,
+        .bpp         = bpp,
+        .format_name = cfg->format,
+    });
 
     renderer_refresh_title();
 
     source_params_s src_params = {
-        .image           = cfg->image,
-        .bytes_per_pixel = bpp,
-        .port            = cfg->port,
-        .path            = cfg->source_file,
-        .mock_fps        = cfg->mock_fps,
+        .image    = cfg->image,
+        .bpp      = bpp,
+        .port     = cfg->port,
+        .path     = cfg->source_file,
+        .mock_fps = cfg->mock_fps,
     };
 
     source_s * src = source_create(&src_params);

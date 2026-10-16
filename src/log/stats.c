@@ -64,7 +64,7 @@ void stats_update(void)
     g_last_time_s         = now;
 }
 
-double stats_get_fps(void)
+float stats_get_fps(void)
 {
     return fps;
 }

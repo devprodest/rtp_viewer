@@ -15,6 +15,7 @@
 #include "render/selection_view.h"
 #include "save/saver.h"
 #include "save/screenshot.h"
+#include "util/utils.h"
 #include "window.h"
 
 #include <stdio.h>
@@ -172,7 +173,7 @@ bool renderer_init(image_size_s win, const char * format_name, int effective_bit
         return false;
     }
 
-    post_pass_set_texel_size(1.0f / (float)g_win.x, 1.0f / (float)g_win.y);
+    post_pass_set_texel_size((fimage_size_s) {1.0f / (float)g_win.x, 1.0f / (float)g_win.y});
 
     if (!histogram_view_init(g_quad_vao))
     {
@@ -243,8 +244,7 @@ void renderer_update_texture(const uint8_t * data)
         histogram_view_update();
     }
 
-    image_size_s win = {0, 0};
-    window_get_framebuffer_size(&win.x, &win.y);
+    image_size_s win = window_get_framebuffer_size();
     if (win.x <= 0 || win.y <= 0)
     {
         return;
@@ -273,22 +273,12 @@ void renderer_update_texture(const uint8_t * data)
     if (histogram_view_is_enabled() && histogram_view_get_active_channels() > 0)
     {
         const image_size_s hist_view_size = {320, 240};
-        const int margin                  = 10;
 
-        point_s ov = {
-            .x = win.x - hist_view_size.x - margin,
-            .y = win.y - hist_view_size.y - margin,
+        const int margin = 10;
+        const point_s ov = {
+            .x = utils_max(win.x - hist_view_size.x - margin, 0),
+            .y = utils_max(win.y - hist_view_size.y - margin, 0),
         };
-
-        if (ov.x < 0)
-        {
-            ov.x = 0;
-        }
-        if (ov.y < 0)
-        {
-            ov.y = 0;
-        }
-
         histogram_view_render(ov, hist_view_size);
     }
 
@@ -379,25 +369,8 @@ bool renderer_screen_to_frame(point_s screen, point_s * frame)
     int frame_x = (screen.x - g_vpoint.x) * g_win.x / g_vsize.x;
     int frame_y = (screen.y - g_vpoint.y) * g_win.y / g_vsize.y;
 
-    if (frame_x < 0)
-    {
-        frame_x = 0;
-    }
-    if (frame_x >= g_win.x)
-    {
-        frame_x = g_win.x - 1;
-    }
-    if (frame_y < 0)
-    {
-        frame_y = 0;
-    }
-    if (frame_y >= g_win.y)
-    {
-        frame_y = g_win.y - 1;
-    }
-
-    frame->x = frame_x;
-    frame->y = frame_y;
+    frame->x = utils_clamp(frame_x, 0, g_win.x - 1);
+    frame->y = utils_clamp(frame_y, 0, g_win.y - 1);
 
     return true;
 }
@@ -473,23 +446,8 @@ void renderer_zoom_apply_wheel(double wheel, point_s point)
         return;
     }
 
-    float factor = 1.0f + (float)wheel * 0.15f;
-    if (factor < 0.1f)
-    {
-        factor = 0.1f;
-    }
-
-    float new_zoom = g_zoom * factor;
-    if (new_zoom < ZOOM_MIN)
-    {
-        new_zoom = ZOOM_MIN;
-    }
-    if (new_zoom > ZOOM_MAX)
-    {
-        new_zoom = ZOOM_MAX;
-    }
-
-    g_zoom = new_zoom;
+    float factor = utils_max(1.0f + (float)wheel * 0.15f, 0.1f);
+    g_zoom       = utils_clamp(g_zoom * factor, ZOOM_MIN, ZOOM_MAX);
 
     // После zoom та же точка должна остаться под курсором.
     // Пересчитываем pan так, чтобы frame (fx_before, fy_before) проецировался в (mx, my).
@@ -506,8 +464,7 @@ void renderer_zoom_apply_wheel(double wheel, point_s point)
     // Найдём base_w/base_h/base_x/base_y из win размеров — они уже в g_vp_*, но с учётом старого zoom.
     // Проще: пересчитать base прямо здесь.
 
-    image_size_s win = {0, 0};
-    window_get_framebuffer_size(&win.x, &win.y);
+    image_size_s win = window_get_framebuffer_size();
     if (win.x <= 0 || win.y <= 0)
     {
         return;
@@ -598,9 +555,7 @@ void renderer_draw_inspector(point_s point)
         rgb.b      = g_last_frame[ idx + 2 ];
     }
 
-    int win_w = 0;
-    int win_h = 0;
-    window_get_framebuffer_size(&win_w, &win_h);
+    image_size_s win = window_get_framebuffer_size();
 
     const float text_scale = g_dpi_scale * g_inspector_text_scale;
     const int margin       = (int)(10 * g_dpi_scale);
@@ -610,7 +565,7 @@ void renderer_draw_inspector(point_s point)
     const int line_h       = (int)(14 * text_scale);
 
     const int box_x  = margin;
-    const int box_y  = win_h - margin - box_size;
+    const int box_y  = win.y - margin - box_size;
     const int text_x = box_x + box_size + gap;
 
 

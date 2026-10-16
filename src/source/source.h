@@ -22,7 +22,7 @@ typedef int socklen_t;
 typedef struct frame_state_s
 {
     image_size_s image;
-    uint16_t bytes_per_pixel;
+    uint16_t bpp;
     uint32_t frame_size;
     uint32_t received_bytes;
     uint16_t last_seq;
@@ -38,7 +38,7 @@ typedef struct frame_state_s
 typedef struct source_params_s
 {
     image_size_s image;
-    int bytes_per_pixel;
+    int bpp;
     int port;          ///< для RTP
     const char * path; ///< для файла
     int mock_fps;      ///< для файла
@@ -62,29 +62,15 @@ struct source_s
     void * impl;
 };
 
-/// \brief Инициализирует состояние кадра.
-void frame_state_init(frame_state_s * state, image_size_s size, uint8_t bytes_per_pixel);
-
-/// \brief Сбрасывает состояние кадра.
+void frame_state_init(frame_state_s * state, image_size_s size, uint8_t bpp);
 void frame_state_reset(frame_state_s * state);
-
-/// \brief Проверяет готовность кадра.
-static inline bool frame_state_is_ready(const frame_state_s * state)
-{
-    return state->frame_ready;
-}
-
-/// \brief Проверяет таймаут приёма кадра.
+bool frame_state_is_ready(const frame_state_s * state);
 bool frame_state_check_timeout(frame_state_s * state);
 
-/// \brief Открывает источник.
-bool source_open(source_s * src, const source_params_s * params);
 
-/// \brief Закрывает источник.
+bool source_open(source_s * src, const source_params_s * params);
 void source_close(source_s * src);
 
-/// \brief Принимает пакеты/кадры.
 int source_receive(source_s * src, frame_state_s * state, uint8_t * buffer);
-
-/// \brief Проверяет таймаут кадра.
 bool source_check_timeout(source_s * src, frame_state_s * state);
+
