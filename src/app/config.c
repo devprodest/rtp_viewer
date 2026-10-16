@@ -70,7 +70,7 @@ bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok
                         log_error("config: -x expects integer in [1..65535], got '%s'", optarg);
                         return false;
                     }
-                    cfg->width = (int)v;
+                    cfg->image.x = (int)v;
                 }
                 seen_x = true;
                 break;
@@ -88,7 +88,7 @@ bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok
                         log_error("config: -y expects integer in [1..65535], got '%s'", optarg);
                         return false;
                     }
-                    cfg->height = (int)v;
+                    cfg->image.y = (int)v;
                 }
                 seen_y = true;
                 break;
@@ -265,7 +265,7 @@ bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok
         return false;
     }
 
-    if (cfg->width == 0 || cfg->height == 0 || cfg->format == nullptr)
+    if (cfg->image.x == 0 || cfg->image.y == 0 || cfg->format == nullptr)
     {
         log_error("config: -x, -y and -f are required");
         help_print(argv[0]);

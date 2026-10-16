@@ -6,7 +6,9 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-bool renderer_init(int width, int height, const char * format_name, int effective_bits, bool smooth_start);
+#include "util/types.h"
+
+bool renderer_init(image_size_s win, const char * format_name, int effective_bits, bool smooth_start);
 void renderer_cleanup(void);
 
 GLFWwindow * renderer_get_window(void);
@@ -30,16 +32,16 @@ void renderer_toggle_saturation(void);
 void renderer_request_screenshot(void);
 
 
-void renderer_set_selection_from_mouse(int frame_x, int frame_y, bool left_down, bool right_down, bool in_view);
+void renderer_set_selection_from_mouse(point_s mouse, bool left_down, bool right_down, bool in_view);
 void renderer_clear_selection(void);
-bool renderer_screen_to_frame(double mx, double my, int * fx, int * fy);
+bool renderer_screen_to_frame(point_s screen, point_s * frame);
 
 void renderer_zoom_reset(void);
-void renderer_zoom_apply_wheel(double wheel, double mx, double my);
-void renderer_pan_apply_drag(double mx, double my, bool middle_down);
+void renderer_zoom_apply_wheel(double wheel, point_s point);
+void renderer_pan_apply_drag( point_s point, bool middle_down);
 
-void renderer_draw_inspector(int mouse_x, int mouse_y);
+void renderer_draw_inspector(point_s point);
 void renderer_toggle_inspector(void);
-void renderer_set_mouse_pos(int mx, int my);
+void renderer_set_mouse_pos(point_s mouse);
 
 void renderer_toggle_gradient(void);

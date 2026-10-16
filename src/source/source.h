@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "util/types.h"
 #ifdef _WIN32
     #define WIN32_LEAN_AND_MEAN
     #include <winsock2.h>
@@ -20,8 +21,7 @@ typedef int socklen_t;
 /// \brief Состояние сборки одного кадра.
 typedef struct frame_state_s
 {
-    uint16_t width;
-    uint16_t height;
+    image_size_s image;
     uint16_t bytes_per_pixel;
     uint32_t frame_size;
     uint32_t received_bytes;
@@ -37,8 +37,7 @@ typedef struct frame_state_s
 /// \brief Параметры открытия источника.
 typedef struct source_params_s
 {
-    int width;
-    int height;
+    image_size_s image;
     int bytes_per_pixel;
     int port;          ///< для RTP
     const char * path; ///< для файла
@@ -64,7 +63,7 @@ struct source_s
 };
 
 /// \brief Инициализирует состояние кадра.
-void frame_state_init(frame_state_s * state, uint16_t width, uint16_t height, uint16_t bytes_per_pixel);
+void frame_state_init(frame_state_s * state, image_size_s size, uint8_t bytes_per_pixel);
 
 /// \brief Сбрасывает состояние кадра.
 void frame_state_reset(frame_state_s * state);

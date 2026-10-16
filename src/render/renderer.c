@@ -15,7 +15,6 @@
 #include "render/selection_view.h"
 #include "save/saver.h"
 #include "save/screenshot.h"
-#include "util/types.h"
 #include "window.h"
 
 #include <stdio.h>
@@ -110,9 +109,9 @@ void renderer_refresh_title(void)
     window_set_title(title);
 }
 
-bool renderer_init(int width, int height, const char * format_name, int effective_bits, bool smooth_start)
+bool renderer_init(image_size_s win, const char * format_name, int effective_bits, bool smooth_start)
 {
-    if (!window_init(width, height, "RTP Viewer"))
+    if (!window_init(win.x, win.y, "RTP Viewer"))
     {
         return false;
     }
@@ -145,8 +144,7 @@ bool renderer_init(int width, int height, const char * format_name, int effectiv
     overlay_init();
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-    g_win.x    = width;
-    g_win.y    = height;
+    g_win      = win;
     g_eff_bits = effective_bits;
     snprintf(g_format_name, sizeof(g_format_name), "%s", format_name);
 
@@ -159,7 +157,7 @@ bool renderer_init(int width, int height, const char * format_name, int effectiv
         return false;
     }
 
-    if (!format_pass_init(width, height, g_quad_vao, effective_bits, &g_format))
+    if (!format_pass_init(win.x, win.y, g_quad_vao, effective_bits, &g_format))
     {
         overlay_cleanup();
         window_cleanup();
@@ -186,7 +184,7 @@ bool renderer_init(int width, int height, const char * format_name, int effectiv
     }
 
     screenshot_init();
-    screenshot_set_size(width, height);
+    screenshot_set_size(win.x, win.y);
 
     g_smoothing = !smooth_start;
     renderer_toggle_smoothing();
@@ -298,7 +296,7 @@ void renderer_update_texture(const uint8_t * data)
     selection_view_draw(&g_selection, g_vpoint, g_vsize, g_win);
     if (g_inspector_enabled)
     {
-        renderer_draw_inspector(g_last_mouse.x, g_last_mouse.y);
+        renderer_draw_inspector(g_last_mouse);
     }
     everlay_end();
 
@@ -365,23 +363,21 @@ void renderer_request_screenshot(void)
     screenshot_request();
 }
 
-bool renderer_screen_to_frame(double mx, double my, int * fx, int * fy)
+bool renderer_screen_to_frame(point_s screen, point_s * frame)
 {
     if (g_vsize.x <= 0 || g_vsize.y <= 0)
     {
         return false;
     }
 
-    if (mx < g_vpoint.x || mx >= g_vpoint.x + g_vsize.x || my < g_vpoint.y || my >= g_vpoint.y + g_vsize.y)
+    if (screen.x < g_vpoint.x || screen.x >= g_vpoint.x + g_vsize.x || //
+        screen.y < g_vpoint.y || screen.y >= g_vpoint.y + g_vsize.y)
     {
         return false;
     }
 
-    int wx = (int)mx - g_vpoint.x;
-    int wy = (int)my - g_vpoint.y;
-
-    int frame_x = wx * g_win.x / g_vsize.x;
-    int frame_y = wy * g_win.y / g_vsize.y;
+    int frame_x = (screen.x - g_vpoint.x) * g_win.x / g_vsize.x;
+    int frame_y = (screen.y - g_vpoint.y) * g_win.y / g_vsize.y;
 
     if (frame_x < 0)
     {
@@ -400,16 +396,17 @@ bool renderer_screen_to_frame(double mx, double my, int * fx, int * fy)
         frame_y = g_win.y - 1;
     }
 
-    *fx = frame_x;
-    *fy = frame_y;
+    frame->x = frame_x;
+    frame->y = frame_y;
+
     return true;
 }
 
-void renderer_set_selection_from_mouse(int frame_x, int frame_y, bool left_down, bool right_down, bool in_view)
+void renderer_set_selection_from_mouse(point_s mouse, bool left_down, bool right_down, bool in_view)
 {
     if (left_down && !g_left_was_down && in_view)
     {
-        selection_begin(&g_selection, (point_s) {frame_x, frame_y});
+        selection_begin(&g_selection, mouse);
     }
     else if (!left_down && g_left_was_down)
     {
@@ -417,7 +414,7 @@ void renderer_set_selection_from_mouse(int frame_x, int frame_y, bool left_down,
     }
     else if (left_down && g_left_was_down && in_view)
     {
-        selection_update(&g_selection, (point_s) {frame_x, frame_y});
+        selection_update(&g_selection, mouse);
     }
 
     if (right_down && !g_right_was_down)
@@ -462,7 +459,7 @@ static void compute_base_viewport(image_size_s win, point_s * base_start, image_
     }
 }
 
-void renderer_zoom_apply_wheel(double wheel, double mx, double my)
+void renderer_zoom_apply_wheel(double wheel, point_s point)
 {
     if (wheel == 0.0 || g_vsize.x <= 0 || g_vsize.y <= 0)
     {
@@ -470,9 +467,8 @@ void renderer_zoom_apply_wheel(double wheel, double mx, double my)
     }
 
     // Точка под курсором в координатах кадра до zoom
-    int fx_before = 0;
-    int fy_before = 0;
-    if (!renderer_screen_to_frame(mx, my, &fx_before, &fy_before))
+    point_s frame;
+    if (!renderer_screen_to_frame(point, &frame))
     {
         return;
     }
@@ -522,20 +518,20 @@ void renderer_zoom_apply_wheel(double wheel, double mx, double my)
     compute_base_viewport(win, &base_start, &base);
 
 
-    float want_x = (float)mx - (float)base_start.x - ((float)fx_before * (float)base.x * g_zoom) / (float)g_win.x;
-    float want_y = (float)my - (float)base_start.y - ((float)fy_before * (float)base.y * g_zoom) / (float)g_win.y;
+    float want_x = (float)point.x - (float)base_start.x - ((float)frame.x * (float)base.x * g_zoom) / (float)g_win.x;
+    float want_y = (float)point.y - (float)base_start.y - ((float)frame.y * (float)base.y * g_zoom) / (float)g_win.y;
 
     g_pan.x = -want_x / g_zoom;
     g_pan.y = -want_y / g_zoom;
 }
 
-void renderer_pan_apply_drag(double mx, double my, bool middle_down)
+void renderer_pan_apply_drag(point_s point, bool middle_down)
 {
     if (middle_down && !g_pan_drag)
     {
         g_pan_drag   = true;
-        g_pan_last.x = mx;
-        g_pan_last.y = my;
+        g_pan_last.x = point.x;
+        g_pan_last.y = point.y;
         return;
     }
 
@@ -547,21 +543,20 @@ void renderer_pan_apply_drag(double mx, double my, bool middle_down)
 
     if (middle_down && g_pan_drag)
     {
-        float dx     = mx - g_pan_last.x;
-        float dy     = my - g_pan_last.y;
-        g_pan_last.x = mx;
-        g_pan_last.y = my;
+        float dx     = point.x - g_pan_last.x;
+        float dy     = point.y - g_pan_last.y;
+        g_pan_last.x = point.x;
+        g_pan_last.y = point.y;
 
         g_pan.x -= dx / g_zoom;
         g_pan.y += dy / g_zoom;
     }
 }
 
-void renderer_draw_inspector(int mouse_x, int mouse_y)
+void renderer_draw_inspector(point_s point)
 {
-    int fx = 0;
-    int fy = 0;
-    if (!renderer_screen_to_frame((double)mouse_x, (double)mouse_y, &fx, &fy))
+    point_s frame;
+    if (!renderer_screen_to_frame(point, &frame))
     {
         return;
     }
@@ -571,38 +566,36 @@ void renderer_draw_inspector(int mouse_x, int mouse_y)
         return;
     }
 
-    uint8_t r    = 0;
-    uint8_t g    = 0;
-    uint8_t b    = 0;
-    uint32_t raw = 0;
+    color_rgb_s rgb = {0, 0, 0};
+    uint32_t raw    = 0;
 
     if (g_format.bytes_per_pixel == 1)
     {
-        uint8_t v = g_last_frame[ (size_t)fy * (size_t)g_win.x + (size_t)fx ];
-        r = g = b = v;
+        uint8_t v = g_last_frame[ (size_t)frame.y * (size_t)g_win.x + (size_t)frame.x ];
+        rgb       = (color_rgb_s) {v, v, v};
         raw       = v;
     }
     else if (g_format.bytes_per_pixel == 2)
     {
         const uint16_t * p = (const uint16_t *)g_last_frame;
-        uint16_t v         = p[ (size_t)fy * (size_t)g_win.x + (size_t)fx ];
+        uint16_t v         = p[ (size_t)frame.y * (size_t)g_win.x + (size_t)frame.x ];
         raw                = v;
         uint8_t v8         = (uint8_t)(v >> 8);
-        r = g = b = v8;
+        rgb                = (color_rgb_s) {v8, v8, v8};
     }
     else if (g_format.bytes_per_pixel == 3)
     {
-        size_t idx = ((size_t)fy * (size_t)g_win.x + (size_t)fx) * 3;
-        r          = g_last_frame[ idx + 0 ];
-        g          = g_last_frame[ idx + 1 ];
-        b          = g_last_frame[ idx + 2 ];
+        size_t idx = ((size_t)frame.y * (size_t)g_win.x + (size_t)frame.x) * 3;
+        rgb.r      = g_last_frame[ idx + 0 ];
+        rgb.g      = g_last_frame[ idx + 1 ];
+        rgb.b      = g_last_frame[ idx + 2 ];
     }
     else if (g_format.bytes_per_pixel == 4)
     {
-        size_t idx = ((size_t)fy * (size_t)g_win.x + (size_t)fx) * 4;
-        r          = g_last_frame[ idx + 0 ];
-        g          = g_last_frame[ idx + 1 ];
-        b          = g_last_frame[ idx + 2 ];
+        size_t idx = ((size_t)frame.y * (size_t)g_win.x + (size_t)frame.x) * 4;
+        rgb.r      = g_last_frame[ idx + 0 ];
+        rgb.g      = g_last_frame[ idx + 1 ];
+        rgb.b      = g_last_frame[ idx + 2 ];
     }
 
     int win_w = 0;
@@ -624,7 +617,7 @@ void renderer_draw_inspector(int mouse_x, int mouse_y)
     typedef char text_line_t[ 64 ];
     text_line_t line[ 2 ];
 
-    snprintf(line[ 0 ], sizeof(text_line_t), "x;y=(%d;%d)", fx, fy);
+    snprintf(line[ 0 ], sizeof(text_line_t), "x;y=(%d;%d)", frame.x, frame.y);
 
     if (g_format.bytes_per_pixel <= 2)
     {
@@ -632,7 +625,7 @@ void renderer_draw_inspector(int mouse_x, int mouse_y)
     }
     else
     {
-        snprintf(line[ 1 ], sizeof(text_line_t), "RGB=(%u;%u;%u)", r, g, b);
+        snprintf(line[ 1 ], sizeof(text_line_t), "RGB=(%u;%u;%u)", rgb.r, rgb.g, rgb.b);
     }
 
     int w1     = text_measure(line[ 0 ], text_scale);
@@ -652,7 +645,7 @@ void renderer_draw_inspector(int mouse_x, int mouse_y)
     // Квадрат цвета пикселя + рамка
     rect_s pix_color = {box_x, box_y, box_x + box_size, box_y + box_size};
 
-    overlay_rect(pix_color, (fcolor_rgba_s) {r / 255.0f, g / 255.0f, b / 255.0f, 1.0f});
+    overlay_rect(pix_color, (fcolor_rgba_s) {rgb.r / 255.0f, rgb.g / 255.0f, rgb.b / 255.0f, 1.0f});
     overlay_rect_outline(pix_color, (fcolor_rgba_s) {1.0f, 1.0f, 1.0f, 1.0f}, 1);
 
     // Текст
@@ -668,10 +661,9 @@ void renderer_toggle_inspector(void)
     log_info("Inspector %s", g_inspector_enabled ? "enabled" : "disabled");
 }
 
-void renderer_set_mouse_pos(int mx, int my)
+void renderer_set_mouse_pos(point_s mouse)
 {
-    g_last_mouse.x = mx;
-    g_last_mouse.y = my;
+    g_last_mouse = mouse;
 }
 
 void renderer_toggle_gradient(void)

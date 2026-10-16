@@ -74,7 +74,7 @@ int app_run(const app_config_s * cfg)
 
     stats_init(cfg->logfile);
 
-    if (!renderer_init(cfg->width, cfg->height, cfg->format, cfg->effective_bits, cfg->smooth_start))
+    if (!renderer_init(cfg->image, cfg->format, cfg->effective_bits, cfg->smooth_start))
     {
         log_error("app: Не удалось инициализировать OpenGL\n");
         stats_cleanup();
@@ -83,14 +83,13 @@ int app_run(const app_config_s * cfg)
 
     int bpp = renderer_get_bytes_per_pixel();
 
-    saver_init(cfg->save_prefix, cfg->outdir, cfg->batch_size, cfg->time_window, cfg->width, cfg->height, bpp,
+    saver_init(cfg->save_prefix, cfg->outdir, cfg->batch_size, cfg->time_window, cfg->image.x, cfg->image.y, bpp,
                cfg->format);
 
     renderer_refresh_title();
 
     source_params_s src_params = {
-        .width           = cfg->width,
-        .height          = cfg->height,
+        .image           = cfg->image,
         .bytes_per_pixel = bpp,
         .port            = cfg->port,
         .path            = cfg->source_file,
@@ -109,7 +108,7 @@ int app_run(const app_config_s * cfg)
 
     signal(SIGINT, signal_handler);
 
-    g_frame_bytes = (size_t)cfg->width * (size_t)cfg->height * (size_t)bpp;
+    g_frame_bytes = cfg->image.x * cfg->image.y * bpp;
 
     for (int i = 0; i < NUM_FRAME_BUFFERS; i++)
     {
@@ -139,7 +138,7 @@ int app_run(const app_config_s * cfg)
     int recv_idx = 0;
 
     frame_state_s state;
-    frame_state_init(&state, (uint16_t)cfg->width, (uint16_t)cfg->height, (uint16_t)bpp);
+    frame_state_init(&state, cfg->image, (uint16_t)bpp);
 
     GLFWwindow * window = renderer_get_window();
     mouse_state_init(window);
@@ -153,20 +152,21 @@ int app_run(const app_config_s * cfg)
 
         // Wheel — zoom
         double wheel = mouse_state_take_wheel(&mouse);
+
+        point_s mouse_point = {mouse.x, mouse.y};
         if (wheel != 0.0)
         {
-            renderer_zoom_apply_wheel(wheel, mouse.x, mouse.y);
+            renderer_zoom_apply_wheel(wheel, mouse_point);
         }
         // СКМ — pan
-        renderer_pan_apply_drag(mouse.x, mouse.y, mouse.middle);
+        renderer_pan_apply_drag(mouse_point, mouse.middle);
 
         hotkeys_process(window);
 
-        int fx       = 0;
-        int fy       = 0;
-        bool in_view = renderer_screen_to_frame(mouse.x, mouse.y, &fx, &fy);
-        renderer_set_mouse_pos(mouse.x, mouse.y);
-        renderer_set_selection_from_mouse(fx, fy, mouse.left, mouse.right, in_view);
+        point_s frame;
+        bool in_view = renderer_screen_to_frame(mouse_point, &frame);
+        renderer_set_mouse_pos(mouse_point);
+        renderer_set_selection_from_mouse(frame, mouse.left, mouse.right, in_view);
 
         int received = source_receive(src, &state, g_frame_buffers[ recv_idx ]);
         if (received < 0)

@@ -1,12 +1,12 @@
 #pragma once
 
 #include <stdbool.h>
+#include "util/types.h"
 
 typedef struct app_config_s
 {
     // Видео
-    int         width;
-    int         height;
+    image_size_s image;
     const char *format;
 
     // Источник данных

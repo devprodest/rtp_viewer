@@ -161,7 +161,7 @@ static int process_rtp_packet(const uint8_t * packet, size_t plen, frame_state_s
     uint32_t running = 0;
     for (int i = 0; i < rl_count; i++)
     {
-        uint32_t stride      = (uint32_t)state->width * state->bytes_per_pixel;
+        uint32_t stride      = (uint32_t)state->image.x * state->bytes_per_pixel;
         uint32_t byte_offset = (uint32_t)rl_offsets[ i ] * state->bytes_per_pixel;
         uint32_t base_offset = (rl_lines[ i ] * stride) + byte_offset;
 

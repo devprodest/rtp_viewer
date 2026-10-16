@@ -6,13 +6,12 @@
 
 #define FRAME_TIMEOUT_US 500000ull
 
-void frame_state_init(frame_state_s * state, uint16_t width, uint16_t height, uint16_t bytes_per_pixel)
+void frame_state_init(frame_state_s * state, image_size_s size, uint8_t bytes_per_pixel)
 {
     memset(state, 0, sizeof(*state));
-    state->width               = width;
-    state->height              = height;
+    state->image               = size;
     state->bytes_per_pixel     = bytes_per_pixel;
-    state->frame_size          = (uint32_t)width * height * bytes_per_pixel;
+    state->frame_size          = state->image.x * state->image.y * bytes_per_pixel;
     state->last_packet_time_us = get_time_us();
 }
 
