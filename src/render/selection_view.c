@@ -26,6 +26,6 @@ void selection_view_draw(const selection_s * sel, point_s vpoint, image_size_s v
 
     fcolor_rgb_s color = {1.0f, 1.0f, 1.0f};
 
-    overlay_rect(rect, to_rgba_convert(fcolor_rgba_s, color, 0.08f));
-    overlay_rect_outline(rect, to_rgba_convert(fcolor_rgba_s, color, 0.9f), 1);
+    overlay_rect_draw(rect, to_rgba_convert(fcolor_rgba_s, color, 0.08f));
+    overlay_rect_outline_draw(rect, to_rgba_convert(fcolor_rgba_s, color, 0.9f), 1);
 }

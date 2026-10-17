@@ -50,9 +50,12 @@ void post_pass_cleanup(void)
     }
 }
 
-void post_pass_render(GLuint source_tex, point_s dst, image_size_s size)
+void post_pass_render(GLuint source_tex, point_s dst, image_size_s size, image_size_s win)
 {
-    glViewport(dst.x, dst.y, size.x, size.y);
+    // dst — в top-left координатах окна, glViewport ждёт bottom-left.
+    int gl_y = win.y - dst.y - size.y;
+
+    glViewport(dst.x, gl_y, size.x, size.y);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 

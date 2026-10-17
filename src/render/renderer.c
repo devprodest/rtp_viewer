@@ -267,8 +267,8 @@ void renderer_update_texture(const uint8_t * data)
     glViewport(0, 0, win.x, win.y);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
-
-    post_pass_render(format_pass_get_output_tex(), g_vpoint, g_vsize);
+    
+    post_pass_render(format_pass_get_output_tex(), g_vpoint, g_vsize, win);
 
     if (histogram_view_is_enabled() && histogram_view_get_active_channels() > 0)
     {
@@ -282,13 +282,13 @@ void renderer_update_texture(const uint8_t * data)
         histogram_view_render(ov, hist_view_size);
     }
 
-    everlay_begin(win);
+    overlay_begin(win);
     selection_view_draw(&g_selection, g_vpoint, g_vsize, g_win);
     if (g_inspector_enabled)
     {
         renderer_draw_inspector(g_last_mouse);
     }
-    everlay_end();
+    overlay_end();
 
     screenshot_process_if_requested();
 
@@ -506,7 +506,7 @@ void renderer_pan_apply_drag(point_s point, bool middle_down)
         g_pan_last.y = point.y;
 
         g_pan.x -= dx / g_zoom;
-        g_pan.y += dy / g_zoom;
+        g_pan.y -= dy / g_zoom;
     }
 }
 
@@ -583,8 +583,8 @@ void renderer_draw_inspector(point_s point)
         snprintf(line[ 1 ], sizeof(text_line_t), "RGB=(%u;%u;%u)", rgb.r, rgb.g, rgb.b);
     }
 
-    int w1     = text_measure(line[ 0 ], text_scale);
-    int w2     = text_measure(line[ 1 ], text_scale);
+    int w1     = overlay_text_measure(line[ 0 ], text_scale);
+    int w2     = overlay_text_measure(line[ 1 ], text_scale);
     int text_w = (w1 > w2) ? w1 : w2;
 
     // Плашка под текстом, справа от квадрата
@@ -595,18 +595,19 @@ void renderer_draw_inspector(point_s point)
         .x1 = text_x + text_w + pad,
         .y1 = box_y + line_h + line_h + pad,
     };
-    overlay_rect(panel, (fcolor_rgba_s) {0.0f, 0.0f, 0.0f, 0.6f});
+    overlay_rect_draw(panel, (fcolor_rgba_s) {0.0f, 0.0f, 0.0f, 0.6f});
 
     // Квадрат цвета пикселя + рамка
     rect_s pix_color = {box_x, box_y, box_x + box_size, box_y + box_size};
 
-    overlay_rect(pix_color, (fcolor_rgba_s) {rgb.r / 255.0f, rgb.g / 255.0f, rgb.b / 255.0f, 1.0f});
-    overlay_rect_outline(pix_color, (fcolor_rgba_s) {1.0f, 1.0f, 1.0f, 1.0f}, 1);
+    overlay_rect_draw(pix_color, (fcolor_rgba_s) {rgb.r / 255.0f, rgb.g / 255.0f, rgb.b / 255.0f, 1.0f});
+    overlay_rect_outline_draw(pix_color, (fcolor_rgba_s) {1.0f, 1.0f, 1.0f, 1.0f}, 1);
 
     // Текст
     for (size_t i = 0; i < 2; i++)
     {
-        text_draw((point_s) {text_x, box_y + i * line_h}, line[ i ], (fcolor_rgb_s) {1.0f, 1.0f, 1.0f}, text_scale);
+        overlay_text_draw((point_s) {text_x, box_y + i * line_h}, line[ i ], (fcolor_rgb_s) {1.0f, 1.0f, 1.0f},
+                          text_scale);
     }
 }
 
