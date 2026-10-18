@@ -39,9 +39,8 @@ static void histogram_rect(const uint8_t * data, int img_w, const format_config_
     {
         g_histogram.active_channels = 1;
 
-        // Данные gray16 трактуются как значения в младших effective_bits битах
-        // (см. gray16.glsl: val/maxv, maxv = 2^bits - 1).
-        // Для bits >= 8 это эквивалентно v >> (bits - 8); для bits < 8 масштабируем явно.
+        // Для bits >= 8: v >> (bits - 8). Для bits < 8: shift = 0, значения
+        // остаются как есть (гистограмма сжата в младшие 2^bits бинов).
         int shift = utils_clamp(effective_bits - 8, 0, 8);
 
         for (int y = start.y; y < start.y + size.y; y++)

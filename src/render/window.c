@@ -113,7 +113,7 @@ void window_toggle_fullscreen(void)
 
 void window_size_fullscreen(void)
 {
-    if (!g_window)
+    if (!g_window || g_is_fullscreen)
     {
         return;
     }
@@ -172,7 +172,7 @@ void window_size_fullscreen(void)
 
 void window_size_normal(void)
 {
-    if (!g_window)
+    if (!g_window || !g_is_fullscreen)
     {
         return;
     }
