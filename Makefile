@@ -40,6 +40,8 @@ SRCS += $(SRC_DIR)/render/renderer.c
 SRCS += $(SRC_DIR)/render/selection_view.c
 SRCS += $(SRC_DIR)/render/overlay.c
 SRCS += $(SRC_DIR)/render/window.c
+SRCS += $(SRC_DIR)/render/viewport.c
+SRCS += $(SRC_DIR)/render/ui/window_title.c
 SRCS += $(SRC_DIR)/save/saver.c
 SRCS += $(SRC_DIR)/save/screenshot.c
 SRCS += $(SRC_DIR)/source/source_factory.c
@@ -55,7 +57,7 @@ VERSION_SRC = $(SRC_DIR)/res/version.rc
 OBJS = $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) $(RES_OBJ)
 vpath %.c $(sort $(dir $(SRCS)))
 
-CFLAGS  = -std=gnu2x -Wall -Wextra -O2 -g -Isrc -Ilib -Ilib/glfw/include
+CFLAGS  = -std=gnu2x -Wall -Wextra -Oz -g -Isrc -Ilib -Ilib/glfw/include
 LDFLAGS = -Llib/glfw/lib -lglfw3 -lopengl32 -lgdi32 -luser32 -lshell32 -lws2_32
 
 all: $(TARGET)

@@ -14,7 +14,7 @@ typedef enum log_level_e
 ///
 /// \param logfile Путь к файлу для логов или nullptr (только консоль).
 /// \param min_level Минимальный уровень для вывода в консоль.
-void logger_init(const char * logfile, log_level_e min_level);
+bool logger_init(const char * logfile, log_level_e min_level);
 
 /// \brief Закрывает логгер.
 void logger_cleanup(void);

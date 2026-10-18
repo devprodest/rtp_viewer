@@ -36,7 +36,6 @@ PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus   = nullptr;
 PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers           = nullptr;
 PFNGLDELETEBUFFERSPROC glDeleteBuffers                     = nullptr;
 PFNGLUNIFORM2FPROC glUniform2f                             = nullptr;
-;
 
 #define LOAD(name)                                                    \
     ({                                                                \

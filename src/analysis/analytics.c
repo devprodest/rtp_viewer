@@ -8,15 +8,10 @@
 static histogram_s g_histogram;
 static bool g_is_ycbcr = false;
 
-/// \brief Проверяет, является ли текущий формат YCbCr.
-static bool format_is_ycbcr(const char * format_name)
-{
-    return format_name && strcmp(format_name, "ycbcr") == 0;
-}
 
 /// \brief Считает гистограмму по прямоугольной области кадра.
 static void histogram_rect(const uint8_t * data, int img_w, const format_config_s * fmt, point_s start,
-                           image_size_s size)
+                           image_size_s size, int effective_bits)
 {
     histogram_reset(&g_histogram);
 
@@ -43,12 +38,18 @@ static void histogram_rect(const uint8_t * data, int img_w, const format_config_
     else if (fmt->gl_format == GL_RED && fmt->gl_type == GL_UNSIGNED_SHORT)
     {
         g_histogram.active_channels = 1;
+
+        // Данные gray16 трактуются как значения в младших effective_bits битах
+        // (см. gray16.glsl: val/maxv, maxv = 2^bits - 1).
+        // Для bits >= 8 это эквивалентно v >> (bits - 8); для bits < 8 масштабируем явно.
+        int shift = utils_clamp(effective_bits - 8, 0, 8);
+
         for (int y = start.y; y < start.y + size.y; y++)
         {
             const uint16_t * row = (const uint16_t *)(data + ((size_t)y * (size_t)img_w * 2));
             for (int x = start.x; x < start.x + size.x; x++)
             {
-                histogram_add(&g_histogram, 0, row[ x ] >> 8);
+                histogram_add(&g_histogram, 0, row[ x ] >> shift);
             }
         }
     }
@@ -75,10 +76,10 @@ static void histogram_rect(const uint8_t * data, int img_w, const format_config_
     histogram_finalize(&g_histogram);
 }
 
-void analytics_update(const uint8_t * data, image_size_s win, const format_config_s * fmt, const char * format_name,
-                      const selection_s * sel)
+void analytics_update(const uint8_t * data, image_size_s win, const format_config_s * fmt, const selection_s * sel,
+                      int effective_bits)
 {
-    g_is_ycbcr = format_is_ycbcr(format_name);
+    g_is_ycbcr = fmt->is_ycbcr;
 
     point_s start     = {0};
     image_size_s size = win;
@@ -98,7 +99,7 @@ void analytics_update(const uint8_t * data, image_size_s win, const format_confi
         size.y  = select.y1 - select.y0;
     }
 
-    histogram_rect(data, win.x, fmt, start, size);
+    histogram_rect(data, win.x, fmt, start, size, effective_bits);
 }
 
 const histogram_s * analytics_get_histogram(void)

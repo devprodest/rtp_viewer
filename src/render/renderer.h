@@ -15,8 +15,6 @@ GLFWwindow * renderer_get_window(void);
 void renderer_poll_events(void);
 void renderer_update_texture(const uint8_t * data);
 
-void renderer_refresh_title(void);
-
 int renderer_get_bytes_per_pixel(void);
 
 void renderer_set_demosaic_mode(int mode);

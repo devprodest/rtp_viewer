@@ -293,7 +293,7 @@ static int open_socket(int port)
         return -1;
     }
 
-    log_error("rtp: UDP socket bound to port %d\n", port);
+    log_info("rtp: UDP socket bound to port %d\n", port);
 
 #ifdef _WIN32
     u_long mode = 1;

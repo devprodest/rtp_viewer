@@ -7,7 +7,7 @@
 int main(int argc, char ** argv)
 {
     app_config_s cfg;
-    bool         exit_ok = false;
+    bool exit_ok = false;
 
     logger_init(nullptr, LOG_INFO);
 
@@ -20,7 +20,10 @@ int main(int argc, char ** argv)
     if (cfg.logfile)
     {
         logger_cleanup();
-        logger_init(cfg.logfile, LOG_INFO);
+        if (!logger_init(cfg.logfile, LOG_INFO))
+        {
+            return EXIT_FAILURE;
+        }
     }
 
     int rc = app_run(&cfg);

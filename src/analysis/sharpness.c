@@ -9,29 +9,32 @@ static int pixel_luma(const uint8_t * data, int width, const format_config_s * f
 {
     if (fmt->bytes_per_pixel == 1)
     {
-        return data[ (size_t)y * (size_t)width + (size_t)x ];
+        return data[ y * width + x ];
     }
     if (fmt->bytes_per_pixel == 2)
     {
         const uint16_t * p = (const uint16_t *)data;
-        return p[ (size_t)y * (size_t)width + (size_t)x ] >> 8;
+        return p[ y * width + x ] >> 8;
     }
-    if (fmt->bytes_per_pixel == 3)
+
+
+    if (fmt->bytes_per_pixel == 3 || fmt->bytes_per_pixel == 4)
     {
-        size_t idx = ((size_t)y * (size_t)width + (size_t)x) * 3;
-        int r      = data[ idx + 0 ];
-        int g      = data[ idx + 1 ];
-        int b      = data[ idx + 2 ];
+        size_t idx = (y * width + x) * fmt->bytes_per_pixel;
+
+        // YCbCr: яркость — это Y (первый канал), а не смесь Y/Cb/Cr.
+        // BT.601-веса (77,150,29) подходят только для RGB.
+        if (fmt->is_ycbcr)
+        {
+            return data[ idx + 0 ];
+        }
+
+        int r = data[ idx + 0 ];
+        int g = data[ idx + 1 ];
+        int b = data[ idx + 2 ];
         return (r * 77 + g * 150 + b * 29) >> 8;
     }
-    if (fmt->bytes_per_pixel == 4)
-    {
-        size_t idx = ((size_t)y * (size_t)width + (size_t)x) * 4;
-        int r      = data[ idx + 0 ];
-        int g      = data[ idx + 1 ];
-        int b      = data[ idx + 2 ];
-        return (r * 77 + g * 150 + b * 29) >> 8;
-    }
+
     return 0;
 }
 

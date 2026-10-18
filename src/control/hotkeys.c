@@ -2,6 +2,7 @@
 #include "commands.h"
 
 static bool f1_pressed    = false;
+static bool f11_pressed   = false;
 static bool key_0_pressed = false;
 static bool key_1_pressed = false;
 static bool space_pressed = false;
@@ -19,6 +20,7 @@ static bool f_pressed     = false;
 void hotkeys_process(GLFWwindow * window)
 {
     bool f1    = glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS;
+    bool f11   = glfwGetKey(window, GLFW_KEY_F11) == GLFW_PRESS;
     bool esc   = glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
     bool key_0 = glfwGetKey(window, GLFW_KEY_0) == GLFW_PRESS;
     bool key_1 = glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS;
@@ -69,6 +71,10 @@ void hotkeys_process(GLFWwindow * window)
     {
         cmd_execute(CMD_SHOW_HELP);
     }
+    if (f11 && no_modificator && !f11_pressed)
+    {
+        cmd_execute(CMD_TOGGLE_FULLSCREEN);
+    }
     if (space && no_modificator && !space_pressed)
     {
         cmd_execute(CMD_TOGGLE_PAUSE);
@@ -103,6 +109,7 @@ void hotkeys_process(GLFWwindow * window)
     key_0_pressed = key_0;
     key_1_pressed = key_1;
     f1_pressed    = f1;
+    f11_pressed   = f11;
     space_pressed = space;
     esc_pressed   = esc;
     f_pressed     = f;

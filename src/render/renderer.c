@@ -12,19 +12,16 @@
 #include "log/stats.h"
 #include "overlay.h"
 #include "post_pass.h"
-#include "render/selection_view.h"
 #include "save/saver.h"
 #include "save/screenshot.h"
+#include "selection_view.h"
+#include "ui/window_title.h"
 #include "util/utils.h"
+#include "viewport.h"
 #include "window.h"
 
 #include <stdio.h>
 #include <string.h>
-
-//----------------------------------------------------------------------------------------------------------------------
-
-#define ZOOM_MIN 1.0f
-#define ZOOM_MAX 32.0f
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -33,25 +30,13 @@ static GLuint g_quad_vao = 0;
 static image_size_s g_win = {};
 static int g_eff_bits     = 16;
 static bool g_smoothing   = false;
-static bool g_paused      = false;
 
 static bool g_saturation_enabled = false;
-
-static char g_format_name[ 64 ] = {0};
 
 static format_config_s g_format;
 static selection_s g_selection;
 
-static point_s g_vpoint     = {};
-static image_size_s g_vsize = {};
-
 static float g_dpi_scale = 1.0f;
-
-
-static float g_zoom        = 1.0f;
-static fpoint_s g_pan      = {};
-static fpoint_s g_pan_last = {};
-static bool g_pan_drag     = false;
 
 static bool g_left_was_down  = false;
 static bool g_right_was_down = false;
@@ -63,10 +48,6 @@ static const uint8_t * g_last_frame = nullptr;
 
 static bool g_gradient_enabled = false;
 static sharpness_s g_sharpness;
-
-//----------------------------------------------------------------------------------------------------------------------
-
-static void compute_base_viewport(image_size_s win, point_s * base_start, image_size_s * base);
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -82,32 +63,6 @@ static void apply_smoothing(void)
     GLint f = g_smoothing ? GL_LINEAR : GL_NEAREST;
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, f);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, f);
-}
-
-void renderer_refresh_title(void)
-{
-    if (!window_get())
-    {
-        return;
-    }
-
-    char title[ 160 ];
-
-    char extra[ 64 ] = "";
-    if (g_gradient_enabled && g_sharpness.valid)
-    {
-        snprintf(extra, sizeof(extra), " Lap=%.1f Ten=%.0f", g_sharpness.lap_var, g_sharpness.tenengrad);
-    }
-
-    snprintf(title, sizeof(title), "RTP Viewer - %dx%d %s fps:%.1f%s%s%s", //
-             g_win.x, g_win.y,                                             //
-             g_format_name[ 0 ] ? g_format_name : "?",                     //
-             stats_get_fps(),                                              //
-             g_paused ? " [PAUSE]" : "",                                   //
-             saver_is_recording() ? " [REC]" : "",                         //
-             extra);
-
-    window_set_title(title);
 }
 
 bool renderer_init(image_size_s win, const char * format_name, int effective_bits, bool smooth_start)
@@ -145,9 +100,11 @@ bool renderer_init(image_size_s win, const char * format_name, int effective_bit
     overlay_init();
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-    g_win      = win;
+    g_win = win;
+
+    viewport_init(win);
+
     g_eff_bits = effective_bits;
-    snprintf(g_format_name, sizeof(g_format_name), "%s", format_name);
 
     g_quad_vao = gl_utils_create_fullscreen_quad();
     if (g_quad_vao == 0)
@@ -232,11 +189,12 @@ void renderer_update_texture(const uint8_t * data)
 
     format_pass_upload(data);
 
-    analytics_update(data, g_win, &g_format, g_format_name, &g_selection);
+    analytics_update(data, g_win, &g_format, &g_selection, g_eff_bits);
 
     if (g_gradient_enabled)
     {
         g_sharpness = sharpness_compute(data, g_win, &g_format, &g_selection);
+        window_title_set_sharpness(g_sharpness.valid, g_sharpness.lap_var, g_sharpness.tenengrad);
     }
 
     if (histogram_view_is_enabled())
@@ -254,21 +212,13 @@ void renderer_update_texture(const uint8_t * data)
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    // блок расчёта viewport
-    point_s base_start;
-    image_size_s base_size;
-    compute_base_viewport(win, &base_start, &base_size);
-
-    g_vpoint.x = base_start.x - (g_pan.x * g_zoom);
-    g_vpoint.y = base_start.y - (g_pan.y * g_zoom);
-    g_vsize.x  = base_size.x * g_zoom;
-    g_vsize.y  = base_size.y * g_zoom;
+    viewport_update(win);
 
     glViewport(0, 0, win.x, win.y);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
-    
-    post_pass_render(format_pass_get_output_tex(), g_vpoint, g_vsize, win);
+
+    post_pass_render(format_pass_get_output_tex(), viewport_get_point(), viewport_get_size(), win);
 
     if (histogram_view_is_enabled() && histogram_view_get_active_channels() > 0)
     {
@@ -283,7 +233,7 @@ void renderer_update_texture(const uint8_t * data)
     }
 
     overlay_begin(win);
-    selection_view_draw(&g_selection, g_vpoint, g_vsize, g_win);
+    selection_view_draw(&g_selection, viewport_get_point(), viewport_get_size(), g_win);
     if (g_inspector_enabled)
     {
         renderer_draw_inspector(g_last_mouse);
@@ -307,8 +257,7 @@ void renderer_set_demosaic_mode(int mode)
 
 void renderer_set_paused(bool paused)
 {
-    g_paused = paused;
-    renderer_refresh_title();
+    window_title_set_paused(paused);
 }
 
 void renderer_toggle_fullscreen(void)
@@ -320,14 +269,14 @@ void renderer_toggle_smoothing(void)
 {
     g_smoothing = !g_smoothing;
     apply_smoothing();
-    renderer_refresh_title();
+    window_title_refresh();
     log_info("Smoothing %s", g_smoothing ? "enabled" : "disabled");
 }
 
 void renderer_toggle_histogram(void)
 {
     histogram_view_toggle_enabled();
-    renderer_refresh_title();
+    window_title_refresh();
 }
 
 void renderer_toggle_histogram_scale(void)
@@ -344,7 +293,7 @@ void renderer_toggle_saturation(void)
 {
     g_saturation_enabled = !g_saturation_enabled;
     post_pass_set_saturation(g_saturation_enabled);
-    renderer_refresh_title();
+    window_title_refresh();
     log_info("Saturation markers %s", g_saturation_enabled ? "enabled" : "disabled");
 }
 
@@ -353,27 +302,6 @@ void renderer_request_screenshot(void)
     screenshot_request();
 }
 
-bool renderer_screen_to_frame(point_s screen, point_s * frame)
-{
-    if (g_vsize.x <= 0 || g_vsize.y <= 0)
-    {
-        return false;
-    }
-
-    if (screen.x < g_vpoint.x || screen.x >= g_vpoint.x + g_vsize.x || //
-        screen.y < g_vpoint.y || screen.y >= g_vpoint.y + g_vsize.y)
-    {
-        return false;
-    }
-
-    int frame_x = (screen.x - g_vpoint.x) * g_win.x / g_vsize.x;
-    int frame_y = (screen.y - g_vpoint.y) * g_win.y / g_vsize.y;
-
-    frame->x = utils_clamp(frame_x, 0, g_win.x - 1);
-    frame->y = utils_clamp(frame_y, 0, g_win.y - 1);
-
-    return true;
-}
 
 void renderer_set_selection_from_mouse(point_s mouse, bool left_down, bool right_down, bool in_view)
 {
@@ -404,116 +332,30 @@ void renderer_clear_selection(void)
     selection_clear(&g_selection);
 }
 
-void renderer_zoom_reset(void)
+bool renderer_screen_to_frame(point_s screen, point_s * frame)
 {
-    g_zoom  = 1.0f;
-    g_pan.x = 0.0f;
-    g_pan.y = 0.0f;
+    return viewport_screen_to_frame(screen, frame);
 }
 
-static void compute_base_viewport(image_size_s win, point_s * base_start, image_size_s * base_size)
+void renderer_zoom_reset(void)
 {
-    float aspect_img = (float)g_win.x / (float)g_win.y;
-    float aspect_win = (float)win.x / (float)win.y;
-
-    if (aspect_win > aspect_img)
-    {
-        base_size->y  = win.y;
-        base_size->x  = win.y * aspect_img;
-        base_start->x = (win.x - base_size->x) / 2;
-        base_start->y = 0;
-    }
-    else
-    {
-        base_size->x  = win.x;
-        base_size->y  = win.x / aspect_img;
-        base_start->x = 0;
-        base_start->y = (win.y - base_size->y) / 2;
-    }
+    viewport_reset();
 }
 
 void renderer_zoom_apply_wheel(double wheel, point_s point)
 {
-    if (wheel == 0.0 || g_vsize.x <= 0 || g_vsize.y <= 0)
-    {
-        return;
-    }
-
-    // Точка под курсором в координатах кадра до zoom
-    point_s frame;
-    if (!renderer_screen_to_frame(point, &frame))
-    {
-        return;
-    }
-
-    float factor = utils_max(1.0f + (float)wheel * 0.15f, 0.1f);
-    g_zoom       = utils_clamp(g_zoom * factor, ZOOM_MIN, ZOOM_MAX);
-
-    // После zoom та же точка должна остаться под курсором.
-    // Пересчитываем pan так, чтобы frame (fx_before, fy_before) проецировался в (mx, my).
-    // Проекция: x_screen = vp_x + (f_x * vp_w) / W
-    //          = base_x - pan_x*zoom + (f_x * base_w * zoom) / W
-    // Отсюда: pan_x = (base_x + (f_x * base_w * zoom) / W - mx) / zoom
-    // base_x и base_w — исходный letterbox без zoom.
-
-    // Проще пересчитать через текущий g_vp_* и новую позицию:
-    // Не храним base, пересчитаем по текущему состоянию.
-    // Мы только что поменяли g_zoom, но g_vp_* ещё старые. Пересчёт сделаем
-    // на следующем кадре в update_texture, а pan подберём аналитически.
-
-    // Найдём base_w/base_h/base_x/base_y из win размеров — они уже в g_vp_*, но с учётом старого zoom.
-    // Проще: пересчитать base прямо здесь.
-
-    image_size_s win = window_get_framebuffer_size();
-    if (win.x <= 0 || win.y <= 0)
-    {
-        return;
-    }
-
-    point_s base_start;
-    image_size_s base;
-    compute_base_viewport(win, &base_start, &base);
-
-
-    float want_x = (float)point.x - (float)base_start.x - ((float)frame.x * (float)base.x * g_zoom) / (float)g_win.x;
-    float want_y = (float)point.y - (float)base_start.y - ((float)frame.y * (float)base.y * g_zoom) / (float)g_win.y;
-
-    g_pan.x = -want_x / g_zoom;
-    g_pan.y = -want_y / g_zoom;
+    viewport_apply_wheel(wheel, point);
 }
 
 void renderer_pan_apply_drag(point_s point, bool middle_down)
 {
-    if (middle_down && !g_pan_drag)
-    {
-        g_pan_drag   = true;
-        g_pan_last.x = point.x;
-        g_pan_last.y = point.y;
-        return;
-    }
-
-    if (!middle_down && g_pan_drag)
-    {
-        g_pan_drag = false;
-        return;
-    }
-
-    if (middle_down && g_pan_drag)
-    {
-        float dx     = point.x - g_pan_last.x;
-        float dy     = point.y - g_pan_last.y;
-        g_pan_last.x = point.x;
-        g_pan_last.y = point.y;
-
-        g_pan.x -= dx / g_zoom;
-        g_pan.y -= dy / g_zoom;
-    }
+    viewport_apply_pan_drag(point, middle_down);
 }
 
 void renderer_draw_inspector(point_s point)
 {
     point_s frame;
-    if (!renderer_screen_to_frame(point, &frame))
+    if (!viewport_screen_to_frame(point, &frame))
     {
         return;
     }
@@ -626,6 +468,6 @@ void renderer_toggle_gradient(void)
 {
     g_gradient_enabled = !g_gradient_enabled;
     post_pass_set_gradient(g_gradient_enabled);
-    renderer_refresh_title();
+    window_title_refresh();
     log_info("Gradient %s", g_gradient_enabled ? "enabled" : "disabled");
 }

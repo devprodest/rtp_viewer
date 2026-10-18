@@ -12,28 +12,6 @@ static int g_windowed_y = 0;
 static int g_windowed_w = 0;
 static int g_windowed_h = 0;
 
-static double g_last_click_time = 0.0;
-
-/// \brief Callback двойного клика — переключает полноэкранный режим.
-static void mouse_button_callback(GLFWwindow *, int button, int action, int)
-{
-    if (button != GLFW_MOUSE_BUTTON_LEFT || action != GLFW_PRESS)
-    {
-        return;
-    }
-
-    double now = glfwGetTime();
-    if (now - g_last_click_time < 0.4)
-    {
-        window_toggle_fullscreen();
-        g_last_click_time = 0.0;
-    }
-    else
-    {
-        g_last_click_time = now;
-    }
-}
-
 /// \brief Создаёт окно GLFW и GL-контекст.
 bool window_init(int width, int height, const char * title)
 {
@@ -58,7 +36,6 @@ bool window_init(int width, int height, const char * title)
 
     glfwMakeContextCurrent(g_window);
     glfwSwapInterval(1);
-    glfwSetMouseButtonCallback(g_window, mouse_button_callback);
 
     return true;
 }
@@ -124,68 +101,81 @@ bool window_is_fullscreen(void)
 
 void window_toggle_fullscreen(void)
 {
+    if (!g_is_fullscreen)
+    {
+        window_size_fullscreen();
+    }
+    else
+    {
+        window_size_normal();
+    }
+}
+
+void window_size_fullscreen(void)
+{
     if (!g_window)
     {
         return;
     }
+    glfwGetWindowPos(g_window, &g_windowed_x, &g_windowed_y);
+    glfwGetWindowSize(g_window, &g_windowed_w, &g_windowed_h);
 
-    if (!g_is_fullscreen)
+    GLFWmonitor * target = nullptr;
+
+    int win_center_x = g_windowed_x + (g_windowed_w / 2);
+    int win_center_y = g_windowed_y + (g_windowed_h / 2);
+
+    int monitor_count       = 0;
+    GLFWmonitor ** monitors = glfwGetMonitors(&monitor_count);
+
+    for (int i = 0; i < monitor_count; i++)
     {
-        glfwGetWindowPos(g_window, &g_windowed_x, &g_windowed_y);
-        glfwGetWindowSize(g_window, &g_windowed_w, &g_windowed_h);
+        int mx = 0, my = 0;
+        glfwGetMonitorPos(monitors[ i ], &mx, &my);
 
-        GLFWmonitor * target = nullptr;
-
-        int win_center_x = g_windowed_x + (g_windowed_w / 2);
-        int win_center_y = g_windowed_y + (g_windowed_h / 2);
-
-        int monitor_count       = 0;
-        GLFWmonitor ** monitors = glfwGetMonitors(&monitor_count);
-
-        for (int i = 0; i < monitor_count; i++)
-        {
-            int mx = 0, my = 0;
-            glfwGetMonitorPos(monitors[ i ], &mx, &my);
-
-            const GLFWvidmode * mode = glfwGetVideoMode(monitors[ i ]);
-            if (!mode)
-            {
-                continue;
-            }
-
-            int m_left   = mx;
-            int m_top    = my;
-            int m_right  = mx + mode->width;
-            int m_bottom = my + mode->height;
-
-            if (win_center_x >= m_left && win_center_x < m_right && win_center_y >= m_top && win_center_y < m_bottom)
-            {
-                target = monitors[ i ];
-                break;
-            }
-        }
-
-        if (!target)
-        {
-            target = glfwGetPrimaryMonitor();
-        }
-        if (!target)
-        {
-            return;
-        }
-
-        const GLFWvidmode * mode = glfwGetVideoMode(target);
+        const GLFWvidmode * mode = glfwGetVideoMode(monitors[ i ]);
         if (!mode)
         {
-            return;
+            continue;
         }
 
-        glfwSetWindowMonitor(g_window, target, 0, 0, mode->width, mode->height, mode->refreshRate);
-        g_is_fullscreen = true;
+        int m_left   = mx;
+        int m_top    = my;
+        int m_right  = mx + mode->width;
+        int m_bottom = my + mode->height;
+
+        if (win_center_x >= m_left && win_center_x < m_right && win_center_y >= m_top && win_center_y < m_bottom)
+        {
+            target = monitors[ i ];
+            break;
+        }
     }
-    else
+
+    if (!target)
     {
-        glfwSetWindowMonitor(g_window, nullptr, g_windowed_x, g_windowed_y, g_windowed_w, g_windowed_h, 0);
-        g_is_fullscreen = false;
+        target = glfwGetPrimaryMonitor();
     }
+    if (!target)
+    {
+        return;
+    }
+
+    const GLFWvidmode * mode = glfwGetVideoMode(target);
+    if (!mode)
+    {
+        return;
+    }
+
+    glfwSetWindowMonitor(g_window, target, 0, 0, mode->width, mode->height, mode->refreshRate);
+    g_is_fullscreen = true;
+}
+
+void window_size_normal(void)
+{
+    if (!g_window)
+    {
+        return;
+    }
+    glfwSetWindowMonitor(g_window, nullptr, g_windowed_x, g_windowed_y, g_windowed_w, g_windowed_h, 0);
+    g_is_fullscreen = false;
 }

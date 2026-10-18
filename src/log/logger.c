@@ -1,5 +1,6 @@
 #include "logger.h"
 
+#include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -43,7 +44,7 @@ static void log_write(log_level_e level, const char * fmt, va_list args)
     }
 }
 
-void logger_init(const char * logfile, log_level_e min_level)
+bool logger_init(const char * logfile, log_level_e min_level)
 {
     g_min_level = min_level;
 
@@ -52,9 +53,11 @@ void logger_init(const char * logfile, log_level_e min_level)
         g_file = fopen(logfile, "a");
         if (!g_file)
         {
-            fprintf(stderr, "logger: cannot open logfile '%s'\n", logfile);
+            fprintf(stderr, "logger: cannot open logfile '%s': %s\n", logfile, strerror(errno));
+            return false;
         }
     }
+    return true;
 }
 
 void logger_cleanup(void)

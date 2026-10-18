@@ -1,7 +1,7 @@
 #include "stats.h"
 
 #include "log/logger.h"
-#include "render/renderer.h"
+#include "render/ui/window_title.h"
 #include "util/utils.h"
 
 #include <inttypes.h>
@@ -54,7 +54,7 @@ void stats_update(void)
         fps        = (double)g_last_second_frames / (double)delta;
         double pps = (double)g_last_second_packets / (double)delta;
 
-        renderer_refresh_title();
+        window_title_refresh();
         log_info("Packets: %" PRIu64 " (%.0f pkts/s), Frames: %" PRIu64 " (%.1f fps)", g_total_packets, pps,
                  g_total_frames, fps);
     }

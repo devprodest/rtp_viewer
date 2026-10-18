@@ -6,6 +6,7 @@
 #include "log/logger.h"
 #include "log/stats.h"
 #include "render/renderer.h"
+#include "render/ui/window_title.h"
 #include "save/saver.h"
 #include "source/source.h"
 #include "source/source_factory.h"
@@ -20,9 +21,12 @@
 #ifdef _WIN32
     #include <windows.h>
     #define SLEEP_MS(ms) Sleep(ms)
+    // Windows Sleep — миллисекундный; для <1мс используем Sleep(1) (без регресса).
+    #define SLEEP_US(us) Sleep((us) >= 1000 ? ((DWORD)((us) / 1000)) : 1)
 #else
     #include <unistd.h>
     #define SLEEP_MS(ms) usleep((ms) * 1000)
+    #define SLEEP_US(us) usleep(us)
 #endif
 
 #define NUM_FRAME_BUFFERS 2
@@ -73,6 +77,7 @@ int app_run(const app_config_s * cfg)
     log_info("%s v%s", RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR);
 
     stats_init(cfg->logfile);
+    window_title_init(cfg->format, cfg->image);
 
     if (!renderer_init(cfg->image, cfg->format, cfg->effective_bits, cfg->smooth_start))
     {
@@ -93,7 +98,7 @@ int app_run(const app_config_s * cfg)
         .format_name = cfg->format,
     });
 
-    renderer_refresh_title();
+    window_title_refresh();
 
     source_params_s src_params = {
         .image    = cfg->image,
@@ -205,7 +210,7 @@ int app_run(const app_config_s * cfg)
         }
 
         stats_update();
-        SLEEP_MS(1);
+        SLEEP_US(200);
     }
 
     cleanup_buffers();

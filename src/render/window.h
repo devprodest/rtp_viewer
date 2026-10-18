@@ -19,5 +19,8 @@ void window_swap_buffers(void);
 image_size_s window_get_framebuffer_size(void);
 
 void window_set_title(const char * title);
+
 bool window_is_fullscreen(void);
 void window_toggle_fullscreen(void);
+void window_size_fullscreen(void);
+void window_size_normal(void);

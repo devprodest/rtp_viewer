@@ -1,7 +1,10 @@
 #include "commands.h"
 
+#include "app/app.h"
 #include "help/help.h"
 #include "render/renderer.h"
+#include "render/ui/window_title.h"
+#include "render/window.h"
 #include "save/saver.h"
 
 #include <stdbool.h>
@@ -12,6 +15,7 @@ void cmd_execute(commands_e cmd)
     switch (cmd)
     {
         case CMD_TOGGLE_SMOOTHING: renderer_toggle_smoothing(); break;
+        case CMD_TOGGLE_FULLSCREEN: window_toggle_fullscreen(); break;
 
         case CMD_TOGGLE_GRADIENT: renderer_toggle_gradient(); break;
         case CMD_TOGGLE_INSPECTOR: renderer_toggle_inspector(); break;
@@ -23,13 +27,10 @@ void cmd_execute(commands_e cmd)
         case CMD_FLUSH_SAVER: saver_flush(); break;
         case CMD_TOGGLE_RECORDING:
             saver_toggle_recording();
-            renderer_refresh_title();
+            window_title_refresh();
             break;
 
-        case CMD_TOGGLE_PAUSE:
-            extern bool app_toggle_pause(void);
-            app_toggle_pause();
-            break;
+        case CMD_TOGGLE_PAUSE: app_toggle_pause(); break;
 
         case CMD_REQUEST_SCREENSHOT: renderer_request_screenshot(); break;
 

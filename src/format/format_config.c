@@ -85,6 +85,7 @@ bool format_config_load(const char * format_name, format_config_s * cfg)
     snprintf(cfg->shader_file, sizeof(cfg->shader_file), "%s.glsl", format_name);
     cfg->needs_demosaic = false;
     strcpy(cfg->bayer_pattern, "RGGB");
+    cfg->is_ycbcr = (format_name && strcmp(format_name, "ycbcr") == 0);
 
     char line[ 256 ];
     while (fgets(line, sizeof(line), f))
@@ -169,6 +170,7 @@ bool format_config_load(const char * format_name, format_config_s * cfg)
             strncpy(cfg->bayer_pattern, value, sizeof(cfg->bayer_pattern) - 1);
         }
     }
+
     fclose(f);
     return true;
 }

@@ -31,10 +31,10 @@ static const char * build_hotkeys_text(void)
              "  H \tToggle histogram overlay\n"
              "  Ctrl+H \tToggle histogram scale (linear / log)\n"
              "  C \tToggle histogram CDF overlay\n"
-             "  Space \tPause/resume display and analysis\n"
              "  F1 \tShow this help\n"
+             "  F11 \tToggle fullscreen\n"
              "\n"
-             "  Double-click   Toggle fullscreen\n"
+             "  Space \tPause/resume display and analysis\n"
              "\n"
              "CLI options: run %s with -h\n",
              RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR, "rtp_viewer");
