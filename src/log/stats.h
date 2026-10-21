@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-void stats_init(const char * logfile);
+void stats_init(void);
 void stats_cleanup(void);
 void stats_update(void);
 

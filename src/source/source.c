@@ -10,7 +10,7 @@ void frame_state_init(frame_state_s * state, image_size_s size, uint8_t bpp)
 {
     memset(state, 0, sizeof(*state));
     state->image               = size;
-    state->bpp     = bpp;
+    state->bpp                 = bpp;
     state->frame_size          = state->image.x * state->image.y * bpp;
     state->last_packet_time_us = get_time_us();
 }
@@ -81,4 +81,31 @@ bool source_check_timeout(source_s * src, frame_state_s * state)
 bool frame_state_is_ready(const frame_state_s * state)
 {
     return state->frame_ready;
+}
+
+bool source_step_forward(source_s * src)
+{
+    if (!src || !src->ops || !src->ops->step_forward)
+    {
+        return false;
+    }
+    return src->ops->step_forward(src);
+}
+
+bool source_step_backward(source_s * src)
+{
+    if (!src || !src->ops || !src->ops->step_backward)
+    {
+        return false;
+    }
+    return src->ops->step_backward(src);
+}
+
+bool source_get_frame_position(source_s * src, int * current, int * total)
+{
+    if (!src || !src->ops || !src->ops->get_frame_position)
+    {
+        return false;
+    }
+    return src->ops->get_frame_position(src, current, total);
 }

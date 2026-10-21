@@ -28,11 +28,18 @@ static void file_close(source_s * self);
 static int file_receive(source_s * self, frame_state_s * state, uint8_t * buffer);
 static bool file_check_timeout(source_s * self, frame_state_s * state);
 
+static bool file_step_forward(source_s * self);
+static bool file_step_backward(source_s * self);
+static bool file_get_frame_position(source_s * self, int * current, int * total);
+
 static const source_ops_s g_file_ops = {
-    .open          = file_open,
-    .close         = file_close,
-    .receive       = file_receive,
-    .check_timeout = file_check_timeout,
+    .open               = file_open,
+    .close              = file_close,
+    .receive            = file_receive,
+    .check_timeout      = file_check_timeout,
+    .step_forward       = file_step_forward,
+    .step_backward      = file_step_backward,
+    .get_frame_position = file_get_frame_position,
 };
 
 static bool file_open(source_s * self, const source_params_s * params)
@@ -162,10 +169,8 @@ static int file_receive(source_s * self, frame_state_s * state, uint8_t * buffer
     return 1;
 }
 
-static bool file_check_timeout(source_s * self, frame_state_s * state)
+static bool file_check_timeout(source_s * /*unused*/, frame_state_s * /*unused*/)
 {
-    (void)self;
-    (void)state;
     return false;
 }
 
@@ -175,4 +180,61 @@ source_s * source_file_create(void)
     g_file_source.ops  = &g_file_ops;
     g_file_source.impl = &g_file_impl;
     return &g_file_source;
+}
+
+static bool file_step_forward(source_s * self)
+{
+    file_impl_t * impl = (file_impl_t *)self->impl;
+
+    if (!impl->file || impl->frames_total == 0)
+    {
+        return false;
+    }
+
+    impl->next_send_us = 0;
+    return true;
+}
+
+static bool file_step_backward(source_s * self)
+{
+    file_impl_t * impl = (file_impl_t *)self->impl;
+
+    if (!impl->file || impl->frames_total < 2)
+    {
+        return false;
+    }
+
+    if (impl->frame_index < 2)
+    {
+        impl->frame_index = impl->frames_total - 1;
+    }
+    else
+    {
+        impl->frame_index -= 2;
+    }
+
+    if (fseek(impl->file, (long)(impl->frame_index * impl->frame_size), SEEK_SET) != 0)
+    {
+        return false;
+    }
+
+    impl->next_send_us = 0;
+    return true;
+}
+
+static bool file_get_frame_position(source_s * self, int * current, int * total)
+{
+    file_impl_t * impl = (file_impl_t *)self->impl;
+    if (!impl->file || impl->frames_total == 0)
+    {
+        return false;
+    }
+    int shown = (int)impl->frame_index - 1;
+    if (shown < 0)
+    {
+        shown = 0;
+    }
+    *current = shown;
+    *total   = (int)impl->frames_total;
+    return true;
 }

@@ -250,9 +250,8 @@ int renderer_get_bytes_per_pixel(void)
     return format_pass_get_bytes_per_pixel();
 }
 
-void renderer_set_demosaic_mode(int mode)
+void renderer_set_demosaic_mode(int /*unused*/)
 {
-    (void)mode;
 }
 
 void renderer_set_paused(bool paused)
@@ -301,7 +300,6 @@ void renderer_request_screenshot(void)
 {
     screenshot_request();
 }
-
 
 void renderer_set_selection_from_mouse(point_s mouse, bool left_down, bool right_down, bool in_view)
 {
@@ -370,31 +368,31 @@ void renderer_draw_inspector(point_s point)
 
     if (g_format.bytes_per_pixel == 1)
     {
-        uint8_t v = g_last_frame[ (size_t)frame.y * (size_t)g_win.x + (size_t)frame.x ];
+        uint8_t v = g_last_frame[((size_t)frame.y * (size_t)g_win.x) + (size_t)frame.x];
         rgb       = (color_rgb_s) {v, v, v};
         raw       = v;
     }
     else if (g_format.bytes_per_pixel == 2)
     {
         const uint16_t * p = (const uint16_t *)g_last_frame;
-        uint16_t v         = p[ (size_t)frame.y * (size_t)g_win.x + (size_t)frame.x ];
+        uint16_t v         = p[((size_t)frame.y * (size_t)g_win.x) + (size_t)frame.x];
         raw                = v;
         uint8_t v8         = (uint8_t)(v >> 8);
         rgb                = (color_rgb_s) {v8, v8, v8};
     }
     else if (g_format.bytes_per_pixel == 3)
     {
-        size_t idx = ((size_t)frame.y * (size_t)g_win.x + (size_t)frame.x) * 3;
-        rgb.r      = g_last_frame[ idx + 0 ];
-        rgb.g      = g_last_frame[ idx + 1 ];
-        rgb.b      = g_last_frame[ idx + 2 ];
+        size_t idx = (((size_t)frame.y * (size_t)g_win.x) + (size_t)frame.x) * 3;
+        rgb.r      = g_last_frame[idx + 0];
+        rgb.g      = g_last_frame[idx + 1];
+        rgb.b      = g_last_frame[idx + 2];
     }
     else if (g_format.bytes_per_pixel == 4)
     {
-        size_t idx = ((size_t)frame.y * (size_t)g_win.x + (size_t)frame.x) * 4;
-        rgb.r      = g_last_frame[ idx + 0 ];
-        rgb.g      = g_last_frame[ idx + 1 ];
-        rgb.b      = g_last_frame[ idx + 2 ];
+        size_t idx = (((size_t)frame.y * (size_t)g_win.x) + (size_t)frame.x) * 4;
+        rgb.r      = g_last_frame[idx + 0];
+        rgb.g      = g_last_frame[idx + 1];
+        rgb.b      = g_last_frame[idx + 2];
     }
 
     image_size_s win = window_get_framebuffer_size();
@@ -411,22 +409,22 @@ void renderer_draw_inspector(point_s point)
     const int text_x = box_x + box_size + gap;
 
 
-    typedef char text_line_t[ 64 ];
-    text_line_t line[ 2 ];
+    typedef char text_line_t[64];
+    text_line_t line[2];
 
-    snprintf(line[ 0 ], sizeof(text_line_t), "x;y=(%d;%d)", frame.x, frame.y);
+    snprintf(line[0], sizeof(text_line_t), "x;y=(%d;%d)", frame.x, frame.y);
 
     if (g_format.bytes_per_pixel <= 2)
     {
-        snprintf(line[ 1 ], sizeof(text_line_t), "val=%u", raw);
+        snprintf(line[1], sizeof(text_line_t), "val=%u", raw);
     }
     else
     {
-        snprintf(line[ 1 ], sizeof(text_line_t), "RGB=(%u;%u;%u)", rgb.r, rgb.g, rgb.b);
+        snprintf(line[1], sizeof(text_line_t), "RGB=(%u;%u;%u)", rgb.r, rgb.g, rgb.b);
     }
 
-    int w1     = overlay_text_measure(line[ 0 ], text_scale);
-    int w2     = overlay_text_measure(line[ 1 ], text_scale);
+    int w1     = overlay_text_measure(line[0], text_scale);
+    int w2     = overlay_text_measure(line[1], text_scale);
     int text_w = (w1 > w2) ? w1 : w2;
 
     // Плашка под текстом, справа от квадрата
@@ -448,7 +446,7 @@ void renderer_draw_inspector(point_s point)
     // Текст
     for (size_t i = 0; i < 2; i++)
     {
-        overlay_text_draw((point_s) {text_x, box_y + i * line_h}, line[ i ], (fcolor_rgb_s) {1.0f, 1.0f, 1.0f},
+        overlay_text_draw((point_s) {text_x, box_y + (i * line_h)}, line[i], (fcolor_rgb_s) {1.0f, 1.0f, 1.0f},
                           text_scale);
     }
 }
@@ -468,6 +466,10 @@ void renderer_toggle_gradient(void)
 {
     g_gradient_enabled = !g_gradient_enabled;
     post_pass_set_gradient(g_gradient_enabled);
+    if (g_gradient_enabled == false)
+    {
+        window_title_set_sharpness(false, 0.0, 0.0);
+    }
     window_title_refresh();
     log_info("Gradient %s", g_gradient_enabled ? "enabled" : "disabled");
 }

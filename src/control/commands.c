@@ -31,6 +31,8 @@ void cmd_execute(commands_e cmd)
             break;
 
         case CMD_TOGGLE_PAUSE: app_toggle_pause(); break;
+        case CMD_STEP_FORWARD: app_step_forward(); break;
+        case CMD_STEP_BACKWARD: app_step_backward(); break;
 
         case CMD_REQUEST_SCREENSHOT: renderer_request_screenshot(); break;
 

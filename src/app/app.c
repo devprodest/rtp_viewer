@@ -10,6 +10,7 @@
 #include "save/saver.h"
 #include "source/source.h"
 #include "source/source_factory.h"
+#include "util/utils.h"
 #include "util/version.h"
 
 #include <signal.h>
@@ -33,18 +34,21 @@
 
 static volatile bool g_running = true;
 
-static uint8_t * g_frame_buffers[ NUM_FRAME_BUFFERS ] = {nullptr, nullptr};
-static uint8_t * g_paused_buffer                      = nullptr;
-static int g_last_rendered_idx                        = 0;
-static bool g_has_rendered                            = false;
-static size_t g_frame_bytes                           = 0;
-static bool g_paused                                  = false;
+static uint8_t * g_frame_buffers[NUM_FRAME_BUFFERS] = {nullptr, nullptr};
+static uint8_t * g_paused_buffer                    = nullptr;
+static int g_last_rendered_idx                      = 0;
+static bool g_has_rendered                          = false;
+static size_t g_frame_bytes                         = 0;
+static bool g_paused                                = false;
 
 static const app_config_s * g_cfg = nullptr;
 
+static source_s * g_source              = nullptr;
+static int g_step_pending               = 0;
+static uint64_t g_last_paused_render_us = 0;
+
 static void signal_handler(int sig)
 {
-    (void)sig;
     g_running = false;
 }
 
@@ -53,18 +57,47 @@ bool app_toggle_pause(void)
     g_paused = !g_paused;
     if (g_paused && g_has_rendered && g_paused_buffer)
     {
-        memcpy(g_paused_buffer, g_frame_buffers[ g_last_rendered_idx ], g_frame_bytes);
+        memcpy(g_paused_buffer, g_frame_buffers[g_last_rendered_idx], g_frame_bytes);
+        g_last_paused_render_us = 0;
     }
     renderer_set_paused(g_paused);
     return g_paused;
+}
+
+bool app_step_forward(void)
+{
+    if (!g_cfg || !g_cfg->use_file_source || !g_source)
+    {
+        return false;
+    }
+    if (!g_paused)
+    {
+        app_toggle_pause();
+    }
+    g_step_pending = +1;
+    return true;
+}
+
+bool app_step_backward(void)
+{
+    if (!g_cfg || !g_cfg->use_file_source || !g_source)
+    {
+        return false;
+    }
+    if (!g_paused)
+    {
+        app_toggle_pause();
+    }
+    g_step_pending = -1;
+    return true;
 }
 
 static void cleanup_buffers(void)
 {
     for (int i = 0; i < NUM_FRAME_BUFFERS; i++)
     {
-        free(g_frame_buffers[ i ]);
-        g_frame_buffers[ i ] = nullptr;
+        free(g_frame_buffers[i]);
+        g_frame_buffers[i] = nullptr;
     }
     free(g_paused_buffer);
     g_paused_buffer = nullptr;
@@ -76,7 +109,7 @@ int app_run(const app_config_s * cfg)
 
     log_info("%s v%s", RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR);
 
-    stats_init(cfg->logfile);
+    stats_init();
     window_title_init(cfg->format, cfg->image);
 
     if (!renderer_init(cfg->image, cfg->format, cfg->effective_bits, cfg->smooth_start))
@@ -118,14 +151,23 @@ int app_run(const app_config_s * cfg)
         return EXIT_FAILURE;
     }
 
+    g_source = src;
+
+    int frame_cur = 0;
+    int frame_tot = 0;
+    if (source_get_frame_position(src, &frame_cur, &frame_tot))
+    {
+        window_title_set_frame(frame_cur, frame_tot);
+    }
+
     signal(SIGINT, signal_handler);
 
     g_frame_bytes = cfg->image.x * cfg->image.y * bpp;
 
     for (int i = 0; i < NUM_FRAME_BUFFERS; i++)
     {
-        g_frame_buffers[ i ] = calloc(1, g_frame_bytes);
-        if (!g_frame_buffers[ i ])
+        g_frame_buffers[i] = calloc(1, g_frame_bytes);
+        if (!g_frame_buffers[i])
         {
             perror("calloc frame buffer");
             cleanup_buffers();
@@ -180,16 +222,36 @@ int app_run(const app_config_s * cfg)
         renderer_set_mouse_pos(mouse_point);
         renderer_set_selection_from_mouse(frame, mouse.left, mouse.right, in_view);
 
-        int received = source_receive(src, &state, g_frame_buffers[ recv_idx ]);
-        if (received < 0)
+        bool step_this_iter = false;
+        if (g_step_pending != 0)
         {
-            log_error("app: source receive failed\n");
-            break;
+            if (g_step_pending > 0)
+            {
+                source_step_forward(g_source);
+            }
+            else
+            {
+                source_step_backward(g_source);
+            }
+            g_step_pending = 0;
+            step_this_iter = true;
         }
 
-        if (received > 0 && !cfg->use_file_source)
+        const bool skip_receive = g_paused && cfg->use_file_source && !step_this_iter;
+
+        int received = 0;
+        if (!skip_receive)
         {
-            stats_add_packets(received);
+            received = source_receive(src, &state, g_frame_buffers[recv_idx]);
+            if (received < 0)
+            {
+                log_error("app: source receive failed\n");
+                break;
+            }
+            if (received > 0 && !cfg->use_file_source)
+            {
+                stats_add_packets(received);
+            }
         }
 
         bool frame_ready = cfg->use_file_source ? (received == 1)
@@ -197,22 +259,50 @@ int app_run(const app_config_s * cfg)
 
         if (frame_ready)
         {
-            renderer_update_texture(g_paused ? g_paused_buffer : g_frame_buffers[ recv_idx ]);
+            if (g_paused && cfg->use_file_source)
+            {
+                memcpy(g_paused_buffer, g_frame_buffers[recv_idx], g_frame_bytes);
+            }
 
-            saver_add_frame(g_frame_buffers[ recv_idx ]);
+            renderer_update_texture(g_paused ? g_paused_buffer : g_frame_buffers[recv_idx]);
+
+            saver_add_frame(g_frame_buffers[recv_idx]);
             stats_frame_rendered();
 
-            g_last_rendered_idx = recv_idx;
-            g_has_rendered      = true;
+            g_last_rendered_idx     = recv_idx;
+            g_has_rendered          = true;
+            g_last_paused_render_us = get_time_us();
+
+            int cur = 0;
+            int tot = 0;
+            if (source_get_frame_position(src, &cur, &tot))
+            {
+                window_title_set_frame(cur, tot);
+            }
+
+            if (step_this_iter)
+            {
+                window_title_refresh();
+            }
 
             recv_idx = (recv_idx + 1) % NUM_FRAME_BUFFERS;
             frame_state_reset(&state);
+        }
+        else if (g_paused && g_has_rendered && g_paused_buffer)
+        {
+            uint64_t now_us = get_time_us();
+            if (now_us - g_last_paused_render_us >= 100000)
+            {
+                renderer_update_texture(g_paused_buffer);
+                g_last_paused_render_us = now_us;
+            }
         }
 
         stats_update();
         SLEEP_US(200);
     }
 
+    g_source = nullptr;
     cleanup_buffers();
 
     saver_cleanup();

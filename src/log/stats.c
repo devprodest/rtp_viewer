@@ -14,9 +14,8 @@ static uint64_t g_last_time_s         = 0;
 
 static double fps = 0.0;
 
-void stats_init(const char * logfile)
+void stats_init(void)
 {
-    (void)logfile;
     g_total_packets       = 0;
     g_total_frames        = 0;
     g_last_second_packets = 0;

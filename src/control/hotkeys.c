@@ -7,6 +7,8 @@ static bool key_0_pressed = false;
 static bool key_1_pressed = false;
 static bool space_pressed = false;
 static bool esc_pressed   = false;
+static bool left_pressed  = false;
+static bool right_pressed = false;
 static bool s_pressed     = false;
 static bool r_pressed     = false;
 static bool w_pressed     = false;
@@ -25,6 +27,8 @@ void hotkeys_process(GLFWwindow * window)
     bool key_0 = glfwGetKey(window, GLFW_KEY_0) == GLFW_PRESS;
     bool key_1 = glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS;
     bool space = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
+    bool left  = glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS;
+    bool right = glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS;
     bool c     = glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS;
     bool s     = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
     bool r     = glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS;
@@ -36,9 +40,9 @@ void hotkeys_process(GLFWwindow * window)
 
     bool ctrl  = glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || //
                  glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS;
-    bool shift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || //
+    bool shift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||   //
                  glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
-    bool alt   = glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS || //
+    bool alt   = glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS ||     //
                  glfwGetKey(window, GLFW_KEY_RIGHT_ALT) == GLFW_PRESS;
 
     bool no_modificator = !ctrl && !shift && !alt;
@@ -79,6 +83,14 @@ void hotkeys_process(GLFWwindow * window)
     {
         cmd_execute(CMD_TOGGLE_PAUSE);
     }
+    if (left && no_modificator && !left_pressed)
+    {
+        cmd_execute(CMD_STEP_BACKWARD);
+    }
+    if (right && no_modificator && !right_pressed)
+    {
+        cmd_execute(CMD_STEP_FORWARD);
+    }
     if (esc && no_modificator && !esc_pressed)
     {
         cmd_execute(CMD_CLEAR_SELECTION);
@@ -111,6 +123,8 @@ void hotkeys_process(GLFWwindow * window)
     f1_pressed    = f1;
     f11_pressed   = f11;
     space_pressed = space;
+    left_pressed  = left;
+    right_pressed = right;
     esc_pressed   = esc;
     f_pressed     = f;
     i_pressed     = i;

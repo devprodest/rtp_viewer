@@ -35,6 +35,7 @@ static const char * build_hotkeys_text(void)
              "  F11 \tToggle fullscreen\n"
              "\n"
              "  Space \tPause/resume display and analysis\n"
+             "  Left/Right \tStep prev/next frame (file source)\n"
              "\n"
              "CLI options: run %s with -h\n",
              RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR, "rtp_viewer");

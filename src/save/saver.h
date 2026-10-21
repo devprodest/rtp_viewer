@@ -1,8 +1,8 @@
 #pragma once
 
+#include "util/types.h"
 #include <stdbool.h>
 #include <stdint.h>
-#include "util/types.h"
 
 typedef struct saver_config_s
 {

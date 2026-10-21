@@ -30,21 +30,43 @@ static bool rtp_check_timeout(source_s * self, frame_state_s * state);
 static bool rtp_open(source_s * self, const source_params_s * params);
 static void rtp_close(source_s * self);
 
+static bool rtp_step_forward(source_s * /*unused*/);
+static bool rtp_step_backward(source_s * /*unused*/);
+static bool rtp_get_frame_position(source_s * /*unused*/, int * /*unused*/, int * /*unused*/);
+
 static const source_ops_s g_rtp_ops = {
-    .open          = rtp_open,
-    .close         = rtp_close,
-    .receive       = rtp_receive,
-    .check_timeout = rtp_check_timeout,
+    .open               = rtp_open,
+    .close              = rtp_close,
+    .receive            = rtp_receive,
+    .check_timeout      = rtp_check_timeout,
+    .step_forward       = rtp_step_forward,
+    .step_backward      = rtp_step_backward,
+    .get_frame_position = rtp_get_frame_position,
 };
+
+static bool rtp_get_frame_position(source_s * /*unused*/, int * /*unused*/, int * /*unused*/)
+{
+    return false;
+}
+
+static bool rtp_step_forward(source_s * /*unused*/)
+{
+    return false;
+}
+
+static bool rtp_step_backward(source_s * /*unused*/)
+{
+    return false;
+}
 
 static inline uint16_t be16(const uint8_t * p)
 {
-    return (uint16_t)(((uint16_t)p[ 0 ] << 8) | (uint16_t)p[ 1 ]);
+    return (uint16_t)(((uint16_t)p[0] << 8) | (uint16_t)p[1]);
 }
 
 static inline uint32_t be32(const uint8_t * p)
 {
-    return ((uint32_t)p[ 0 ] << 24) | ((uint32_t)p[ 1 ] << 16) | ((uint32_t)p[ 2 ] << 8) | (uint32_t)p[ 3 ];
+    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | (uint32_t)p[3];
 }
 
 static bool rtp_open(source_s * self, const source_params_s * params)
@@ -71,7 +93,7 @@ static int process_rtp_packet(const uint8_t * packet, size_t plen, frame_state_s
         return 0;
     }
 
-    uint8_t b0 = packet[ 0 ];
+    uint8_t b0 = packet[0];
 
     uint8_t version = (b0 >> 6) & 0x03;
     if (version != 2)
@@ -81,7 +103,7 @@ static int process_rtp_packet(const uint8_t * packet, size_t plen, frame_state_s
 
     uint8_t csrc_count = b0 & 0x0F;
 
-    uint8_t b1  = packet[ 1 ];
+    uint8_t b1  = packet[1];
     bool marker = (b1 >> 7) & 0x01;
 
     uint16_t seq       = be16(packet + 2);
@@ -89,9 +111,9 @@ static int process_rtp_packet(const uint8_t * packet, size_t plen, frame_state_s
 
     size_t hdr_pos = RTP_FIXED_HEADER_SIZE + ((size_t)csrc_count * 4) + 2;
 
-    uint16_t rl_lengths[ 16 ];
-    uint16_t rl_lines[ 16 ];
-    uint16_t rl_offsets[ 16 ];
+    uint16_t rl_lengths[16];
+    uint16_t rl_lines[16];
+    uint16_t rl_offsets[16];
     int rl_count = 0;
 
     while (1)
@@ -107,9 +129,9 @@ static int process_rtp_packet(const uint8_t * packet, size_t plen, frame_state_s
 
         bool more = (rl_c_offset & 0x8000) != 0;
 
-        rl_lengths[ rl_count ] = rl_len;
-        rl_lines[ rl_count ]   = rl_f_lineno & 0x7FFF;
-        rl_offsets[ rl_count ] = rl_c_offset & 0x7FFF;
+        rl_lengths[rl_count] = rl_len;
+        rl_lines[rl_count]   = rl_f_lineno & 0x7FFF;
+        rl_offsets[rl_count] = rl_c_offset & 0x7FFF;
         rl_count++;
 
         hdr_pos += 6;
@@ -123,7 +145,7 @@ static int process_rtp_packet(const uint8_t * packet, size_t plen, frame_state_s
     uint32_t total_payload = 0;
     for (int i = 0; i < rl_count; i++)
     {
-        total_payload += rl_lengths[ i ];
+        total_payload += rl_lengths[i];
     }
 
     if (hdr_pos + total_payload > plen)
@@ -152,7 +174,7 @@ static int process_rtp_packet(const uint8_t * packet, size_t plen, frame_state_s
         uint16_t expected = (uint16_t)(state->last_seq + 1);
         if (seq != expected)
         {
-            uint16_t diff = (uint16_t)(seq - expected);
+            uint16_t diff        = (uint16_t)(seq - expected);
             state->lost_packets += diff;
         }
         state->last_seq = seq;
@@ -162,16 +184,16 @@ static int process_rtp_packet(const uint8_t * packet, size_t plen, frame_state_s
     for (int i = 0; i < rl_count; i++)
     {
         uint32_t stride      = (uint32_t)state->image.x * state->bpp;
-        uint32_t byte_offset = (uint32_t)rl_offsets[ i ] * state->bpp;
-        uint32_t base_offset = (rl_lines[ i ] * stride) + byte_offset;
+        uint32_t byte_offset = (uint32_t)rl_offsets[i] * state->bpp;
+        uint32_t base_offset = (rl_lines[i] * stride) + byte_offset;
 
-        if ((uint64_t)base_offset + rl_lengths[ i ] > state->frame_size)
+        if ((uint64_t)base_offset + rl_lengths[i] > state->frame_size)
         {
             continue;
         }
 
-        memcpy(frame_buffer + base_offset, payload + running, rl_lengths[ i ]);
-        running += rl_lengths[ i ];
+        memcpy(frame_buffer + base_offset, payload + running, rl_lengths[i]);
+        running += rl_lengths[i];
     }
 
     state->received_bytes += total_payload;
@@ -192,7 +214,7 @@ static int rtp_receive(source_s * self, frame_state_s * state, uint8_t * frame_b
     rtp_impl_t * impl = (rtp_impl_t *)self->impl;
     int sock          = impl->sock;
 
-    uint8_t packet[ RTP_MAX_PACKET_SIZE ];
+    uint8_t packet[RTP_MAX_PACKET_SIZE];
     struct sockaddr_in src_addr;
     socklen_t addr_len = sizeof(src_addr);
     int total          = 0;
@@ -237,9 +259,8 @@ static int rtp_receive(source_s * self, frame_state_s * state, uint8_t * frame_b
     return total;
 }
 
-static bool rtp_check_timeout(source_s * self, frame_state_s * state)
+static bool rtp_check_timeout(source_s * /*unused*/, frame_state_s * state)
 {
-    (void)self;
     return frame_state_check_timeout(state);
 }
 

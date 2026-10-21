@@ -1,7 +1,7 @@
 #pragma once
 
-#include <stdbool.h>
 #include "util/types.h"
+#include <stdbool.h>
 
 typedef struct selection_s
 {
@@ -13,7 +13,7 @@ typedef struct selection_s
 void selection_init(selection_s * s);
 void selection_clear(selection_s * s);
 
-void selection_begin(selection_s * s,  point_s p);
+void selection_begin(selection_s * s, point_s p);
 void selection_update(selection_s * s, point_s p);
 void selection_end(selection_s * s);
 

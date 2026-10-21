@@ -4,10 +4,8 @@
 
 static double g_wheel_pending = 0.0;
 
-static void scroll_callback(GLFWwindow * window, double xoff, double yoff)
+static void scroll_callback(GLFWwindow * /*unused*/, double /*unused*/, double yoff)
 {
-    (void)window;
-    (void)xoff;
     g_wheel_pending += yoff;
 }
 

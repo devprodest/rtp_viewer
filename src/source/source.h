@@ -53,6 +53,9 @@ typedef struct source_ops_s
     void (*close)(source_s * self);
     int (*receive)(source_s * self, frame_state_s * state, uint8_t * buffer);
     bool (*check_timeout)(source_s * self, frame_state_s * state);
+    bool (*step_forward)(source_s * self);
+    bool (*step_backward)(source_s * self);
+    bool (*get_frame_position)(source_s * self, int * current, int * total);
 } source_ops_s;
 
 /// \brief Экземпляр источника.
@@ -74,3 +77,6 @@ void source_close(source_s * src);
 int source_receive(source_s * src, frame_state_s * state, uint8_t * buffer);
 bool source_check_timeout(source_s * src, frame_state_s * state);
 
+bool source_step_forward(source_s * src);
+bool source_step_backward(source_s * src);
+bool source_get_frame_position(source_s * src, int * current, int * total);
