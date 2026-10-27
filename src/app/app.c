@@ -47,7 +47,7 @@ static source_s * g_source              = nullptr;
 static int g_step_pending               = 0;
 static uint64_t g_last_paused_render_us = 0;
 
-static void signal_handler(int sig)
+static void signal_handler(int /* unused */)
 {
     g_running = false;
 }

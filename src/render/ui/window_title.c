@@ -59,7 +59,7 @@ void window_title_refresh(void)
         return;
     }
 
-    char frame_str[sizeof("[00000/00000]")] = "";
+    char frame_str[32] = "";
     if (g_frame_total > 0)
     {
         snprintf(frame_str, sizeof(frame_str), " [%d/%d]", g_frame_current + 1, g_frame_total);

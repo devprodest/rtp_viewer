@@ -1,12 +1,13 @@
 override MAKEFLAGS += -j --silent
 
+PROJECT_NAME = rtp_viewer
+
 CC      = gcc
 CP      = cp
 MKDIR_P = mkdir -p
 RM_RF   = rm -rf
 RC      = windres
 
-TARGET       = rtp_viewer.exe
 SRC_DIR      = src
 OBJ_DIR      = obj
 PUBLISH_DIR  = publish
@@ -14,7 +15,8 @@ PUBLISH_DIR  = publish
 # Версия тянется из единственного источника правды — src/version.h.
 # sed вытаскивает значение RTP_VIEWER_VERSION_STR "...".
 VERSION := $(shell sed -n 's/.*RTP_VIEWER_VERSION_STR *"\([^"]*\)".*/\1/p' $(SRC_DIR)/util/version.h)
-ARCHIVE  = rtp_viewer_$(VERSION).zip
+ARCHIVE  = $(PROJECT_NAME)_$(VERSION).zip
+TARGET   = $(PROJECT_NAME).exe
 
 SRCS  = $(SRC_DIR)/main.c
 SRCS += $(SRC_DIR)/analysis/analytics.c
@@ -72,15 +74,12 @@ all: $(TARGET)
 publish: $(TARGET) $(SRC_DIR)/util/version.h
 	@echo "Publishing rtp_viewer $(VERSION)"
 	$(RM_RF) $(PUBLISH_DIR)
-	$(MKDIR_P) $(PUBLISH_DIR)/formats
-	$(CP) $(TARGET) $(PUBLISH_DIR)/
-	@echo "rtp_viewer.exe -x 640 -y 512 -p 5004 -f ycbcr" > $(PUBLISH_DIR)/ycbcr-640-512.bat
-	$(CP) formats/*.fmt  $(PUBLISH_DIR)/formats/ 2>/dev/null || true
-	$(CP) formats/*.glsl $(PUBLISH_DIR)/formats/ 2>/dev/null || true
+	$(MKDIR_P) $(PUBLISH_DIR)/tmp
+	@echo "$(TARGET) -x 640 -y 512 -f ycbcr -p 5004" > $(PUBLISH_DIR)/tmp/ycbcr-640-512.bat
 	$(RM_RF) $(ARCHIVE)
-	powershell -NoProfile -Command "Compress-Archive -Path '$(PUBLISH_DIR)/rtp_viewer.exe' -DestinationPath '$(PUBLISH_DIR)/$(ARCHIVE)' -Update"
-	powershell -NoProfile -Command "Compress-Archive -Path '$(PUBLISH_DIR)/formats' -DestinationPath '$(PUBLISH_DIR)/$(ARCHIVE)' -Update"
-	powershell -NoProfile -Command "Compress-Archive -Path '$(PUBLISH_DIR)/*.bat' -DestinationPath '$(PUBLISH_DIR)/$(ARCHIVE)' -Update"
+	powershell -NoProfile -Command "Compress-Archive -Path '$(TARGET)' -DestinationPath '$(PUBLISH_DIR)/$(ARCHIVE)' -Update"
+	powershell -NoProfile -Command "Compress-Archive -Path 'formats' -DestinationPath '$(PUBLISH_DIR)/$(ARCHIVE)' -Update"
+	powershell -NoProfile -Command "Compress-Archive -Path '$(PUBLISH_DIR)/tmp/*.bat' -DestinationPath '$(PUBLISH_DIR)/$(ARCHIVE)' -Update"
 	@echo "Archive created: $(ARCHIVE)"
 
 $(TARGET): $(OBJS)
