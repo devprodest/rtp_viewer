@@ -60,7 +60,7 @@ OBJS = $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) $(RES_OBJ)
 vpath %.c $(sort $(dir $(SRCS)))
 
 CFLAGS  = -std=gnu2x -Wall -Wextra -Oz -g -Isrc -Ilib -Ilib/glfw/include
-LDFLAGS = -Llib/glfw/lib -lglfw3 -lopengl32 -lgdi32 -luser32 -lshell32 -lws2_32
+LDFLAGS = -Llib/glfw/lib -lglfw3 -lopengl32 -lgdi32 -luser32 -lshell32 -lws2_32 -lwinmm
 
 all: $(TARGET)
 

@@ -20,9 +20,9 @@
 #include <string.h>
 
 #ifdef _WIN32
+    #include <mmsystem.h> // NEW: timeBeginPeriod / timeEndPeriod
     #include <windows.h>
     #define SLEEP_MS(ms) Sleep(ms)
-    // Windows Sleep — миллисекундный; для <1мс используем Sleep(1) (без регресса).
     #define SLEEP_US(us) Sleep((us) >= 1000 ? ((DWORD)((us) / 1000)) : 1)
 #else
     #include <unistd.h>
@@ -34,12 +34,12 @@
 
 static volatile bool g_running = true;
 
-static uint8_t * g_frame_buffers[NUM_FRAME_BUFFERS] = {nullptr, nullptr};
-static uint8_t * g_paused_buffer                    = nullptr;
-static int g_last_rendered_idx                      = 0;
-static bool g_has_rendered                          = false;
-static size_t g_frame_bytes                         = 0;
-static bool g_paused                                = false;
+static uint8_t * g_frame_buffers[ NUM_FRAME_BUFFERS ] = {nullptr, nullptr};
+static uint8_t * g_paused_buffer                      = nullptr;
+static int g_last_rendered_idx                        = 0;
+static bool g_has_rendered                            = false;
+static size_t g_frame_bytes                           = 0;
+static bool g_paused                                  = false;
 
 static const app_config_s * g_cfg = nullptr;
 
@@ -57,7 +57,7 @@ bool app_toggle_pause(void)
     g_paused = !g_paused;
     if (g_paused && g_has_rendered && g_paused_buffer)
     {
-        memcpy(g_paused_buffer, g_frame_buffers[g_last_rendered_idx], g_frame_bytes);
+        memcpy(g_paused_buffer, g_frame_buffers[ g_last_rendered_idx ], g_frame_bytes);
         g_last_paused_render_us = 0;
     }
     renderer_set_paused(g_paused);
@@ -96,8 +96,8 @@ static void cleanup_buffers(void)
 {
     for (int i = 0; i < NUM_FRAME_BUFFERS; i++)
     {
-        free(g_frame_buffers[i]);
-        g_frame_buffers[i] = nullptr;
+        free(g_frame_buffers[ i ]);
+        g_frame_buffers[ i ] = nullptr;
     }
     free(g_paused_buffer);
     g_paused_buffer = nullptr;
@@ -111,6 +111,13 @@ int app_run(const app_config_s * cfg)
 
     stats_init();
     window_title_init(cfg->format, cfg->image);
+
+#ifdef _WIN32
+    // Windows: гранулярность таймера по умолчанию 15.6 мс → Sleep(1) спит 15.6 мс.
+    // При 25 fps это даёт 22 fps. timeBeginPeriod(1) опускает таймер до 1 мс
+    // на время жизни процесса (на Win10 2004+ — per-process, на старых — системно).
+    timeBeginPeriod(1);
+#endif
 
     if (!renderer_init(cfg->image, cfg->format, cfg->effective_bits, cfg->smooth_start))
     {
@@ -166,8 +173,8 @@ int app_run(const app_config_s * cfg)
 
     for (int i = 0; i < NUM_FRAME_BUFFERS; i++)
     {
-        g_frame_buffers[i] = calloc(1, g_frame_bytes);
-        if (!g_frame_buffers[i])
+        g_frame_buffers[ i ] = calloc(1, g_frame_bytes);
+        if (!g_frame_buffers[ i ])
         {
             perror("calloc frame buffer");
             cleanup_buffers();
@@ -242,7 +249,7 @@ int app_run(const app_config_s * cfg)
         int received = 0;
         if (!skip_receive)
         {
-            received = source_receive(src, &state, g_frame_buffers[recv_idx]);
+            received = source_receive(src, &state, g_frame_buffers[ recv_idx ]);
             if (received < 0)
             {
                 log_error("app: source receive failed\n");
@@ -261,12 +268,12 @@ int app_run(const app_config_s * cfg)
         {
             if (g_paused && cfg->use_file_source)
             {
-                memcpy(g_paused_buffer, g_frame_buffers[recv_idx], g_frame_bytes);
+                memcpy(g_paused_buffer, g_frame_buffers[ recv_idx ], g_frame_bytes);
             }
 
-            renderer_update_texture(g_paused ? g_paused_buffer : g_frame_buffers[recv_idx]);
+            renderer_update_texture(g_paused ? g_paused_buffer : g_frame_buffers[ recv_idx ]);
 
-            saver_add_frame(g_frame_buffers[recv_idx]);
+            saver_add_frame(g_frame_buffers[ recv_idx ]);
             stats_frame_rendered();
 
             g_last_rendered_idx     = recv_idx;
@@ -309,6 +316,11 @@ int app_run(const app_config_s * cfg)
     stats_cleanup();
     renderer_cleanup();
     source_close(src);
+
+#ifdef _WIN32
+    timeEndPeriod(1);
+#endif
+    return EXIT_SUCCESS;
 
     return EXIT_SUCCESS;
 }

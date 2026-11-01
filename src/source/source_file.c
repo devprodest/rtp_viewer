@@ -160,7 +160,16 @@ static int file_receive(source_s * self, frame_state_s * state, uint8_t * buffer
     }
 
     impl->frame_index++;
-    impl->next_send_us = now + impl->interval_us;
+
+    // Планируем от предыдущего next_send_us, а не от now: иначе каждое
+    // опоздание polling'а (до 1 мс после timeBeginPeriod(1)) накапливается,
+    // и средний fps уезжает вниз. Если отстали больше чем на интервал
+    // (диск stall, пауза) — сбрасываем базу, чтобы не было вспышки догоняющих.
+    impl->next_send_us += impl->interval_us;
+    if (impl->next_send_us <= now)
+    {
+        impl->next_send_us = now + impl->interval_us;
+    }
 
     state->received_bytes = (uint32_t)impl->frame_size;
     state->packet_count++;

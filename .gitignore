@@ -4,3 +4,4 @@ publish/**/*
 .PVS-Studio/*
 *.raw
 rgb-mock.bat
+*.log

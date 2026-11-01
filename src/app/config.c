@@ -38,7 +38,7 @@ bool app_config_parse(int argc, char ** argv, app_config_s * cfg, bool * exit_ok
     cfg->outdir         = ".";
     cfg->effective_bits = 16;
     cfg->batch_size     = DEFAULT_BATCH_SIZE;
-    cfg->mock_fps       = 25;
+    cfg->mock_fps       = 30;
     *exit_ok            = false;
 
     bool seen_x = false, seen_y = false, seen_p = false, seen_f = false;
