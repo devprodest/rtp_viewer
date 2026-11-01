@@ -1,5 +1,6 @@
 #include "commands.h"
 
+#include "analysis/analytics.h"
 #include "app/app.h"
 #include "help/help.h"
 #include "render/histogram_view.h"
@@ -25,6 +26,7 @@ void cmd_execute(commands_e cmd)
         case CMD_TOGGLE_HISTOGRAM: renderer_toggle_histogram(); break;
         case CMD_TOGGLE_HISTOGRAM_SCALE: renderer_toggle_histogram_scale(); break;
         case CMD_TOGGLE_HISTOGRAM_CDF: renderer_toggle_histogram_cdf(); break;
+        case CMD_TOGGLE_STATS: analytics_toggle_stats_visible(); break;
 
         case CMD_FLUSH_SAVER: saver_flush(); break;
         case CMD_TOGGLE_RECORDING:
@@ -51,16 +53,17 @@ bool cmd_is_active(commands_e cmd)
 {
     switch (cmd)
     {
-        case CMD_TOGGLE_SMOOTHING:       return renderer_is_smoothing_active();
-        case CMD_TOGGLE_FULLSCREEN:      return window_is_fullscreen();
-        case CMD_TOGGLE_GRADIENT:        return renderer_is_gradient_active();
-        case CMD_TOGGLE_INSPECTOR:       return renderer_is_inspector_active();
-        case CMD_TOGGLE_SATURATION:      return renderer_is_saturation_active();
-        case CMD_TOGGLE_HISTOGRAM:       return histogram_view_is_enabled();
+        case CMD_TOGGLE_SMOOTHING: return renderer_is_smoothing_active();
+        case CMD_TOGGLE_FULLSCREEN: return window_is_fullscreen();
+        case CMD_TOGGLE_GRADIENT: return renderer_is_gradient_active();
+        case CMD_TOGGLE_INSPECTOR: return renderer_is_inspector_active();
+        case CMD_TOGGLE_SATURATION: return renderer_is_saturation_active();
+        case CMD_TOGGLE_HISTOGRAM: return histogram_view_is_enabled();
         case CMD_TOGGLE_HISTOGRAM_SCALE: return histogram_view_is_log_scale();
-        case CMD_TOGGLE_HISTOGRAM_CDF:   return histogram_view_is_cdf();
-        case CMD_TOGGLE_RECORDING:       return saver_is_recording();
-        case CMD_TOGGLE_PAUSE:           return app_is_paused();
+        case CMD_TOGGLE_HISTOGRAM_CDF: return histogram_view_is_cdf();
+        case CMD_TOGGLE_STATS: return analytics_is_stats_visible();
+        case CMD_TOGGLE_RECORDING: return saver_is_recording();
+        case CMD_TOGGLE_PAUSE: return app_is_paused();
 
         default: return false;
     }

@@ -26,6 +26,10 @@
 
 //----------------------------------------------------------------------------------------------------------------------
 
+static void render_stats_overlay(void);
+
+//----------------------------------------------------------------------------------------------------------------------
+
 static GLuint g_quad_vao = 0;
 
 static image_size_s g_win = {};
@@ -237,17 +241,8 @@ void renderer_update_texture(const uint8_t * data)
     {
         renderer_draw_inspector(g_last_mouse);
     }
-    overlay_end();
-
-    overlay_begin(win);
-    selection_view_draw(&g_selection, viewport_get_point(), viewport_get_size(), g_win);
-    if (g_inspector_enabled)
-    {
-        renderer_draw_inspector(g_last_mouse);
-    }
-
-    context_menu_draw(win, g_dpi_scale); // <-- добавить
-
+    render_stats_overlay();
+    context_menu_draw(win, g_dpi_scale);
     overlay_end();
 
     screenshot_process_if_requested();
@@ -352,6 +347,56 @@ void renderer_zoom_apply_wheel(double wheel, point_s point)
 void renderer_pan_apply_drag(point_s point, bool middle_down)
 {
     viewport_apply_pan_drag(point, middle_down);
+}
+
+static void render_stats_overlay(void)
+{
+    if (!analytics_is_stats_visible())
+    {
+        return;
+    }
+
+    const analytics_stats_s * st = analytics_get_stats();
+    if (!st || !st->valid)
+    {
+        return;
+    }
+
+    const float text_scale = g_dpi_scale * 1.2f;
+    const int margin       = (int)(10 * g_dpi_scale);
+    const int line_h       = (int)(14 * text_scale);
+    const int x            = margin;
+    int y                  = margin;
+
+    char line[ 192 ];
+
+    // Подложка под блоком для читаемости на светлом фоне
+    const int panel_h = (st->channels == 1 ? 1 : 3) * line_h;
+    const int panel_w = 380;
+    rect_s panel = {
+        .x0 = x - 4,
+        .y0 = y - 4,
+        .x1 = x + panel_w,
+        .y1 = y + panel_h + 4,
+    };
+    overlay_rect_draw(panel, (fcolor_rgba_s) {0.0f, 0.0f, 0.0f, 0.55f});
+
+    if (st->channels == 1)
+    {
+        snprintf(line, sizeof(line), "RAW min=%.0f max=%.0f mean=%.1f std=%.1f", st->min[ 0 ], st->max[ 0 ],
+                 st->mean[ 0 ], st->std[ 0 ]);
+        overlay_text_draw((point_s) {x, y}, line, (fcolor_rgb_s) {1.0f, 1.0f, 1.0f}, text_scale);
+    }
+    else
+    {
+        static const char * names[ 3 ] = {"R", "G", "B"};
+        for (int c = 0; c < 3; c++)
+        {
+            snprintf(line, sizeof(line), "%s min=%.0f max=%.0f mean=%.1f std=%.1f", names[ c ], st->min[ c ],
+                     st->max[ c ], st->mean[ c ], st->std[ c ]);
+            overlay_text_draw((point_s) {x, y + c * line_h}, line, (fcolor_rgb_s) {1.0f, 1.0f, 1.0f}, text_scale);
+        }
+    }
 }
 
 void renderer_draw_inspector(point_s point)

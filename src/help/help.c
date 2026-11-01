@@ -29,6 +29,7 @@ static const char * build_hotkeys_text(void)
              "  F \tToggle gradient view (Sobel) + sharpness metrics\n"
              "  I \tToggle pixel inspector\n"
              "  H \tToggle histogram overlay\n"
+             "  T \tToggle statistics overlay\n"
              "  Ctrl+H \tToggle histogram scale (linear / log)\n"
              "  C \tToggle histogram CDF overlay\n"
              "  F1 \tShow this help\n"

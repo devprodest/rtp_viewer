@@ -24,6 +24,7 @@ static const context_menu_item_s g_items[] = {
     {"CDF",             CMD_TOGGLE_HISTOGRAM_CDF,   true },
     {"Gradient",        CMD_TOGGLE_GRADIENT,        true },
     {"Inspector",       CMD_TOGGLE_INSPECTOR,       true },
+    {"Stats",           CMD_TOGGLE_STATS,           true },
     {"Pause",           CMD_TOGGLE_PAUSE,           true },
     {"Recording",       CMD_TOGGLE_RECORDING,       true },
     {"---",             0,                          false}, // separator

@@ -20,6 +20,7 @@ static bool e_pressed     = false;
 static bool c_pressed     = false;
 static bool i_pressed     = false;
 static bool f_pressed     = false;
+static bool t_pressed     = false;
 
 void hotkeys_process(GLFWwindow * window)
 {
@@ -39,12 +40,13 @@ void hotkeys_process(GLFWwindow * window)
     bool e     = glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS;
     bool i     = glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS;
     bool f     = glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS;
+    bool t     = glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS;
 
     bool ctrl  = glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || //
                  glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS;
-    bool shift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS ||   //
+    bool shift = glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || //
                  glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS;
-    bool alt   = glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS ||     //
+    bool alt   = glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS || //
                  glfwGetKey(window, GLFW_KEY_RIGHT_ALT) == GLFW_PRESS;
 
     bool no_modificator = !ctrl && !shift && !alt;
@@ -105,6 +107,10 @@ void hotkeys_process(GLFWwindow * window)
     {
         cmd_execute(CMD_TOGGLE_GRADIENT);
     }
+    if (t && no_modificator && !t_pressed)
+    {
+        cmd_execute(CMD_TOGGLE_STATS);
+    }
 
     if (h && ctrl && !shift && !alt && !h_was_down)
     {
@@ -147,6 +153,7 @@ void hotkeys_process(GLFWwindow * window)
     s_pressed     = s;
     r_pressed     = r;
     w_pressed     = w;
+    t_pressed     = t;
     h_pressed     = h && !ctrl;
     h_was_down    = h;
 }
