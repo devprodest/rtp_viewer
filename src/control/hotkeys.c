@@ -1,6 +1,8 @@
 #include "hotkeys.h"
 #include "commands.h"
 
+#include "render/ui/context_menu.h"
+
 static bool f1_pressed    = false;
 static bool f11_pressed   = false;
 static bool key_0_pressed = false;
@@ -116,6 +118,18 @@ void hotkeys_process(GLFWwindow * window)
     if (c && no_modificator && !c_pressed)
     {
         cmd_execute(CMD_TOGGLE_HISTOGRAM_CDF);
+    }
+
+    if (esc && no_modificator && !esc_pressed)
+    {
+        if (context_menu_is_open())
+        {
+            context_menu_close();
+        }
+        else
+        {
+            cmd_execute(CMD_CLEAR_SELECTION);
+        }
     }
 
     key_0_pressed = key_0;

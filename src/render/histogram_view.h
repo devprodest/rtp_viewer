@@ -17,3 +17,6 @@ void histogram_view_toggle_cdf(void);
 
 bool histogram_view_is_enabled(void);
 int  histogram_view_get_active_channels(void);
+
+bool histogram_view_is_log_scale(void);
+bool histogram_view_is_cdf(void);

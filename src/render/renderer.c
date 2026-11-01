@@ -15,6 +15,7 @@
 #include "save/saver.h"
 #include "save/screenshot.h"
 #include "selection_view.h"
+#include "ui/context_menu.h"
 #include "ui/window_title.h"
 #include "util/utils.h"
 #include "viewport.h"
@@ -38,8 +39,7 @@ static selection_s g_selection;
 
 static float g_dpi_scale = 1.0f;
 
-static bool g_left_was_down  = false;
-static bool g_right_was_down = false;
+static bool g_left_was_down = false;
 
 static bool g_inspector_enabled     = false;
 static float g_inspector_text_scale = 1.5f;
@@ -94,8 +94,7 @@ bool renderer_init(image_size_s win, const char * format_name, int effective_bit
     }
 
     selection_init(&g_selection);
-    g_left_was_down  = false;
-    g_right_was_down = false;
+    g_left_was_down = false;
 
     overlay_init();
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -240,6 +239,17 @@ void renderer_update_texture(const uint8_t * data)
     }
     overlay_end();
 
+    overlay_begin(win);
+    selection_view_draw(&g_selection, viewport_get_point(), viewport_get_size(), g_win);
+    if (g_inspector_enabled)
+    {
+        renderer_draw_inspector(g_last_mouse);
+    }
+
+    context_menu_draw(win, g_dpi_scale); // <-- добавить
+
+    overlay_end();
+
     screenshot_process_if_requested();
 
     window_swap_buffers();
@@ -301,7 +311,7 @@ void renderer_request_screenshot(void)
     screenshot_request();
 }
 
-void renderer_set_selection_from_mouse(point_s mouse, bool left_down, bool right_down, bool in_view)
+void renderer_set_selection_from_mouse(point_s mouse, bool left_down, bool in_view)
 {
     if (left_down && !g_left_was_down && in_view)
     {
@@ -316,13 +326,7 @@ void renderer_set_selection_from_mouse(point_s mouse, bool left_down, bool right
         selection_update(&g_selection, mouse);
     }
 
-    if (right_down && !g_right_was_down)
-    {
-        selection_clear(&g_selection);
-    }
-
-    g_left_was_down  = left_down;
-    g_right_was_down = right_down;
+    g_left_was_down = left_down;
 }
 
 void renderer_clear_selection(void)
@@ -368,14 +372,14 @@ void renderer_draw_inspector(point_s point)
 
     if (g_format.bytes_per_pixel == 1)
     {
-        uint8_t v = g_last_frame[((size_t)frame.y * (size_t)g_win.x) + (size_t)frame.x];
+        uint8_t v = g_last_frame[ ((size_t)frame.y * (size_t)g_win.x) + (size_t)frame.x ];
         rgb       = (color_rgb_s) {v, v, v};
         raw       = v;
     }
     else if (g_format.bytes_per_pixel == 2)
     {
         const uint16_t * p = (const uint16_t *)g_last_frame;
-        uint16_t v         = p[((size_t)frame.y * (size_t)g_win.x) + (size_t)frame.x];
+        uint16_t v         = p[ ((size_t)frame.y * (size_t)g_win.x) + (size_t)frame.x ];
         raw                = v;
         uint8_t v8         = (uint8_t)(v >> 8);
         rgb                = (color_rgb_s) {v8, v8, v8};
@@ -383,16 +387,16 @@ void renderer_draw_inspector(point_s point)
     else if (g_format.bytes_per_pixel == 3)
     {
         size_t idx = (((size_t)frame.y * (size_t)g_win.x) + (size_t)frame.x) * 3;
-        rgb.r      = g_last_frame[idx + 0];
-        rgb.g      = g_last_frame[idx + 1];
-        rgb.b      = g_last_frame[idx + 2];
+        rgb.r      = g_last_frame[ idx + 0 ];
+        rgb.g      = g_last_frame[ idx + 1 ];
+        rgb.b      = g_last_frame[ idx + 2 ];
     }
     else if (g_format.bytes_per_pixel == 4)
     {
         size_t idx = (((size_t)frame.y * (size_t)g_win.x) + (size_t)frame.x) * 4;
-        rgb.r      = g_last_frame[idx + 0];
-        rgb.g      = g_last_frame[idx + 1];
-        rgb.b      = g_last_frame[idx + 2];
+        rgb.r      = g_last_frame[ idx + 0 ];
+        rgb.g      = g_last_frame[ idx + 1 ];
+        rgb.b      = g_last_frame[ idx + 2 ];
     }
 
     image_size_s win = window_get_framebuffer_size();
@@ -409,22 +413,22 @@ void renderer_draw_inspector(point_s point)
     const int text_x = box_x + box_size + gap;
 
 
-    typedef char text_line_t[64];
-    text_line_t line[2];
+    typedef char text_line_t[ 64 ];
+    text_line_t line[ 2 ];
 
-    snprintf(line[0], sizeof(text_line_t), "x;y=(%d;%d)", frame.x, frame.y);
+    snprintf(line[ 0 ], sizeof(text_line_t), "x;y=(%d;%d)", frame.x, frame.y);
 
     if (g_format.bytes_per_pixel <= 2)
     {
-        snprintf(line[1], sizeof(text_line_t), "val=%u", raw);
+        snprintf(line[ 1 ], sizeof(text_line_t), "val=%u", raw);
     }
     else
     {
-        snprintf(line[1], sizeof(text_line_t), "RGB=(%u;%u;%u)", rgb.r, rgb.g, rgb.b);
+        snprintf(line[ 1 ], sizeof(text_line_t), "RGB=(%u;%u;%u)", rgb.r, rgb.g, rgb.b);
     }
 
-    int w1     = overlay_text_measure(line[0], text_scale);
-    int w2     = overlay_text_measure(line[1], text_scale);
+    int w1     = overlay_text_measure(line[ 0 ], text_scale);
+    int w2     = overlay_text_measure(line[ 1 ], text_scale);
     int text_w = (w1 > w2) ? w1 : w2;
 
     // Плашка под текстом, справа от квадрата
@@ -446,7 +450,7 @@ void renderer_draw_inspector(point_s point)
     // Текст
     for (size_t i = 0; i < 2; i++)
     {
-        overlay_text_draw((point_s) {text_x, box_y + (i * line_h)}, line[i], (fcolor_rgb_s) {1.0f, 1.0f, 1.0f},
+        overlay_text_draw((point_s) {text_x, box_y + (i * line_h)}, line[ i ], (fcolor_rgb_s) {1.0f, 1.0f, 1.0f},
                           text_scale);
     }
 }
@@ -472,4 +476,55 @@ void renderer_toggle_gradient(void)
     }
     window_title_refresh();
     log_info("Gradient %s", g_gradient_enabled ? "enabled" : "disabled");
+}
+
+bool renderer_handle_context_menu(point_s mouse, bool right_down, bool left_down)
+{
+    static bool prev_right = false;
+    static bool prev_left  = false;
+
+    bool consumed = false;
+
+    if (context_menu_is_open())
+    {
+        context_menu_set_hover(mouse);
+
+        if (left_down && !prev_left)
+        {
+            image_size_s win = window_get_framebuffer_size();
+            context_menu_handle_click(mouse, win, g_dpi_scale);
+            consumed = true;
+        }
+        else if (right_down && !prev_right)
+        {
+            context_menu_close();
+            consumed = true;
+        }
+    }
+    else if (right_down && !prev_right)
+    {
+        context_menu_open(mouse);
+        consumed = true;
+    }
+
+    prev_right = right_down;
+    prev_left  = left_down;
+    return consumed;
+}
+
+bool renderer_is_smoothing_active(void)
+{
+    return g_smoothing;
+}
+bool renderer_is_saturation_active(void)
+{
+    return g_saturation_enabled;
+}
+bool renderer_is_gradient_active(void)
+{
+    return g_gradient_enabled;
+}
+bool renderer_is_inspector_active(void)
+{
+    return g_inspector_enabled;
 }

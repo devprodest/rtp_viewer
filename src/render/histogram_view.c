@@ -367,3 +367,13 @@ int histogram_view_get_active_channels(void)
 {
     return analytics_get_histogram()->active_channels;
 }
+
+bool histogram_view_is_log_scale(void)
+{
+    return g_log_scale;
+}
+
+bool histogram_view_is_cdf(void)
+{
+    return g_cdf_enabled;
+}

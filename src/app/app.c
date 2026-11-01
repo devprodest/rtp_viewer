@@ -64,6 +64,11 @@ bool app_toggle_pause(void)
     return g_paused;
 }
 
+bool app_is_paused(void)
+{
+    return g_paused;
+}
+
 bool app_step_forward(void)
 {
     if (!g_cfg || !g_cfg->use_file_source || !g_source)
@@ -224,11 +229,17 @@ int app_run(const app_config_s * cfg)
 
         hotkeys_process(window);
 
-        point_s frame;
-        bool in_view = renderer_screen_to_frame(mouse_point, &frame);
-        renderer_set_mouse_pos(mouse_point);
-        renderer_set_selection_from_mouse(frame, mouse.left, mouse.right, in_view);
+        bool menu_consumed = renderer_handle_context_menu(mouse_point, mouse.right, mouse.left);
 
+        renderer_set_mouse_pos(mouse_point);
+
+        if (!menu_consumed)
+        {
+            point_s frame = {0};
+            bool in_view = renderer_screen_to_frame(mouse_point, &frame);
+            renderer_set_selection_from_mouse(frame, mouse.left, in_view);
+        }
+        
         bool step_this_iter = false;
         if (g_step_pending != 0)
         {

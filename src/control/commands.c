@@ -2,7 +2,9 @@
 
 #include "app/app.h"
 #include "help/help.h"
+#include "render/histogram_view.h"
 #include "render/renderer.h"
+#include "render/ui/context_menu.h"
 #include "render/ui/window_title.h"
 #include "render/window.h"
 #include "save/saver.h"
@@ -36,10 +38,30 @@ void cmd_execute(commands_e cmd)
 
         case CMD_REQUEST_SCREENSHOT: renderer_request_screenshot(); break;
 
-        case CMD_CLEAR_SELECTION: renderer_clear_selection(); break;
+        case CMD_CLEAR_SELECTION: context_menu_is_open(); break;
+
         case CMD_ZOOM_RESET: renderer_zoom_reset(); break;
 
         case CMD_SHOW_HELP: help_dialog_show(); break;
         default: break;
+    }
+}
+
+bool cmd_is_active(commands_e cmd)
+{
+    switch (cmd)
+    {
+        case CMD_TOGGLE_SMOOTHING:       return renderer_is_smoothing_active();
+        case CMD_TOGGLE_FULLSCREEN:      return window_is_fullscreen();
+        case CMD_TOGGLE_GRADIENT:        return renderer_is_gradient_active();
+        case CMD_TOGGLE_INSPECTOR:       return renderer_is_inspector_active();
+        case CMD_TOGGLE_SATURATION:      return renderer_is_saturation_active();
+        case CMD_TOGGLE_HISTOGRAM:       return histogram_view_is_enabled();
+        case CMD_TOGGLE_HISTOGRAM_SCALE: return histogram_view_is_log_scale();
+        case CMD_TOGGLE_HISTOGRAM_CDF:   return histogram_view_is_cdf();
+        case CMD_TOGGLE_RECORDING:       return saver_is_recording();
+        case CMD_TOGGLE_PAUSE:           return app_is_paused();
+
+        default: return false;
     }
 }

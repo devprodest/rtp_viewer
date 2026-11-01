@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdbool.h>
+
 typedef enum commands_e
 {
     CMD_TOGGLE_SMOOTHING,
@@ -22,3 +24,5 @@ typedef enum commands_e
 } commands_e;
 
 void cmd_execute(commands_e cmd);
+
+bool cmd_is_active(commands_e cmd);
