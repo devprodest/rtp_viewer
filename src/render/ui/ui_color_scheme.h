@@ -88,7 +88,11 @@
 
 //--------------------------------------------- Семантика: контекстное меню --------------------------------------------
 
-#define UI_MENU_BG                   ((fcolor_rgba_s) {0.15f, 0.15f, 0.15f, 0.95f})
+//---- Ячейки панели (кнопки) ------------------------------------------------------------------------------------------
+
+#define UI_CELL_BG                   ((fcolor_rgba_s) {0.22f, 0.22f, 0.22f, 0.75f})
+#define UI_CELL_BORDER               ((fcolor_rgba_s) {0.35f, 0.35f, 0.35f, 1.00f})
+#define UI_MENU_BG                   ((fcolor_rgba_s) {0.15f, 0.15f, 0.15f, 0.75f})
 #define UI_MENU_BORDER               UI_RGBA_GRAY
 #define UI_MENU_SEPARATOR            UI_RGBA_GRAY_DIM
 #define UI_MENU_ITEM_HOVER           ((fcolor_rgba_s) {0.30f, 0.35f, 0.45f, 1.00f})
