@@ -45,6 +45,7 @@ SRCS += $(SRC_DIR)/render/window.c
 SRCS += $(SRC_DIR)/render/viewport.c
 SRCS += $(SRC_DIR)/render/ui/window_title.c
 SRCS += $(SRC_DIR)/render/ui/context_menu.c
+SRCS += $(SRC_DIR)/render/ui/progress_bar.c
 SRCS += $(SRC_DIR)/save/saver.c
 SRCS += $(SRC_DIR)/save/screenshot.c
 SRCS += $(SRC_DIR)/source/source_factory.c

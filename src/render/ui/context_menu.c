@@ -2,6 +2,7 @@
 
 #include "control/commands.h"
 #include "render/overlay.h"
+#include "render/ui/ui_color_scheme.h"
 
 #include <stddef.h>
 
@@ -94,8 +95,8 @@ void context_menu_draw(image_size_s win, float scale)
     }
 
     rect_s box = {x, y, x + w, y + h};
-    overlay_rect_draw(box, (fcolor_rgba_s) {0.15f, 0.15f, 0.15f, 0.95f});
-    overlay_rect_outline_draw(box, (fcolor_rgba_s) {0.5f, 0.5f, 0.5f, 1.0f}, 1);
+    overlay_rect_draw(box, UI_MENU_BG);
+    overlay_rect_outline_draw(box, UI_MENU_BORDER, 1);
 
     int item_h = (int)(ITEM_HEIGHT * scale);
     for (int i = 0; i < g_item_count; i++)
@@ -103,10 +104,9 @@ void context_menu_draw(image_size_s win, float scale)
         int iy           = y + i * item_h;
         rect_s item_rect = {x, iy, x + w, iy + item_h};
 
-        if (g_items[ i ].label[ 0 ] == '-') // separator
+        if (g_items[ i ].label[ 0 ] == '-')
         {
-            overlay_rect_draw((rect_s) {x + pad, iy + item_h / 2, x + w - pad, iy + item_h / 2 + 1},
-                              (fcolor_rgba_s) {0.4f, 0.4f, 0.4f, 1.0f});
+            overlay_rect_draw((rect_s) {x + pad, iy + item_h / 2, x + w - pad, iy + item_h / 2 + 1}, UI_MENU_SEPARATOR);
             continue;
         }
 
@@ -117,17 +117,14 @@ void context_menu_draw(image_size_s win, float scale)
 
         if (active)
         {
-            fcolor_rgba_s bg =
-                hovered ? (fcolor_rgba_s) {0.30f, 0.70f, 0.30f, 1.0f} : (fcolor_rgba_s) {0.20f, 0.50f, 0.20f, 1.0f};
-            overlay_rect_draw(item_rect, bg);
+            overlay_rect_draw(item_rect, hovered ? UI_MENU_ITEM_ACTIVE_HOVER : UI_MENU_ITEM_ACTIVE);
         }
         else if (hovered)
         {
-            overlay_rect_draw(item_rect, (fcolor_rgba_s) {0.3f, 0.35f, 0.45f, 1.0f});
+            overlay_rect_draw(item_rect, UI_MENU_ITEM_HOVER);
         }
 
-        overlay_text_draw((point_s) {x + pad, iy + (int)(4 * scale)}, g_items[ i ].label,
-                          (fcolor_rgb_s) {1.0f, 1.0f, 1.0f}, 1.f * scale);
+        overlay_text_draw((point_s) {x + pad, iy + (int)(4 * scale)}, g_items[ i ].label, UI_TEXT_PRIMARY, 1.f * scale);
     }
 }
 
@@ -162,7 +159,7 @@ bool context_menu_handle_click(point_s mouse, image_size_s win, float scale)
     if (mouse.x < x || mouse.x >= x + w || mouse.y < y || mouse.y >= y + h)
     {
         context_menu_close();
-        return true; // клик был "пойман", меню закрылось, но команду не выполняем
+        return true;
     }
 
     int item_h = (int)(ITEM_HEIGHT * scale);

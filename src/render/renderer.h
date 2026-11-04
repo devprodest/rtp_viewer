@@ -50,3 +50,5 @@ bool renderer_is_saturation_active(void);
 bool renderer_is_gradient_active(void);
 bool renderer_is_inspector_active(void);
 bool renderer_is_crosshair_active(void);
+
+float renderer_get_dpi_scale(void);

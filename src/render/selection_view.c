@@ -1,6 +1,6 @@
 #include "selection_view.h"
-
 #include "render/overlay.h"
+#include "ui/ui_color_scheme.h"
 
 #define SELECTION_COLOR 1.0f, 1.0f, 1.0f
 
@@ -24,8 +24,9 @@ void selection_view_draw(const selection_s * sel, point_s vpoint, image_size_s v
         .y1 = vpoint.y + (select.y1 * vsize.y) / win.y,
     };
 
-    fcolor_rgb_s color = {1.0f, 1.0f, 1.0f};
+    fcolor_rgba_s color = UI_SELECTION_FILL;
+    fcolor_rgba_s color_line = UI_SELECTION_LINE;
 
-    overlay_rect_draw(rect, to_rgba_convert(fcolor_rgba_s, color, 0.08f));
-    overlay_rect_outline_draw(rect, to_rgba_convert(fcolor_rgba_s, color, 0.9f), 1);
+    overlay_rect_draw(rect, color);
+    overlay_rect_outline_draw(rect, color_line, 1);
 }

@@ -83,6 +83,15 @@ bool frame_state_is_ready(const frame_state_s * state)
     return state->frame_ready;
 }
 
+bool source_seek_to(source_s * src, int target_frame)
+{
+    if (!src || !src->ops || !src->ops->seek_to)
+    {
+        return false;
+    }
+    return src->ops->seek_to(src, target_frame);
+}
+
 bool source_step_forward(source_s * src)
 {
     if (!src || !src->ops || !src->ops->step_forward)

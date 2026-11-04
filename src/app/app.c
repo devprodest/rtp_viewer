@@ -6,6 +6,7 @@
 #include "log/logger.h"
 #include "log/stats.h"
 #include "render/renderer.h"
+#include "render/ui/progress_bar.h"
 #include "render/ui/window_title.h"
 #include "save/saver.h"
 #include "source/source.h"
@@ -20,7 +21,7 @@
 #include <string.h>
 
 #ifdef _WIN32
-    #include <mmsystem.h> // NEW: timeBeginPeriod / timeEndPeriod
+    #include <mmsystem.h>
     #include <windows.h>
     #define SLEEP_MS(ms) Sleep(ms)
     #define SLEEP_US(us) Sleep((us) >= 1000 ? ((DWORD)((us) / 1000)) : 1)
@@ -45,6 +46,8 @@ static const app_config_s * g_cfg = nullptr;
 
 static source_s * g_source              = nullptr;
 static int g_step_pending               = 0;
+static bool g_seek_pending              = false;
+static bool g_scrubbing                 = false;
 static uint64_t g_last_paused_render_us = 0;
 
 static void signal_handler(int /* unused */)
@@ -97,6 +100,59 @@ bool app_step_backward(void)
     return true;
 }
 
+bool app_seek_to(int target_frame)
+{
+    if (!g_cfg || !g_cfg->use_file_source || !g_source)
+    {
+        return false;
+    }
+
+    int cur = 0;
+    int tot = 0;
+    if (!source_get_frame_position(g_source, &cur, &tot) || tot <= 0)
+    {
+        return false;
+    }
+
+    if (target_frame < 0)  target_frame = 0;
+    if (target_frame >= tot) target_frame = tot - 1;
+
+    if (!source_seek_to(g_source, target_frame))
+    {
+        return false;
+    }
+
+    g_seek_pending = true;
+    return true;
+}
+
+bool app_seek_fraction(float fraction)
+{
+    if (!g_cfg || !g_cfg->use_file_source || !g_source)
+    {
+        return false;
+    }
+
+    int cur = 0;
+    int tot = 0;
+    if (!source_get_frame_position(g_source, &cur, &tot) || tot <= 0)
+    {
+        return false;
+    }
+
+    if (fraction < 0.0f)
+    {
+        fraction = 0.0f;
+    }
+    if (fraction > 1.0f)
+    {
+        fraction = 1.0f;
+    }
+
+    int target = (int)(fraction * (float)(tot - 1) + 0.5f);
+    return app_seek_to(target);
+}
+
 static void cleanup_buffers(void)
 {
     for (int i = 0; i < NUM_FRAME_BUFFERS; i++)
@@ -118,9 +174,6 @@ int app_run(const app_config_s * cfg)
     window_title_init(cfg->format, cfg->image);
 
 #ifdef _WIN32
-    // Windows: гранулярность таймера по умолчанию 15.6 мс → Sleep(1) спит 15.6 мс.
-    // При 25 fps это даёт 22 fps. timeBeginPeriod(1) опускает таймер до 1 мс
-    // на время жизни процесса (на Win10 2004+ — per-process, на старых — системно).
     timeBeginPeriod(1);
 #endif
 
@@ -170,6 +223,7 @@ int app_run(const app_config_s * cfg)
     if (source_get_frame_position(src, &frame_cur, &frame_tot))
     {
         window_title_set_frame(frame_cur, frame_tot);
+        progress_bar_set(frame_cur, frame_tot);
     }
 
     signal(SIGINT, signal_handler);
@@ -216,7 +270,6 @@ int app_run(const app_config_s * cfg)
         renderer_poll_events();
         mouse_state_update(window, &mouse);
 
-        // Wheel — zoom
         double wheel = mouse_state_take_wheel(&mouse);
 
         point_s mouse_point = {mouse.x, mouse.y};
@@ -224,22 +277,41 @@ int app_run(const app_config_s * cfg)
         {
             renderer_zoom_apply_wheel(wheel, mouse_point);
         }
-        // СКМ — pan
         renderer_pan_apply_drag(mouse_point, mouse.middle);
 
         hotkeys_process(window);
 
         bool menu_consumed = renderer_handle_context_menu(mouse_point, mouse.right, mouse.left);
 
+        // Progress bar — клик и скраб.
+        bool progress_consumed = false;
+        if (!menu_consumed && cfg->use_file_source)
+        {
+            float frac  = 0.0f;
+            bool on_bar = progress_bar_hit_test(mouse_point, renderer_get_dpi_scale(), &frac);
+            if (mouse.left && (on_bar || g_scrubbing))
+            {
+                app_seek_fraction(frac);
+                g_scrubbing       = true;
+                progress_consumed = true;
+            }
+            else if (!mouse.left)
+            {
+                g_scrubbing = false;
+            }
+        }
+
+        bool input_consumed = menu_consumed || progress_consumed;
+
         renderer_set_mouse_pos(mouse_point);
 
-        if (!menu_consumed)
+        if (!input_consumed)
         {
             point_s frame = {0};
-            bool in_view = renderer_screen_to_frame(mouse_point, &frame);
+            bool in_view  = renderer_screen_to_frame(mouse_point, &frame);
             renderer_set_selection_from_mouse(frame, mouse.left, in_view);
         }
-        
+
         bool step_this_iter = false;
         if (g_step_pending != 0)
         {
@@ -252,6 +324,11 @@ int app_run(const app_config_s * cfg)
                 source_step_backward(g_source);
             }
             g_step_pending = 0;
+            step_this_iter = true;
+        }
+        if (g_seek_pending)
+        {
+            g_seek_pending = false;
             step_this_iter = true;
         }
 
@@ -296,6 +373,7 @@ int app_run(const app_config_s * cfg)
             if (source_get_frame_position(src, &cur, &tot))
             {
                 window_title_set_frame(cur, tot);
+                progress_bar_set(cur, tot);
             }
 
             if (step_this_iter)
@@ -331,7 +409,5 @@ int app_run(const app_config_s * cfg)
 #ifdef _WIN32
     timeEndPeriod(1);
 #endif
-    return EXIT_SUCCESS;
-
     return EXIT_SUCCESS;
 }

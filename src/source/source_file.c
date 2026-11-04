@@ -28,6 +28,7 @@ static void file_close(source_s * self);
 static int file_receive(source_s * self, frame_state_s * state, uint8_t * buffer);
 static bool file_check_timeout(source_s * self, frame_state_s * state);
 
+static bool file_seek_to(source_s * self, int target_frame);
 static bool file_step_forward(source_s * self);
 static bool file_step_backward(source_s * self);
 static bool file_get_frame_position(source_s * self, int * current, int * total);
@@ -39,6 +40,7 @@ static const source_ops_s g_file_ops = {
     .check_timeout      = file_check_timeout,
     .step_forward       = file_step_forward,
     .step_backward      = file_step_backward,
+    .seek_to            = file_seek_to,
     .get_frame_position = file_get_frame_position,
 };
 
@@ -228,6 +230,38 @@ static bool file_step_backward(source_s * self)
     }
 
     impl->next_send_us = 0;
+    return true;
+}
+
+static bool file_seek_to(source_s * self, int target_frame)
+{
+    file_impl_t * impl = (file_impl_t *)self->impl;
+
+    if (!impl->file || impl->frames_total == 0)
+    {
+        return false;
+    }
+
+    if (target_frame < 0)
+    {
+        target_frame = 0;
+    }
+    if ((size_t)target_frame >= impl->frames_total)
+    {
+        target_frame = (int)impl->frames_total - 1;
+    }
+
+    if (fseek(impl->file, (long)((size_t)target_frame * impl->frame_size), SEEK_SET) != 0)
+    {
+        log_error("file: file_source: seek fseek failed\n");
+        return false;
+    }
+
+    // frame_index указывает на "следующий кадр для чтения".
+    // После seek сразу за target_frame, а file_receive инкрементирует после чтения.
+    impl->frame_index  = (size_t)target_frame;
+    impl->next_send_us = 0;
+
     return true;
 }
 

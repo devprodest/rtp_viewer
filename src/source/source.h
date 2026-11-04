@@ -56,6 +56,7 @@ typedef struct source_ops_s
     bool (*step_forward)(source_s * self);
     bool (*step_backward)(source_s * self);
     bool (*get_frame_position)(source_s * self, int * current, int * total);
+    bool (*seek_to)(source_s * self, int target_frame);
 } source_ops_s;
 
 /// \brief Экземпляр источника.
@@ -80,3 +81,4 @@ bool source_check_timeout(source_s * src, frame_state_s * state);
 bool source_step_forward(source_s * src);
 bool source_step_backward(source_s * src);
 bool source_get_frame_position(source_s * src, int * current, int * total);
+bool source_seek_to(source_s * src, int target_frame);

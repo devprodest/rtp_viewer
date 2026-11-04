@@ -16,6 +16,8 @@
 #include "save/screenshot.h"
 #include "selection_view.h"
 #include "ui/context_menu.h"
+#include "ui/progress_bar.h"
+#include "ui/ui_color_scheme.h"
 #include "ui/window_title.h"
 #include "util/utils.h"
 #include "viewport.h"
@@ -246,6 +248,7 @@ void renderer_update_texture(const uint8_t * data)
     }
     render_stats_overlay();
     render_crosshair();
+    progress_bar_draw(win, g_dpi_scale);
     context_menu_draw(win, g_dpi_scale);
     overlay_end();
 
@@ -374,7 +377,6 @@ static void render_stats_overlay(void)
 
     char line[ 192 ];
 
-    // Подложка под блоком для читаемости на светлом фоне
     const int panel_h = (st->channels == 1 ? 1 : 3) * line_h;
     const int panel_w = 380;
     rect_s panel      = {
@@ -383,13 +385,13 @@ static void render_stats_overlay(void)
         .x1 = x + panel_w,
         .y1 = y + panel_h + 4,
     };
-    overlay_rect_draw(panel, (fcolor_rgba_s) {0.0f, 0.0f, 0.0f, 0.55f});
+    overlay_rect_draw(panel, UI_PANEL_BG);
 
     if (st->channels == 1)
     {
         snprintf(line, sizeof(line), "RAW min=%.0f max=%.0f mean=%.1f std=%.1f", st->min[ 0 ], st->max[ 0 ],
                  st->mean[ 0 ], st->std[ 0 ]);
-        overlay_text_draw((point_s) {x, y}, line, (fcolor_rgb_s) {1.0f, 1.0f, 1.0f}, text_scale);
+        overlay_text_draw((point_s) {x, y}, line, UI_TEXT_PRIMARY, text_scale);
     }
     else
     {
@@ -398,7 +400,7 @@ static void render_stats_overlay(void)
         {
             snprintf(line, sizeof(line), "%s min=%.0f max=%.0f mean=%.1f std=%.1f", names[ c ], st->min[ c ],
                      st->max[ c ], st->mean[ c ], st->std[ c ]);
-            overlay_text_draw((point_s) {x, y + c * line_h}, line, (fcolor_rgb_s) {1.0f, 1.0f, 1.0f}, text_scale);
+            overlay_text_draw((point_s) {x, y + c * line_h}, line, UI_TEXT_PRIMARY, text_scale);
         }
     }
 }
@@ -423,15 +425,14 @@ static void render_crosshair(void)
         return;
     }
 
-    const fcolor_rgba_s line_color = {0.0f, 1.0f, 0.0f, 0.75f};
+    const fcolor_rgba_s line_color = UI_CROSSHAIR_LINE;
 
     overlay_rect_draw((rect_s) {0, my, win.x, my + 1}, line_color);
     overlay_rect_draw((rect_s) {mx, 0, mx + 1, win.y}, line_color);
 
     // Показываем цифры только если курсор действительно над изображением.
     point_s frame;
-    const bool inside = viewport_screen_to_frame((point_s) {mx, my}, &frame) &&
-                        frame.x >= 0 && frame.x < g_win.x &&
+    const bool inside = viewport_screen_to_frame((point_s) {mx, my}, &frame) && frame.x >= 0 && frame.x < g_win.x &&
                         frame.y >= 0 && frame.y < g_win.y;
     if (!inside)
     {
@@ -466,8 +467,8 @@ static void render_crosshair(void)
     }
 
     rect_s panel = {px, py, px + tw + 2 * pad, py + line_h + 2 * pad};
-    overlay_rect_draw(panel, (fcolor_rgba_s) {0.0f, 0.0f, 0.0f, 0.6f});
-    overlay_text_draw((point_s) {px + pad, py + pad}, buf, (fcolor_rgb_s) {1.0f, 1.0f, 1.0f}, text_scale);
+    overlay_rect_draw(panel, UI_PANEL_BG_STRONG);
+    overlay_text_draw((point_s) {px + pad, py + pad}, buf, UI_TEXT_PRIMARY, text_scale);
 }
 
 void renderer_draw_inspector(point_s point)
@@ -555,13 +556,13 @@ void renderer_draw_inspector(point_s point)
         .x1 = text_x + text_w + pad,
         .y1 = box_y + line_h + line_h + pad,
     };
-    overlay_rect_draw(panel, (fcolor_rgba_s) {0.0f, 0.0f, 0.0f, 0.6f});
+    overlay_rect_draw(panel, UI_PANEL_BG_STRONG);
 
     // Квадрат цвета пикселя + рамка
     rect_s pix_color = {box_x, box_y, box_x + box_size, box_y + box_size};
 
     overlay_rect_draw(pix_color, (fcolor_rgba_s) {rgb.r / 255.0f, rgb.g / 255.0f, rgb.b / 255.0f, 1.0f});
-    overlay_rect_outline_draw(pix_color, (fcolor_rgba_s) {1.0f, 1.0f, 1.0f, 1.0f}, 1);
+    overlay_rect_outline_draw(pix_color, UI_PANEL_BORDER, 1);
 
     // Текст
     for (size_t i = 0; i < 2; i++)
@@ -580,6 +581,7 @@ void renderer_toggle_inspector(void)
 void renderer_set_mouse_pos(point_s mouse)
 {
     g_last_mouse = mouse;
+    progress_bar_notify_mouse(mouse);
 }
 
 void renderer_toggle_gradient(void)
@@ -632,6 +634,11 @@ bool renderer_handle_context_menu(point_s mouse, bool right_down, bool left_down
     prev_right = right_down;
     prev_left  = left_down;
     return consumed;
+}
+
+float renderer_get_dpi_scale(void)
+{
+    return g_dpi_scale;
 }
 
 bool renderer_is_smoothing_active(void)
