@@ -46,7 +46,7 @@ static float g_dpi_scale = 1.0f;
 static bool g_left_was_down = false;
 
 static bool g_inspector_enabled     = false;
-static float g_inspector_text_scale = 1.5f;
+static float g_inspector_text_scale = 1.f;
 static point_s g_last_mouse         = {};
 static const uint8_t * g_last_frame = nullptr;
 
@@ -362,7 +362,7 @@ static void render_stats_overlay(void)
         return;
     }
 
-    const float text_scale = g_dpi_scale * 1.2f;
+    const float text_scale = g_dpi_scale * 1.f;
     const int margin       = (int)(10 * g_dpi_scale);
     const int line_h       = (int)(14 * text_scale);
     const int x            = margin;

@@ -1,85 +1,75 @@
 /// \file overlay.c
-/// \brief Отрисовка ASCII-текста поверх GL-сцены через stb_easy_font.
-/// \date 2026
+/// \brief Отрисовка текста и простых фигур поверх GL-сцены.
 ///
 /// \details
-/// stb_easy_font строит текст из квадов. Мы преобразуем их в треугольники
-/// (GL 3.3 core не знает GL_QUADS), переводим координаты из пикселей окна
-/// в NDC и рисуем одним glDrawArrays.
-///
-/// Атрибуты: position (vec2, NDC), color (vec4, RGBA float).
+/// Текст рендерится через stb_truetype: TTF встроен в бинарник через #embed,
+/// при старте запекается в атлас 512x512 (ASCII 32..127), затем каждый символ
+/// рисуется как текстурированный квад с альфа-смешиванием.
 
 #include "overlay.h"
+
 #include "gl_api.h"
 #include "gl_utils.h"
 #include "log/logger.h"
 #include "util/utils.h"
 
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include "stb_easy_font.h"
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
 
 //------------------------------------------------------ Macros --------------------------------------------------------
 
-/// \brief Размер одного vertex-элемента stb_easy_font.
-///
-/// \details Формат: float x, y, z; uint8 color[4]. Итого 16 байт.
-///          Менять не нужно, определяется stb_easy_font.h.
-#define TEXT_STB_VERTEX_BYTES   16
+#define FONT_ATLAS_W       256
+#define FONT_ATLAS_H       256
+#define FONT_BAKE_SIZE     18.0f
+#define FONT_FIRST_CHAR    32
+#define FONT_NUM_CHARS     96
 
-/// \brief Вершин на квад в формате stb_easy_font.
-#define TEXT_STB_VERTS_PER_QUAD 4
+#define TEXT_MAX_VERTS     100000
+#define TEXT_INITIAL_VERTS 4096
 
-/// \brief Максимум вершин в одном кадре.
-///
-/// \details 6 вершин на квад × ~50 квадов на строку × ~300 строк.
-///          При 24 байтах на вершину = 43 МБ — с большим запасом.
-///          Допустимый диапазон: 4096..500000. По умолчанию: 100000.
-#define TEXT_MAX_VERTS          100000
-
-/// \brief Стартовая ёмкость буфера вершин.
-///
-/// \details Растёт при необходимости до TEXT_MAX_VERTS.
-#define TEXT_INITIAL_VERTS      4096
-
-/// \brief Размер scratch-буфера под одну строку для stb_easy_font_print.
-///
-/// \details stb_easy_font потребляет ~270 байт на символ. 64 КБ хватает
-///          на ~200 символов одной строки.
-#define TEXT_SCRATCH_SIZE       65536
+#define WHITE_U            (0.5f / FONT_ATLAS_W)
+#define WHITE_V            (0.5f / FONT_ATLAS_H)
 
 //----------------------------------------------------- Typedefs -------------------------------------------------------
 
-/// \brief Вершина текста: NDC-координаты и цвет.
 typedef struct text_vertex_s
 {
-    fpoint_s v;
+    fpoint_s pos;
     fcolor_rgba_s color;
+    fpoint_s uv;
 } text_vertex_t;
 
 //---------------------------------------------------- Variables -------------------------------------------------------
 
-static text_vertex_t * g_verts = nullptr; ///< Накопленные вершины кадра
-static int g_vert_count        = 0;    ///< Текущее число вершин
-static int g_vert_capacity     = 0;    ///< Ёмкость буфера
+static text_vertex_t * g_verts = nullptr;
+static int g_vert_count        = 0;
+static int g_vert_capacity     = 0;
 
-static fimage_size_s g_win = {1.0f, 1.0f}; ///< Размер окна, пиксели
+static fimage_size_s g_win = {1.0f, 1.0f};
 
-static GLuint g_vao     = 0; ///< VAO для атрибутов
-static GLuint g_vbo     = 0; ///< VBO с вершинами
-static GLuint g_program = 0; ///< Шейдерная программа
+static GLuint g_vao     = 0;
+static GLuint g_vbo     = 0;
+static GLuint g_program = 0;
 
-static char g_scratch[ TEXT_SCRATCH_SIZE ]; ///< Буфер под строку для stb_easy_font
+static float g_font_ascent = 0.0f;
+
+// Шрифт
+static unsigned char g_font_data[] = {
+#embed "../res/RobotoMono-Regular.ttf"
+};
+
+static stbtt_fontinfo g_font_info;
+static stbtt_bakedchar g_baked_chars[ FONT_NUM_CHARS ];
+static GLuint g_font_texture = 0;
 
 //------------------------------------------------- Static Functions ---------------------------------------------------
 
-/// \brief Расширяет буфер вершин при необходимости.
-///
-/// \param need Требуемое число вершин
-///
-/// \return true, если места достаточно (после возможного расширения)
 static bool ensure_vertex_capacity(int need)
 {
     if (g_vert_capacity >= need)
@@ -87,7 +77,7 @@ static bool ensure_vertex_capacity(int need)
         return true;
     }
 
-    int new_cap = g_vert_capacity ? (g_vert_capacity * 2) : TEXT_INITIAL_VERTS;
+    int new_cap = g_vert_capacity ? g_vert_capacity * 2 : TEXT_INITIAL_VERTS;
     if (new_cap < need)
     {
         new_cap = need;
@@ -112,8 +102,7 @@ static bool ensure_vertex_capacity(int need)
     return true;
 }
 
-/// \brief Выдаёт один квад как два треугольника в NDC.
-static void emit_quad_ndc(frect_s rect, fcolor_rgba_s color)
+static void emit_quad_ndc(frect_s rect, fcolor_rgba_s color, fpoint_s uv0, fpoint_s uv1)
 {
     if (!ensure_vertex_capacity(g_vert_count + 6))
     {
@@ -127,17 +116,31 @@ static void emit_quad_ndc(frect_s rect, fcolor_rgba_s color)
 
     text_vertex_t * v = &g_verts[ g_vert_count ];
 
-    // clang-format off
-    
-    v[ 0 ] = (text_vertex_t) { .v = {nx0, ny0}, .color = color };
-    v[ 1 ] = (text_vertex_t) { .v = {nx1, ny0}, .color = color };
-    v[ 2 ] = (text_vertex_t) { .v = {nx1, ny1}, .color = color };
+    v[ 0 ] = (text_vertex_t) {
+        .pos = {nx0,   ny0  },
+          .color = color, .uv = {uv0.x, uv0.y}
+    };
+    v[ 1 ] = (text_vertex_t) {
+        .pos = {nx1,   ny0  },
+          .color = color, .uv = {uv1.x, uv0.y}
+    };
+    v[ 2 ] = (text_vertex_t) {
+        .pos = {nx1,   ny1  },
+          .color = color, .uv = {uv1.x, uv1.y}
+    };
 
-    v[ 3 ] = (text_vertex_t) { .v = {nx0, ny0}, .color = color };
-    v[ 4 ] = (text_vertex_t) { .v = {nx1, ny1}, .color = color };
-    v[ 5 ] = (text_vertex_t) { .v = {nx0, ny1}, .color = color };
-
-    // clang-format on
+    v[ 3 ] = (text_vertex_t) {
+        .pos = {nx0,   ny0  },
+          .color = color, .uv = {uv0.x, uv0.y}
+    };
+    v[ 4 ] = (text_vertex_t) {
+        .pos = {nx1,   ny1  },
+          .color = color, .uv = {uv1.x, uv1.y}
+    };
+    v[ 5 ] = (text_vertex_t) {
+        .pos = {nx0,   ny1  },
+          .color = color, .uv = {uv0.x, uv1.y}
+    };
 
     g_vert_count += 6;
 }
@@ -146,35 +149,88 @@ static void emit_quad_ndc(frect_s rect, fcolor_rgba_s color)
 
 void overlay_init(void)
 {
+    // Инициализация шрифта
+    if (!stbtt_InitFont(&g_font_info, g_font_data, 0))
+    {
+        log_error("overlay: stbtt_InitFont failed");
+        return;
+    }
+
+    // Вычисляем верхнюю границу шрифта для правильного позиционирования
+    float scale_font = stbtt_ScaleForPixelHeight(&g_font_info, FONT_BAKE_SIZE);
+    int ascent       = 0;
+    int descent      = 0;
+    int lineGap      = 0;
+    stbtt_GetFontVMetrics(&g_font_info, &ascent, &descent, &lineGap);
+    g_font_ascent = ascent * scale_font;
+
+    unsigned char * bitmap = malloc(FONT_ATLAS_W * FONT_ATLAS_H);
+    if (!bitmap)
+    {
+        log_error("overlay: font bitmap alloc failed");
+        return;
+    }
+
+    int result = stbtt_BakeFontBitmap(g_font_data, 0, FONT_BAKE_SIZE, bitmap, FONT_ATLAS_W, FONT_ATLAS_H,
+                                      FONT_FIRST_CHAR, FONT_NUM_CHARS, g_baked_chars);
+
+    if (result <= 0)
+    {
+        log_error("overlay: stbtt_BakeFontBitmap failed (atlas too small?)");
+        free(bitmap);
+        return;
+    }
+
+    bitmap[ 0 ] = 255; // непрозрачный белый пиксель для прямоугольников
+
+
+    glGenTextures(1, &g_font_texture);
+    glBindTexture(GL_TEXTURE_2D, g_font_texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, FONT_ATLAS_W, FONT_ATLAS_H, 0, GL_RED, GL_UNSIGNED_BYTE, bitmap);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+    free(bitmap);
+
+    // Шейдеры
     static const char * vs =
         "#version 330 core\n"
         "layout(location=0) in vec2 aPos;\n"
         "layout(location=1) in vec4 aColor;\n"
+        "layout(location=2) in vec2 aUV;\n"
         "out vec4 vColor;\n"
-        "void main()\n"
-        "{\n"
+        "out vec2 vUV;\n"
+        "void main() {\n"
         "    gl_Position = vec4(aPos, 0.0, 1.0);\n"
         "    vColor = aColor;\n"
+        "    vUV = aUV;\n"
         "}\n";
 
     static const char * fs =
         "#version 330 core\n"
         "in vec4 vColor;\n"
+        "in vec2 vUV;\n"
+        "uniform sampler2D uTex;\n"
         "out vec4 FragColor;\n"
-        "void main()\n"
-        "{\n"
-        "    FragColor = vColor;\n"
+        "void main() {\n"
+        "    float alpha = texture(uTex, vUV).r;\n"
+        "    FragColor = vec4(vColor.rgb, vColor.a * alpha);\n"
         "}\n";
 
     GLuint v = gl_utils_compile_shader(vs, GL_VERTEX_SHADER);
-    if (!v)
-    {
-        return;
-    }
     GLuint f = gl_utils_compile_shader(fs, GL_FRAGMENT_SHADER);
-    if (!f)
+    if (!v || !f)
     {
-        glDeleteShader(v);
+        if (v)
+        {
+            glDeleteShader(v);
+        }
+        if (f)
+        {
+            glDeleteShader(f);
+        }
         return;
     }
 
@@ -191,7 +247,7 @@ void overlay_init(void)
     {
         char info[ 512 ];
         glGetProgramInfoLog(g_program, sizeof(info), nullptr, info);
-        log_error("text_overlay link error: %s\n", info);
+        log_error("overlay: link error: %s", info);
         glDeleteProgram(g_program);
         g_program = 0;
         return;
@@ -207,6 +263,8 @@ void overlay_init(void)
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(text_vertex_t), (void *)(2 * sizeof(float)));
     glEnableVertexAttribArray(1);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(text_vertex_t), (void *)(6 * sizeof(float)));
+    glEnableVertexAttribArray(2);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
@@ -231,6 +289,11 @@ void overlay_cleanup(void)
         glDeleteProgram(g_program);
         g_program = 0;
     }
+    if (g_font_texture)
+    {
+        glDeleteTextures(1, &g_font_texture);
+        g_font_texture = 0;
+    }
 
     free(g_verts);
     g_verts         = nullptr;
@@ -252,51 +315,33 @@ void overlay_text_draw(point_s s, const char * text, fcolor_rgb_s color, float s
         return;
     }
 
-    int num_quads = stb_easy_font_print(0.0f, 0.0f, (char *)text, nullptr, g_scratch, sizeof(g_scratch));
-    if (num_quads <= 0)
+    float xpos_font = (float)s.x / scale;
+    float ypos_font = (float)s.y / scale + g_font_ascent; // сдвиг базовой линии вниз
+
+    fcolor_rgba_s rgba = {color.r, color.g, color.b, 1.0f};
+
+    for (const char * p = text; *p; p++)
     {
-        return;
-    }
+        int index = (unsigned char)*p - FONT_FIRST_CHAR;
+        if (index < 0 || index >= FONT_NUM_CHARS)
+        {
+            continue;
+        }
 
-    const uint8_t * p = (const uint8_t *)g_scratch;
-
-    for (int q = 0; q < num_quads; q++)
-    {
-        // stb_easy_font: 4 вершины на квад, j=0 — top-left, j=2 — bottom-right.
-        const uint8_t * base = p + (size_t)q * TEXT_STB_VERTS_PER_QUAD * TEXT_STB_VERTEX_BYTES;
-
-        float fx0 = *(const float *)(base + 0 * TEXT_STB_VERTEX_BYTES + 0);
-        float fy0 = *(const float *)(base + 0 * TEXT_STB_VERTEX_BYTES + 4);
-        float fx1 = *(const float *)(base + 2 * TEXT_STB_VERTEX_BYTES + 0);
-        float fy1 = *(const float *)(base + 2 * TEXT_STB_VERTEX_BYTES + 4);
+        stbtt_aligned_quad q;
+        stbtt_GetBakedQuad(g_baked_chars, FONT_ATLAS_W, FONT_ATLAS_H, index, &xpos_font, &ypos_font, &q, 1);
 
         frect_s rect = {
-            .x0 = (float)s.x + fx0 * scale + 0.5f,
-            .y0 = (float)s.y + fy0 * scale + 0.5f,
-            .x1 = (float)s.x + fx1 * scale + 0.5f,
-            .y1 = (float)s.y + fy1 * scale + 0.5f,
+            .x0 = q.x0 * scale,
+            .y0 = q.y0 * scale,
+            .x1 = q.x1 * scale,
+            .y1 = q.y1 * scale,
         };
-        emit_quad_ndc(rect, to_rgba_convert(fcolor_rgba_s, color, 1.f));
+        fpoint_s uv0 = {q.s0, q.t0};
+        fpoint_s uv1 = {q.s1, q.t1};
+
+        emit_quad_ndc(rect, rgba, uv0, uv1);
     }
-}
-
-
-void overlay_rect_draw(rect_s rect, fcolor_rgba_s color)
-{
-    emit_quad_ndc(rect_convert(frect_s, rect), color);
-}
-
-void overlay_rect_outline_draw(rect_s rect, fcolor_rgba_s color, int thickness)
-{
-    if (thickness < 1)
-    {
-        thickness = 1;
-    }
-
-    emit_quad_ndc((frect_s) {rect.x0, rect.y0, rect.x1, rect.y0 + thickness}, color);
-    emit_quad_ndc((frect_s) {rect.x0, rect.y1 - thickness, rect.x1, rect.y1}, color);
-    emit_quad_ndc((frect_s) {rect.x0, rect.y0, rect.x0 + thickness, rect.y1}, color);
-    emit_quad_ndc((frect_s) {rect.x1 - thickness, rect.y0, rect.x1, rect.y1}, color);
 }
 
 int overlay_text_measure(const char * text, float scale)
@@ -306,21 +351,52 @@ int overlay_text_measure(const char * text, float scale)
         return 0;
     }
 
-    int w = stb_easy_font_width((char *)text);
-    return (int)((float)w * scale + 0.5f);
+    float width = 0.0f;
+    for (const char * p = text; *p; p++)
+    {
+        int index = (unsigned char)*p - FONT_FIRST_CHAR;
+        if (index < 0 || index >= FONT_NUM_CHARS)
+        {
+            continue;
+        }
+        width += g_baked_chars[ index ].xadvance;
+    }
+    return (int)(width * scale + 0.5f);
+}
+
+void overlay_rect_draw(rect_s rect, fcolor_rgba_s color)
+{
+    fpoint_s uv = {WHITE_U, WHITE_V};
+    emit_quad_ndc(rect_convert(frect_s, rect), color, uv, uv);
+}
+
+void overlay_rect_outline_draw(rect_s rect, fcolor_rgba_s color, int thickness)
+{
+    fpoint_s uv = {WHITE_U, WHITE_V};
+    if (thickness < 1)
+    {
+        thickness = 1;
+    }
+
+    emit_quad_ndc((frect_s) {rect.x0, rect.y0, rect.x1, rect.y0 + thickness}, color, uv, uv);
+    emit_quad_ndc((frect_s) {rect.x0, rect.y1 - thickness, rect.x1, rect.y1}, color, uv, uv);
+    emit_quad_ndc((frect_s) {rect.x0, rect.y0, rect.x0 + thickness, rect.y1}, color, uv, uv);
+    emit_quad_ndc((frect_s) {rect.x1 - thickness, rect.y0, rect.x1, rect.y1}, color, uv, uv);
 }
 
 void overlay_end(void)
 {
-    if (g_vert_count == 0 || !g_program || !g_vao)
+    if (g_vert_count == 0 || !g_program || !g_vao || !g_font_texture)
     {
         return;
     }
 
-    // Полнооконный viewport — текст рисуется поверх всего.
     glViewport(0, 0, (int)g_win.x, (int)g_win.y);
 
     glUseProgram(g_program);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g_font_texture);
+    glUniform1i(glGetUniformLocation(g_program, "uTex"), 0);
 
     glBindVertexArray(g_vao);
     glBindBuffer(GL_ARRAY_BUFFER, g_vbo);

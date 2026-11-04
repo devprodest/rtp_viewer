@@ -126,7 +126,7 @@ void context_menu_draw(image_size_s win, float scale)
         }
 
         overlay_text_draw((point_s) {x + pad, iy + (int)(4 * scale)}, g_items[ i ].label,
-                          (fcolor_rgb_s) {1.0f, 1.0f, 1.0f}, 1.5f * scale);
+                          (fcolor_rgb_s) {1.0f, 1.0f, 1.0f}, 1.f * scale);
     }
 }
 
