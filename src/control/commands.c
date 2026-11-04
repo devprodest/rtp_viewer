@@ -27,6 +27,7 @@ void cmd_execute(commands_e cmd)
         case CMD_TOGGLE_HISTOGRAM_SCALE: renderer_toggle_histogram_scale(); break;
         case CMD_TOGGLE_HISTOGRAM_CDF: renderer_toggle_histogram_cdf(); break;
         case CMD_TOGGLE_STATS: analytics_toggle_stats_visible(); break;
+        case CMD_TOGGLE_CROSSHAIR: renderer_toggle_crosshair(); break;
 
         case CMD_FLUSH_SAVER: saver_flush(); break;
         case CMD_TOGGLE_RECORDING:
@@ -40,7 +41,7 @@ void cmd_execute(commands_e cmd)
 
         case CMD_REQUEST_SCREENSHOT: renderer_request_screenshot(); break;
 
-        case CMD_CLEAR_SELECTION: context_menu_is_open(); break;
+        case CMD_CLEAR_SELECTION: renderer_clear_selection(); break;
 
         case CMD_ZOOM_RESET: renderer_zoom_reset(); break;
 
@@ -62,6 +63,7 @@ bool cmd_is_active(commands_e cmd)
         case CMD_TOGGLE_HISTOGRAM_SCALE: return histogram_view_is_log_scale();
         case CMD_TOGGLE_HISTOGRAM_CDF: return histogram_view_is_cdf();
         case CMD_TOGGLE_STATS: return analytics_is_stats_visible();
+        case CMD_TOGGLE_CROSSHAIR: return renderer_is_crosshair_active();
         case CMD_TOGGLE_RECORDING: return saver_is_recording();
         case CMD_TOGGLE_PAUSE: return app_is_paused();
 

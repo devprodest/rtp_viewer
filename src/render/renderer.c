@@ -27,6 +27,7 @@
 //----------------------------------------------------------------------------------------------------------------------
 
 static void render_stats_overlay(void);
+static void render_crosshair(void);
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -52,6 +53,8 @@ static const uint8_t * g_last_frame = nullptr;
 
 static bool g_gradient_enabled = false;
 static sharpness_s g_sharpness;
+
+static bool g_crosshair_enabled = false;
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -242,6 +245,7 @@ void renderer_update_texture(const uint8_t * data)
         renderer_draw_inspector(g_last_mouse);
     }
     render_stats_overlay();
+    render_crosshair();
     context_menu_draw(win, g_dpi_scale);
     overlay_end();
 
@@ -373,7 +377,7 @@ static void render_stats_overlay(void)
     // Подложка под блоком для читаемости на светлом фоне
     const int panel_h = (st->channels == 1 ? 1 : 3) * line_h;
     const int panel_w = 380;
-    rect_s panel = {
+    rect_s panel      = {
         .x0 = x - 4,
         .y0 = y - 4,
         .x1 = x + panel_w,
@@ -397,6 +401,73 @@ static void render_stats_overlay(void)
             overlay_text_draw((point_s) {x, y + c * line_h}, line, (fcolor_rgb_s) {1.0f, 1.0f, 1.0f}, text_scale);
         }
     }
+}
+
+static void render_crosshair(void)
+{
+    if (!g_crosshair_enabled)
+    {
+        return;
+    }
+
+    image_size_s win = window_get_framebuffer_size();
+    if (win.x <= 0 || win.y <= 0)
+    {
+        return;
+    }
+
+    const int mx = g_last_mouse.x;
+    const int my = g_last_mouse.y;
+    if (mx < 0 || my < 0 || mx >= win.x || my >= win.y)
+    {
+        return;
+    }
+
+    const fcolor_rgba_s line_color = {0.0f, 1.0f, 0.0f, 0.75f};
+
+    overlay_rect_draw((rect_s) {0, my, win.x, my + 1}, line_color);
+    overlay_rect_draw((rect_s) {mx, 0, mx + 1, win.y}, line_color);
+
+    // Показываем цифры только если курсор действительно над изображением.
+    point_s frame;
+    const bool inside = viewport_screen_to_frame((point_s) {mx, my}, &frame) &&
+                        frame.x >= 0 && frame.x < g_win.x &&
+                        frame.y >= 0 && frame.y < g_win.y;
+    if (!inside)
+    {
+        return;
+    }
+
+    char buf[ 64 ];
+    snprintf(buf, sizeof(buf), "x=%d y=%d", frame.x, frame.y);
+
+    const float text_scale = g_dpi_scale * 1.f;
+    const int pad          = (int)(4 * g_dpi_scale);
+    const int line_h       = (int)(14 * text_scale);
+    const int tw           = overlay_text_measure(buf, text_scale);
+
+    int px = mx + 12;
+    int py = my + 12;
+    if (px + tw + 2 * pad > win.x)
+    {
+        px = mx - tw - 12 - 2 * pad;
+    }
+    if (py + line_h + 2 * pad > win.y)
+    {
+        py = my - line_h - 12 - 2 * pad;
+    }
+    if (px < 0)
+    {
+        px = 0;
+    }
+    if (py < 0)
+    {
+        py = 0;
+    }
+
+    rect_s panel = {px, py, px + tw + 2 * pad, py + line_h + 2 * pad};
+    overlay_rect_draw(panel, (fcolor_rgba_s) {0.0f, 0.0f, 0.0f, 0.6f});
+    overlay_text_draw((point_s) {px + pad, py + pad}, buf, (fcolor_rgb_s) {1.0f, 1.0f, 1.0f}, text_scale);
 }
 
 void renderer_draw_inspector(point_s point)
@@ -523,6 +594,12 @@ void renderer_toggle_gradient(void)
     log_info("Gradient %s", g_gradient_enabled ? "enabled" : "disabled");
 }
 
+void renderer_toggle_crosshair(void)
+{
+    g_crosshair_enabled = !g_crosshair_enabled;
+    log_info("Crosshair %s", g_crosshair_enabled ? "enabled" : "disabled");
+}
+
 bool renderer_handle_context_menu(point_s mouse, bool right_down, bool left_down)
 {
     static bool prev_right = false;
@@ -572,4 +649,8 @@ bool renderer_is_gradient_active(void)
 bool renderer_is_inspector_active(void)
 {
     return g_inspector_enabled;
+}
+bool renderer_is_crosshair_active(void)
+{
+    return g_crosshair_enabled;
 }
