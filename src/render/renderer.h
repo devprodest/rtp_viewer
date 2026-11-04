@@ -37,7 +37,7 @@ bool renderer_screen_to_frame(point_s screen, point_s * frame);
 
 void renderer_zoom_reset(void);
 void renderer_zoom_apply_wheel(double wheel, point_s point);
-void renderer_pan_apply_drag( point_s point, bool middle_down);
+void renderer_pan_apply_drag(point_s point, bool middle_down);
 
 void renderer_draw_inspector(point_s point);
 void renderer_toggle_inspector(void);
@@ -52,3 +52,6 @@ bool renderer_is_inspector_active(void);
 bool renderer_is_crosshair_active(void);
 
 float renderer_get_dpi_scale(void);
+
+void renderer_toggle_auto_levels(void);
+bool renderer_is_auto_levels_active(void);

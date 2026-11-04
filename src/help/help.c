@@ -12,31 +12,48 @@
 
 #define DEFAULT_BATCH_SIZE 500
 
-static char g_buf[2048];
+static char g_buf[ 2048 ];
 
+/// \brief Формирует текст справки по горячим клавишам.
 /// \brief Формирует текст справки по горячим клавишам.
 static const char * build_hotkeys_text(void)
 {
     snprintf(g_buf, sizeof(g_buf),
              "%s v%s\n"
              "\n"
-             "Hotkeys:\n"
+             "Display:\n"
              "  1 \tToggle smoothing (linear / nearest)\n"
+             "  2 \tToggle auto-levels (stretch by ROI min/max)\n"
+             "  F \tToggle gradient view (Sobel) + sharpness metrics\n"
              "  E \tToggle saturation markers (blue=under, red=over)\n"
+             "  H \tToggle histogram overlay\n"
+             "  Ctrl+H \tToggle histogram scale (linear / log)\n"
+             "  C \tToggle histogram CDF overlay\n"
+             "  T \tToggle statistics overlay (min/max/mean/std)\n"
+             "  X \tToggle crosshair + cursor coordinates\n"
+             "  I \tToggle pixel inspector\n"
+             "\n"
+             "Zoom / pan:\n"
+             "  Wheel \tZoom around cursor\n"
+             "  Middle \tPan (drag)\n"
+             "  0 \tReset zoom / pan\n"
+             "\n"
+             "Selection:\n"
+             "  LMB \tSelect ROI (stats, auto-levels follow selection)\n"
+             "  Esc \tClear selection / close menu\n"
+             "\n"
+             "File source:\n"
+             "  Space \tPause/resume display and analysis\n"
+             "  Left/Right \tStep prev/next frame\n"
+             "  Progress bar \tClick or drag to seek (visible 3s after mouse motion)\n"
+             "\n"
+             "Recording / saving:\n"
              "  S \tSave screenshot (PNG)\n"
              "  R \tToggle recording (on / off)\n"
              "  W \tForce save accumulated frames\n"
-             "  F \tToggle gradient view (Sobel) + sharpness metrics\n"
-             "  I \tToggle pixel inspector\n"
-             "  H \tToggle histogram overlay\n"
-             "  T \tToggle statistics overlay\n"
-             "  Ctrl+H \tToggle histogram scale (linear / log)\n"
-             "  C \tToggle histogram CDF overlay\n"
+             "\n"
              "  F1 \tShow this help\n"
              "  F11 \tToggle fullscreen\n"
-             "\n"
-             "  Space \tPause/resume display and analysis\n"
-             "  Left/Right \tStep prev/next frame (file source)\n"
              "\n"
              "CLI options: run %s with -h\n",
              RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR, "rtp_viewer");

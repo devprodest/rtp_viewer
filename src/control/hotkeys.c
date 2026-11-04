@@ -7,6 +7,7 @@ static bool f1_pressed    = false;
 static bool f11_pressed   = false;
 static bool key_0_pressed = false;
 static bool key_1_pressed = false;
+static bool key_2_pressed = false;
 static bool space_pressed = false;
 static bool esc_pressed   = false;
 static bool left_pressed  = false;
@@ -30,6 +31,7 @@ void hotkeys_process(GLFWwindow * window)
     bool esc   = glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS;
     bool key_0 = glfwGetKey(window, GLFW_KEY_0) == GLFW_PRESS;
     bool key_1 = glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS;
+    bool key_2 = glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS;
     bool space = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
     bool left  = glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS;
     bool right = glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS;
@@ -64,6 +66,10 @@ void hotkeys_process(GLFWwindow * window)
     if (key_1 && no_modificator && !key_1_pressed)
     {
         cmd_execute(CMD_TOGGLE_SMOOTHING);
+    }
+    if (key_2 && no_modificator && !key_2_pressed)
+    {
+        cmd_execute(CMD_TOGGLE_AUTO_LEVELS);
     }
     if (s && no_modificator && !s_pressed)
     {
@@ -142,6 +148,7 @@ void hotkeys_process(GLFWwindow * window)
 
     key_0_pressed = key_0;
     key_1_pressed = key_1;
+    key_2_pressed = key_2;
     f1_pressed    = f1;
     f11_pressed   = f11;
     space_pressed = space;

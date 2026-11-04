@@ -13,3 +13,6 @@ void post_pass_set_saturation(bool enabled);
 
 void post_pass_set_gradient(bool enabled);
 void post_pass_set_texel_size(fimage_size_s size);
+
+void post_pass_set_auto_levels(bool enabled);
+void post_pass_set_levels(const float minv[ static 3 ], const float maxv[ static 3 ]);

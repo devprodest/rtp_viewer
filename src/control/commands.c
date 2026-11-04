@@ -18,6 +18,7 @@ void cmd_execute(commands_e cmd)
     switch (cmd)
     {
         case CMD_TOGGLE_SMOOTHING: renderer_toggle_smoothing(); break;
+        case CMD_TOGGLE_AUTO_LEVELS: renderer_toggle_auto_levels(); break;
         case CMD_TOGGLE_FULLSCREEN: window_toggle_fullscreen(); break;
 
         case CMD_TOGGLE_GRADIENT: renderer_toggle_gradient(); break;
@@ -55,6 +56,7 @@ bool cmd_is_active(commands_e cmd)
     switch (cmd)
     {
         case CMD_TOGGLE_SMOOTHING: return renderer_is_smoothing_active();
+        case CMD_TOGGLE_AUTO_LEVELS: return renderer_is_auto_levels_active();
         case CMD_TOGGLE_FULLSCREEN: return window_is_fullscreen();
         case CMD_TOGGLE_GRADIENT: return renderer_is_gradient_active();
         case CMD_TOGGLE_INSPECTOR: return renderer_is_inspector_active();

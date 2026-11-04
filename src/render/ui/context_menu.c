@@ -19,6 +19,7 @@ typedef struct context_menu_item_s
 
 static const context_menu_item_s g_items[] = {
     {"Smoothing",       CMD_TOGGLE_SMOOTHING,       true },
+    {"Auto-levels",     CMD_TOGGLE_AUTO_LEVELS,     true },
     {"Saturation",      CMD_TOGGLE_SATURATION,      true },
     {"Histogram",       CMD_TOGGLE_HISTOGRAM,       true },
     {"Log Scale",       CMD_TOGGLE_HISTOGRAM_SCALE, true },

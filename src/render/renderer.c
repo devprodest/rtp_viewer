@@ -53,7 +53,8 @@ static float g_inspector_text_scale = 1.f;
 static point_s g_last_mouse         = {};
 static const uint8_t * g_last_frame = nullptr;
 
-static bool g_gradient_enabled = false;
+static bool g_auto_levels_enabled = false;
+static bool g_gradient_enabled    = false;
 static sharpness_s g_sharpness;
 
 static bool g_crosshair_enabled = false;
@@ -225,6 +226,45 @@ void renderer_update_texture(const uint8_t * data)
     glViewport(0, 0, win.x, win.y);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
+
+    if (g_auto_levels_enabled)
+    {
+        const analytics_stats_s * st = analytics_get_stats();
+        if (st && st->valid)
+        {
+            const double max_range = (g_format.bytes_per_pixel == 2) ? (double)((1u << g_eff_bits) - 1u) : 255.0;
+            float lmin[ 3 ]        = {0.0f, 0.0f, 0.0f};
+            float lmax[ 3 ]        = {1.0f, 1.0f, 1.0f};
+
+            for (int c = 0; c < 3; c++)
+            {
+                double lo = st->min[ c ] / max_range;
+                double hi = st->max[ c ] / max_range;
+                if (hi <= lo + 1e-3) // плоский канал — не растягиваем, будет мусор
+                {
+                    lo = 0.0;
+                    hi = 1.0;
+                }
+                lmin[ c ] = (float)utils_clamp(lo, 0.0, 1.0);
+                lmax[ c ] = (float)utils_clamp(hi, 0.0, 1.0);
+            }
+
+            if (st->channels == 1) // gray — уровни одинаковы по трём каналам
+            {
+                lmin[ 1 ] = lmin[ 2 ] = lmin[ 0 ];
+                lmax[ 1 ] = lmax[ 2 ] = lmax[ 0 ];
+            }
+
+            post_pass_set_levels(lmin, lmax);
+        }
+        else
+        {
+            // Нет валидных stats — нейтральные уровни (0..1), шейдер ничего не исказит
+            const float lmin[ 3 ] = {0.0f, 0.0f, 0.0f};
+            const float lmax[ 3 ] = {1.0f, 1.0f, 1.0f};
+            post_pass_set_levels(lmin, lmax);
+        }
+    }
 
     post_pass_render(format_pass_get_output_tex(), viewport_get_point(), viewport_get_size(), win);
 
@@ -594,6 +634,18 @@ void renderer_toggle_gradient(void)
     }
     window_title_refresh();
     log_info("Gradient %s", g_gradient_enabled ? "enabled" : "disabled");
+}
+
+void renderer_toggle_auto_levels(void)
+{
+    g_auto_levels_enabled = !g_auto_levels_enabled;
+    post_pass_set_auto_levels(g_auto_levels_enabled);
+    log_info("Auto-levels %s", g_auto_levels_enabled ? "enabled" : "disabled");
+}
+
+bool renderer_is_auto_levels_active(void)
+{
+    return g_auto_levels_enabled;
 }
 
 void renderer_toggle_crosshair(void)

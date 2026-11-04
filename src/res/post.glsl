@@ -2,14 +2,27 @@
 uniform sampler2D tex;
 uniform int saturation_enabled;
 uniform int gradient_enabled;
+uniform int auto_levels_enabled;
 uniform vec2 texel_size;
-uniform vec2 image_origin;   // bottom-left угла изображения в gl-координатах окна
-uniform vec2 image_size;     // размер изображения в пикселях окна
+uniform vec2 image_origin;
+uniform vec2 image_size;
+uniform vec3 level_min;
+uniform vec3 level_max;
 out vec4 FragColor;
 
 float luma(vec3 c)
 {
     return dot(c, vec3(0.299, 0.587, 0.114));
+}
+
+vec3 apply_levels(vec3 color)
+{
+    if (auto_levels_enabled == 0)
+    {
+        return color;
+    }
+    vec3 inv_range = 1.0 / max(level_max - level_min, vec3(1e-6));
+    return clamp((color - level_min) * inv_range, 0.0, 1.0);
 }
 
 void main()
@@ -22,17 +35,18 @@ void main()
     uv.y = 1.0 - uv.y;
 
     vec4 c = texture(tex, uv);
+    c.rgb  = apply_levels(c.rgb);
 
     if (gradient_enabled != 0)
     {
-        float nw = luma(texture(tex, uv + vec2(-texel_size.x, -texel_size.y)).rgb);
-        float n  = luma(texture(tex, uv + vec2( 0.0,          -texel_size.y)).rgb);
-        float ne = luma(texture(tex, uv + vec2( texel_size.x, -texel_size.y)).rgb);
-        float w  = luma(texture(tex, uv + vec2(-texel_size.x,  0.0)).rgb);
-        float e  = luma(texture(tex, uv + vec2( texel_size.x,  0.0)).rgb);
-        float sw = luma(texture(tex, uv + vec2(-texel_size.x,  texel_size.y)).rgb);
-        float s  = luma(texture(tex, uv + vec2( 0.0,           texel_size.y)).rgb);
-        float se = luma(texture(tex, uv + vec2( texel_size.x,  texel_size.y)).rgb);
+        float nw = luma(apply_levels(texture(tex, uv + vec2(-texel_size.x, -texel_size.y)).rgb));
+        float n  = luma(apply_levels(texture(tex, uv + vec2( 0.0,          -texel_size.y)).rgb));
+        float ne = luma(apply_levels(texture(tex, uv + vec2( texel_size.x, -texel_size.y)).rgb));
+        float w  = luma(apply_levels(texture(tex, uv + vec2(-texel_size.x,  0.0)).rgb));
+        float e  = luma(apply_levels(texture(tex, uv + vec2( texel_size.x,  0.0)).rgb));
+        float sw = luma(apply_levels(texture(tex, uv + vec2(-texel_size.x,  texel_size.y)).rgb));
+        float s  = luma(apply_levels(texture(tex, uv + vec2( 0.0,           texel_size.y)).rgb));
+        float se = luma(apply_levels(texture(tex, uv + vec2( texel_size.x,  texel_size.y)).rgb));
 
         float gx = (ne + 2.0 * e + se) - (nw + 2.0 * w + sw);
         float gy = (sw + 2.0 * s + se) - (nw + 2.0 * n + ne);

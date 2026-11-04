@@ -9,16 +9,24 @@ static char POST_SHADER_FRAGMENT[] = {
 #embed "../res/post.glsl" suffix(, 0)
 };
 
-static GLuint g_program        = 0;
-static GLuint g_quad_vao       = 0;
-static bool g_gradient_enabled = false;
+static GLuint g_program  = 0;
+static GLuint g_quad_vao = 0;
 
-static GLint g_uniform_tex        = -1;
-static GLint g_uniform_saturation = -1;
-static GLint g_uniform_gradient   = -1;
-static GLint g_uniform_texel_size = -1;
-static GLint g_uniform_origin     = -1;
-static GLint g_uniform_size       = -1;
+static bool g_gradient_enabled    = false;
+static bool g_auto_levels_enabled = false;
+
+static GLint g_uniform_tex         = -1;
+static GLint g_uniform_saturation  = -1;
+static GLint g_uniform_gradient    = -1;
+static GLint g_uniform_texel_size  = -1;
+static GLint g_uniform_origin      = -1;
+static GLint g_uniform_size        = -1;
+static GLint g_uniform_auto_levels = -1;
+static GLint g_uniform_level_min   = -1;
+static GLint g_uniform_level_max   = -1;
+
+static float g_level_min[ 3 ] = {0.0f, 0.0f, 0.0f};
+static float g_level_max[ 3 ] = {1.0f, 1.0f, 1.0f};
 
 static fimage_size_s g_texel = {};
 
@@ -35,12 +43,16 @@ bool post_pass_init(GLuint quad_vao)
     }
 
     glUseProgram(g_program);
-    g_uniform_tex        = glGetUniformLocation(g_program, "tex");
-    g_uniform_saturation = glGetUniformLocation(g_program, "saturation_enabled");
-    g_uniform_gradient   = glGetUniformLocation(g_program, "gradient_enabled");
-    g_uniform_texel_size = glGetUniformLocation(g_program, "texel_size");
-    g_uniform_origin     = glGetUniformLocation(g_program, "image_origin");
-    g_uniform_size       = glGetUniformLocation(g_program, "image_size");
+    g_uniform_tex         = glGetUniformLocation(g_program, "tex");
+    g_uniform_saturation  = glGetUniformLocation(g_program, "saturation_enabled");
+    g_uniform_gradient    = glGetUniformLocation(g_program, "gradient_enabled");
+    g_uniform_texel_size  = glGetUniformLocation(g_program, "texel_size");
+    g_uniform_origin      = glGetUniformLocation(g_program, "image_origin");
+    g_uniform_size        = glGetUniformLocation(g_program, "image_size");
+    g_uniform_auto_levels = glGetUniformLocation(g_program, "auto_levels_enabled");
+    g_uniform_level_min   = glGetUniformLocation(g_program, "level_min");
+    g_uniform_level_max   = glGetUniformLocation(g_program, "level_max");
+
     return true;
 }
 
@@ -96,6 +108,18 @@ void post_pass_render(GLuint source_tex, point_s dst, image_size_s size, image_s
     {
         glUniform2f(g_uniform_size, (float)size.x, (float)size.y);
     }
+    if (g_uniform_auto_levels >= 0)
+    {
+        glUniform1i(g_uniform_auto_levels, g_auto_levels_enabled ? 1 : 0);
+    }
+    if (g_uniform_level_min >= 0)
+    {
+        glUniform3f(g_uniform_level_min, g_level_min[ 0 ], g_level_min[ 1 ], g_level_min[ 2 ]);
+    }
+    if (g_uniform_level_max >= 0)
+    {
+        glUniform3f(g_uniform_level_max, g_level_max[ 0 ], g_level_max[ 1 ], g_level_max[ 2 ]);
+    }
 
     glBindVertexArray(g_quad_vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -115,4 +139,18 @@ void post_pass_set_gradient(bool enabled)
 void post_pass_set_texel_size(fimage_size_s size)
 {
     g_texel = size;
+}
+
+void post_pass_set_auto_levels(bool enabled)
+{
+    g_auto_levels_enabled = enabled;
+}
+
+void post_pass_set_levels(const float minv[ static 3 ], const float maxv[ static 3 ])
+{
+    for (int c = 0; c < 3; c++)
+    {
+        g_level_min[ c ] = minv[ c ];
+        g_level_max[ c ] = maxv[ c ];
+    }
 }
