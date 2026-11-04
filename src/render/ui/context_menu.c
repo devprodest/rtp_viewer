@@ -14,7 +14,7 @@
 #define CELL_SIZE      80
 /// Размер иконки внутри ячейки в пикселях (до dpi-скейла). Обычно заметно меньше CELL_SIZE, чтобы осталось место под
 /// текст.
-#define ICON_SIZE      58
+#define ICON_SIZE      48
 /// Отступ от края панели до крайних ячеек (до dpi-скейла). Формирует «воздух» вокруг сетки внутри полупрозрачного фона.
 #define PANEL_PADDING  4
 /// Базовый масштаб шрифта подписи под иконкой. Меньше 1.0f, чтобы длинные названия («Clear Selection») влезали в ширину
@@ -30,43 +30,54 @@
 
 //----------------------------------------------------------------------------------------------------------------------
 
+typedef enum menu_group_e
+{
+    MENU_GROUP_DISPLAY,
+    MENU_GROUP_ANALYSIS,
+    MENU_GROUP_DIFF,
+    MENU_GROUP_PLAYBACK,
+    MENU_GROUP_RECORDING,
+    MENU_GROUP_UTILITY,
+} menu_group_e;
+
 typedef struct context_menu_item_s
 {
     const char * label;
     commands_e cmd;
     bool is_toggle;
+    menu_group_e group;
 } context_menu_item_s;
 
 #define CMD_NONE ((commands_e) - 1)
 
 static const context_menu_item_s g_items[] = {
-    {"Gradient",        CMD_TOGGLE_GRADIENT,        true },
-    {"Crosshair",       CMD_TOGGLE_CROSSHAIR,       true },
-    {"Saturation",      CMD_TOGGLE_SATURATION,      true },
-    {"Histogram",       CMD_TOGGLE_HISTOGRAM,       true },
-    {"Log Scale",       CMD_TOGGLE_HISTOGRAM_SCALE, true },
-    {"CDF",             CMD_TOGGLE_HISTOGRAM_CDF,   true },
+    {"Gradient",        CMD_TOGGLE_GRADIENT,        true,  MENU_GROUP_ANALYSIS },
+    {"Crosshair",       CMD_TOGGLE_CROSSHAIR,       true,  MENU_GROUP_ANALYSIS },
+    {"Saturation",      CMD_TOGGLE_SATURATION,      true,  MENU_GROUP_ANALYSIS },
+    {"Histogram",       CMD_TOGGLE_HISTOGRAM,       true,  MENU_GROUP_ANALYSIS },
+    {"Log Scale",       CMD_TOGGLE_HISTOGRAM_SCALE, true,  MENU_GROUP_ANALYSIS },
+    {"CDF",             CMD_TOGGLE_HISTOGRAM_CDF,   true,  MENU_GROUP_ANALYSIS },
 
-    {"Inspector",       CMD_TOGGLE_INSPECTOR,       true },
-    {"Stats",           CMD_TOGGLE_STATS,           true },
-    {"Diff Ref",        CMD_SET_REFERENCE,          false},
-    {"Diff View",       CMD_TOGGLE_DIFF,            true },
-    {"Diff Gain -",     CMD_DIFF_GAIN_DOWN,         false},
-    {"Diff Gain +",     CMD_DIFF_GAIN_UP,           false},
+    {"Inspector",       CMD_TOGGLE_INSPECTOR,       true,  MENU_GROUP_ANALYSIS },
+    {"Stats",           CMD_TOGGLE_STATS,           true,  MENU_GROUP_ANALYSIS },
+    {"Diff Ref",        CMD_SET_REFERENCE,          false, MENU_GROUP_DIFF     },
+    {"Diff View",       CMD_TOGGLE_DIFF,            true,  MENU_GROUP_DIFF     },
+    {"Diff Gain -",     CMD_DIFF_GAIN_DOWN,         false, MENU_GROUP_DIFF     },
+    {"Diff Gain +",     CMD_DIFF_GAIN_UP,           false, MENU_GROUP_DIFF     },
 
-    {"Backward",        CMD_STEP_BACKWARD,          false},
-    {"Pause",           CMD_TOGGLE_PAUSE,           true },
-    {"Forward",         CMD_STEP_FORWARD,           false},
-    {"Recording",       CMD_TOGGLE_RECORDING,       true },
-    {"Flush Save",      CMD_FLUSH_SAVER,            false},
-    {"Screenshot",      CMD_REQUEST_SCREENSHOT,     false},
+    {"Backward",        CMD_STEP_BACKWARD,          false, MENU_GROUP_PLAYBACK },
+    {"Pause",           CMD_TOGGLE_PAUSE,           true,  MENU_GROUP_PLAYBACK },
+    {"Forward",         CMD_STEP_FORWARD,           false, MENU_GROUP_PLAYBACK },
+    {"Recording",       CMD_TOGGLE_RECORDING,       true,  MENU_GROUP_RECORDING},
+    {"Flush Save",      CMD_FLUSH_SAVER,            false, MENU_GROUP_RECORDING},
+    {"Screenshot",      CMD_REQUEST_SCREENSHOT,     false, MENU_GROUP_RECORDING},
 
-    {"Auto-levels",     CMD_TOGGLE_AUTO_LEVELS,     true },
-    {"Smoothing",       CMD_TOGGLE_SMOOTHING,       true },
-    {"Clear Selection", CMD_CLEAR_SELECTION,        false},
-    {"Reset Zoom",      CMD_ZOOM_RESET,             false},
-    {"Full screen",     CMD_TOGGLE_FULLSCREEN,      true },
-    {"Help",            CMD_SHOW_HELP,              false},
+    {"Auto-levels",     CMD_TOGGLE_AUTO_LEVELS,     true,  MENU_GROUP_DISPLAY  },
+    {"Smoothing",       CMD_TOGGLE_SMOOTHING,       true,  MENU_GROUP_DISPLAY  },
+    {"Clear Selection", CMD_CLEAR_SELECTION,        false, MENU_GROUP_UTILITY  },
+    {"Reset Zoom",      CMD_ZOOM_RESET,             false, MENU_GROUP_UTILITY  },
+    {"Full screen",     CMD_TOGGLE_FULLSCREEN,      true,  MENU_GROUP_UTILITY  },
+    {"Help",            CMD_SHOW_HELP,              false, MENU_GROUP_UTILITY  },
 };
 
 static const int g_item_count = (int)(sizeof(g_items) / sizeof(g_items[ 0 ]));
@@ -94,6 +105,20 @@ void context_menu_set_hover(point_s mouse)
 }
 
 //------------------------------------------------- Иконки (примитивы) -------------------------------------------------
+
+static fcolor_rgba_s group_bg_color(menu_group_e group)
+{
+    switch (group)
+    {
+        case MENU_GROUP_DISPLAY: return UI_CELL_BG_DISPLAY;
+        case MENU_GROUP_ANALYSIS: return UI_CELL_BG_ANALYSIS;
+        case MENU_GROUP_DIFF: return UI_CELL_BG_DIFF;
+        case MENU_GROUP_PLAYBACK: return UI_CELL_BG_PLAYBACK;
+        case MENU_GROUP_RECORDING: return UI_CELL_BG_RECORDING;
+        case MENU_GROUP_UTILITY: return UI_CELL_BG_UTILITY;
+    }
+    return UI_CELL_BG; // fallback
+}
 
 static void draw_icon(point_s center, float scale)
 {
@@ -182,8 +207,9 @@ void context_menu_draw(image_size_s win, float scale)
         }
         else
         {
-            overlay_rect_draw(cell, UI_CELL_BG);
+            overlay_rect_draw(cell, group_bg_color(g_items[ i ].group));
         }
+
         overlay_rect_outline_draw(cell, UI_CELL_BORDER, 1);
 
         // Иконка — только fallback-примитив, если SVG нет.

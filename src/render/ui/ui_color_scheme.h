@@ -81,8 +81,7 @@
 #define UI_PROGRESS_FILL             ((fcolor_rgba_s) {0.20f, 0.50f, 0.20f, 0.85f})
 #define UI_PROGRESS_BORDER           UI_RGBA_GRAY_SILVER
 
-//--------------------------------------------- Семантика: crosshair
-//----------------------------------------------------
+//--------------------------------------------- Семантика: crosshair ---------------------------------------------------
 
 #define UI_CROSSHAIR_LINE            UI_RGBA_FROM_RGB(UI_RGB_GREEN, 0.75f)
 
@@ -98,6 +97,17 @@
 #define UI_MENU_ITEM_HOVER           ((fcolor_rgba_s) {0.25f, 0.40f, 0.25f, 1.00f})
 #define UI_MENU_ITEM_ACTIVE          ((fcolor_rgba_s) {0.20f, 0.50f, 0.20f, 1.00f})
 #define UI_MENU_ITEM_ACTIVE_HOVER    ((fcolor_rgba_s) {0.30f, 0.70f, 0.30f, 1.00f})
+
+//---- Фоновые оттенки для групп меню ----------------------------------------------------------------------------------
+// Очень приглушённые, чтобы не перебивать hover/active (они ярко-зелёные).
+// Разные по оттенку, но одинаковые по светлоте — визуально «ровный» ряд плиток.
+
+#define UI_CELL_BG_DISPLAY           ((fcolor_rgba_s) {0.16f, 0.20f, 0.28f, 0.95f}) // синеватый — отображение
+#define UI_CELL_BG_ANALYSIS          ((fcolor_rgba_s) {0.22f, 0.18f, 0.28f, 0.95f}) // фиолетовый — анализ
+#define UI_CELL_BG_DIFF              ((fcolor_rgba_s) {0.18f, 0.24f, 0.16f, 0.95f}) // зеленоватый — различие
+#define UI_CELL_BG_PLAYBACK          ((fcolor_rgba_s) {0.16f, 0.24f, 0.24f, 0.95f}) // бирюзовый — воспроизведение
+#define UI_CELL_BG_RECORDING         ((fcolor_rgba_s) {0.24f, 0.16f, 0.16f, 0.95f}) // красноватый — запись
+#define UI_CELL_BG_UTILITY           ((fcolor_rgba_s) {0.24f, 0.22f, 0.18f, 0.95f}) // тёплый серый — утилиты
 
 //--------------------------------------------- Семантика: выделение ---------------------------------------------------
 
