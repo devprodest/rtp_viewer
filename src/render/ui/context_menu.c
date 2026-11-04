@@ -20,6 +20,7 @@ typedef struct context_menu_item_s
 static const context_menu_item_s g_items[] = {
     {"Smoothing",       CMD_TOGGLE_SMOOTHING,       true },
     {"Auto-levels",     CMD_TOGGLE_AUTO_LEVELS,     true },
+    {"---",             0,                          false}, // separator
     {"Saturation",      CMD_TOGGLE_SATURATION,      true },
     {"Histogram",       CMD_TOGGLE_HISTOGRAM,       true },
     {"Log Scale",       CMD_TOGGLE_HISTOGRAM_SCALE, true },
@@ -28,6 +29,12 @@ static const context_menu_item_s g_items[] = {
     {"Inspector",       CMD_TOGGLE_INSPECTOR,       true },
     {"Stats",           CMD_TOGGLE_STATS,           true },
     {"Crosshair",       CMD_TOGGLE_CROSSHAIR,       true },
+    {"---",             0,                          false}, // separator
+    {"Set Reference",   CMD_SET_REFERENCE,          false},
+    {"Diff View",       CMD_TOGGLE_DIFF,            true },
+    {"Diff Gain -",     CMD_DIFF_GAIN_DOWN,         false},
+    {"Diff Gain +",     CMD_DIFF_GAIN_UP,           false},
+    {"---",             0,                          false}, // separator
     {"Pause",           CMD_TOGGLE_PAUSE,           true },
     {"Recording",       CMD_TOGGLE_RECORDING,       true },
     {"---",             0,                          false}, // separator

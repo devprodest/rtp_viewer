@@ -12,16 +12,20 @@ static bool space_pressed = false;
 static bool esc_pressed   = false;
 static bool left_pressed  = false;
 static bool right_pressed = false;
-static bool s_pressed     = false;
-static bool r_pressed     = false;
-static bool w_pressed     = false;
+static bool eq_pressed    = false;
+static bool minus_pressed = false;
+static bool b_pressed     = false;
+static bool c_pressed     = false;
+static bool e_pressed     = false;
+static bool f_pressed     = false;
 static bool h_pressed     = false;
 static bool h_was_down    = false;
-static bool e_pressed     = false;
-static bool c_pressed     = false;
 static bool i_pressed     = false;
-static bool f_pressed     = false;
+static bool r_pressed     = false;
+static bool s_pressed     = false;
 static bool t_pressed     = false;
+static bool v_pressed     = false;
+static bool w_pressed     = false;
 static bool x_pressed     = false;
 
 void hotkeys_process(GLFWwindow * window)
@@ -35,16 +39,21 @@ void hotkeys_process(GLFWwindow * window)
     bool space = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
     bool left  = glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS;
     bool right = glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS;
-    bool c     = glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS;
-    bool s     = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
-    bool r     = glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS;
-    bool w     = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
-    bool h     = glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS;
-    bool e     = glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS;
-    bool i     = glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS;
-    bool f     = glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS;
-    bool t     = glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS;
-    bool x     = glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS;
+    bool eq    = glfwGetKey(window, GLFW_KEY_EQUAL) == GLFW_PRESS;
+    bool minus = glfwGetKey(window, GLFW_KEY_MINUS) == GLFW_PRESS;
+
+    bool c = glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS;
+    bool s = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
+    bool r = glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS;
+    bool w = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
+    bool h = glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS;
+    bool e = glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS;
+    bool i = glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS;
+    bool f = glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS;
+    bool t = glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS;
+    bool x = glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS;
+    bool v = glfwGetKey(window, GLFW_KEY_V) == GLFW_PRESS;
+    bool b = glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS;
 
     bool ctrl  = glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS || //
                  glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS;
@@ -128,6 +137,22 @@ void hotkeys_process(GLFWwindow * window)
     {
         cmd_execute(CMD_TOGGLE_HISTOGRAM);
     }
+    if (v && no_modificator && !v_pressed)
+    {
+        cmd_execute(CMD_SET_REFERENCE);
+    }
+    if (b && no_modificator && !b_pressed)
+    {
+        cmd_execute(CMD_TOGGLE_DIFF);
+    }
+    if (eq && no_modificator && !eq_pressed)
+    {
+        cmd_execute(CMD_DIFF_GAIN_UP);
+    }
+    if (minus && no_modificator && !minus_pressed)
+    {
+        cmd_execute(CMD_DIFF_GAIN_DOWN);
+    }
 
     if (c && no_modificator && !c_pressed)
     {
@@ -155,6 +180,8 @@ void hotkeys_process(GLFWwindow * window)
     left_pressed  = left;
     right_pressed = right;
     esc_pressed   = esc;
+    minus_pressed = minus;
+    eq_pressed    = eq;
     f_pressed     = f;
     i_pressed     = i;
     c_pressed     = c;
@@ -164,6 +191,8 @@ void hotkeys_process(GLFWwindow * window)
     w_pressed     = w;
     t_pressed     = t;
     x_pressed     = x;
+    v_pressed     = v;
+    b_pressed     = b;
     h_pressed     = h && !ctrl;
     h_was_down    = h;
 }

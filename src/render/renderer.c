@@ -59,6 +59,13 @@ static sharpness_s g_sharpness;
 
 static bool g_crosshair_enabled = false;
 
+static uint8_t * g_reference_buffer = nullptr;
+static size_t g_reference_bytes     = 0;
+static uint8_t * g_diff_buffer      = nullptr;
+static size_t g_diff_bytes          = 0;
+static bool g_diff_enabled          = false;
+static float g_diff_gain            = 4.0f;
+
 //----------------------------------------------------------------------------------------------------------------------
 
 static void apply_smoothing(void)
@@ -175,6 +182,14 @@ void renderer_cleanup(void)
         g_quad_vao = 0;
     }
 
+    free(g_reference_buffer);
+    g_reference_buffer = nullptr;
+    g_reference_bytes  = 0;
+    free(g_diff_buffer);
+    g_diff_buffer  = nullptr;
+    g_diff_bytes   = 0;
+    g_diff_enabled = false;
+
     overlay_cleanup();
     window_cleanup();
 
@@ -192,11 +207,68 @@ void renderer_poll_events(void)
     window_poll_events();
 }
 
+static size_t current_frame_bytes(void)
+{
+    return g_win.x * g_win.y * g_format.bytes_per_pixel;
+}
+
+static void compute_diff(const uint8_t * cur, const uint8_t * ref, uint8_t * out, size_t bytes)
+{
+    const float gain = g_diff_gain;
+
+    if (g_format.bytes_per_pixel == 2)
+    {
+        const uint16_t * c = (const uint16_t *)cur;
+        const uint16_t * r = (const uint16_t *)ref;
+        uint16_t * o       = (uint16_t *)out;
+        const size_t n     = bytes / 2;
+        const int maxval   = (g_eff_bits >= 16) ? 65535 : ((1 << g_eff_bits) - 1);
+
+        for (size_t i = 0; i < n; i++)
+        {
+            int d  = utils_abs((int)c[ i ] - (int)r[ i ]);
+            int v  = (int)((float)d * gain + 0.5f);
+            o[ i ] = (uint16_t)utils_min(v, maxval);
+        }
+    }
+    else
+    {
+        // gray8 / RGB / RGBA — побайтово (каждый байт — отдельный канал)
+        for (size_t i = 0; i < bytes; i++)
+        {
+            int d    = utils_abs((int)cur[ i ] - (int)ref[ i ]);
+            int v    = (int)((float)d * gain + 0.5f);
+            out[ i ] = (uint8_t)utils_min(v, 255);
+        }
+    }
+}
+
 void renderer_update_texture(const uint8_t * data)
 {
     g_last_frame = data;
 
-    format_pass_upload(data);
+    const uint8_t * frame_to_upload = data;
+
+    if (g_diff_enabled && g_reference_buffer)
+    {
+        const size_t bytes = current_frame_bytes();
+        if (bytes > 0 && bytes == g_reference_bytes)
+        {
+            if (g_diff_bytes != bytes)
+            {
+                free(g_diff_buffer);
+                g_diff_buffer = (uint8_t *)malloc(bytes);
+                g_diff_bytes  = g_diff_buffer ? bytes : 0;
+            }
+            if (g_diff_buffer)
+            {
+                compute_diff(data, g_reference_buffer, g_diff_buffer, bytes);
+                frame_to_upload = g_diff_buffer;
+            }
+        }
+    }
+
+    format_pass_upload(frame_to_upload);
 
     analytics_update(data, g_win, &g_format, &g_selection, g_eff_bits);
 
@@ -652,6 +724,65 @@ void renderer_toggle_crosshair(void)
 {
     g_crosshair_enabled = !g_crosshair_enabled;
     log_info("Crosshair %s", g_crosshair_enabled ? "enabled" : "disabled");
+}
+
+void renderer_set_reference(void)
+{
+    if (!g_last_frame)
+    {
+        log_info("Reference: no frame available yet");
+        return;
+    }
+
+    const size_t bytes = current_frame_bytes();
+    if (bytes == 0)
+    {
+        return;
+    }
+
+    if (g_reference_bytes != bytes)
+    {
+        free(g_reference_buffer);
+        g_reference_buffer = (uint8_t *)malloc(bytes);
+        if (!g_reference_buffer)
+        {
+            g_reference_bytes = 0;
+            log_error("Reference: out of memory (%zu bytes)", bytes);
+            return;
+        }
+        g_reference_bytes = bytes;
+    }
+
+    memcpy(g_reference_buffer, g_last_frame, bytes);
+    log_info("Reference frame set (%dx%d, %zu bytes)", g_win.x, g_win.y, bytes);
+}
+
+void renderer_toggle_diff(void)
+{
+    if (!g_reference_buffer)
+    {
+        log_info("Diff: no reference set (press V first)");
+        return;
+    }
+    g_diff_enabled = !g_diff_enabled;
+    log_info("Diff %s (gain %.0fx)", g_diff_enabled ? "enabled" : "disabled", (double)g_diff_gain);
+}
+
+void renderer_diff_gain_up(void)
+{
+    g_diff_gain = utils_min(g_diff_gain * 2.0f, 64.0f);
+    log_info("Diff gain = %.0fx", (double)g_diff_gain);
+}
+
+void renderer_diff_gain_down(void)
+{
+    g_diff_gain = utils_max(g_diff_gain / 2.0f, 1.0f);
+    log_info("Diff gain = %.0fx", (double)g_diff_gain);
+}
+
+bool renderer_is_diff_active(void)
+{
+    return g_diff_enabled;
 }
 
 bool renderer_handle_context_menu(point_s mouse, bool right_down, bool left_down)

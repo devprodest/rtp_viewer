@@ -36,6 +36,11 @@ void cmd_execute(commands_e cmd)
             window_title_refresh();
             break;
 
+        case CMD_SET_REFERENCE: renderer_set_reference(); break;
+        case CMD_TOGGLE_DIFF: renderer_toggle_diff(); break;
+        case CMD_DIFF_GAIN_UP: renderer_diff_gain_up(); break;
+        case CMD_DIFF_GAIN_DOWN: renderer_diff_gain_down(); break;
+
         case CMD_TOGGLE_PAUSE: app_toggle_pause(); break;
         case CMD_STEP_FORWARD: app_step_forward(); break;
         case CMD_STEP_BACKWARD: app_step_backward(); break;
@@ -68,6 +73,7 @@ bool cmd_is_active(commands_e cmd)
         case CMD_TOGGLE_CROSSHAIR: return renderer_is_crosshair_active();
         case CMD_TOGGLE_RECORDING: return saver_is_recording();
         case CMD_TOGGLE_PAUSE: return app_is_paused();
+        case CMD_TOGGLE_DIFF: return renderer_is_diff_active();
 
         default: return false;
     }

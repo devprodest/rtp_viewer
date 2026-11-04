@@ -55,3 +55,9 @@ float renderer_get_dpi_scale(void);
 
 void renderer_toggle_auto_levels(void);
 bool renderer_is_auto_levels_active(void);
+
+void renderer_set_reference(void);
+void renderer_toggle_diff(void);
+void renderer_diff_gain_up(void);
+void renderer_diff_gain_down(void);
+bool renderer_is_diff_active(void);

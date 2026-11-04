@@ -35,3 +35,9 @@ int parse_int(const char * s, long min, long max, long * out);
         cval = utils_min(cval, cmax); \
         cval;                         \
     })
+
+#define utils_abs(val)                \
+    ({                                \
+        __typeof__(val) aval = (val); \
+        (aval < 0) ? -aval : aval;    \
+    })
