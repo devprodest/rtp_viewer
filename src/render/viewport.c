@@ -1,5 +1,4 @@
 #include "viewport.h"
-
 #include "util/utils.h"
 #include "window.h"
 
@@ -7,13 +6,16 @@
 #define ZOOM_MAX 32.0f
 
 static image_size_s g_frame = {};
-static point_s g_point      = {};
+static fpoint_s g_point_f   = {}; // рабочее значение (float, без потерь)
+static fpoint_s g_size_f    = {};
+static point_s g_point      = {}; // int-копии для API (post_pass, selection_view)
 static image_size_s g_size  = {};
 
 static float g_zoom        = 1.0f;
 static fpoint_s g_pan      = {};
 static fpoint_s g_pan_last = {};
 static bool g_pan_drag     = false;
+
 
 /// \brief Считает базовый letterbox-вьюпорт без zoom/pan.
 static void compute_base(image_size_s win, point_s * base_start, image_size_s * base_size)
@@ -46,6 +48,8 @@ void viewport_init(image_size_s frame_size)
     g_pan_last.x = 0.0f;
     g_pan_last.y = 0.0f;
     g_pan_drag   = false;
+    g_point_f    = (fpoint_s) {0};
+    g_size_f     = (fpoint_s) {0};
     g_point      = (point_s) {0};
     g_size       = (image_size_s) {0};
 }
@@ -56,10 +60,15 @@ void viewport_update(image_size_s win)
     image_size_s base  = {0};
     compute_base(win, &base_start, &base);
 
-    g_point.x = base_start.x - (int)(g_pan.x * g_zoom);
-    g_point.y = base_start.y - (int)(g_pan.y * g_zoom);
-    g_size.x  = (int)((float)base.x * g_zoom);
-    g_size.y  = (int)((float)base.y * g_zoom);
+    g_point_f.x = (float)base_start.x - g_pan.x * g_zoom;
+    g_point_f.y = (float)base_start.y - g_pan.y * g_zoom;
+    g_size_f.x  = (float)base.x * g_zoom;
+    g_size_f.y  = (float)base.y * g_zoom;
+
+    g_point.x = (int)(g_point_f.x + 0.5f);
+    g_point.y = (int)(g_point_f.y + 0.5f);
+    g_size.x  = (int)(g_size_f.x + 0.5f);
+    g_size.y  = (int)(g_size_f.y + 0.5f);
 }
 
 point_s viewport_get_point(void)
@@ -77,23 +86,28 @@ void viewport_reset(void)
     g_zoom  = 1.0f;
     g_pan.x = 0.0f;
     g_pan.y = 0.0f;
+
+    image_size_s win = window_get_framebuffer_size();
+    if (win.x > 0 && win.y > 0)
+    {
+        viewport_update(win);
+    }
 }
 
 void viewport_apply_wheel(double wheel, point_s screen)
 {
-    if (wheel == 0.0 || g_size.x <= 0 || g_size.y <= 0)
+    if (wheel == 0.0)
     {
         return;
     }
-
-    point_s frame = {0};
-    if (!viewport_screen_to_frame(screen, &frame))
+    if (g_frame.x <= 0 || g_frame.y <= 0)
     {
         return;
     }
-
-    float factor = utils_max(1.0f + (float)wheel * 0.15f, 0.1f);
-    g_zoom       = utils_clamp(g_zoom * factor, ZOOM_MIN, ZOOM_MAX);
+    if (g_size_f.x <= 0.0f || g_size_f.y <= 0.0f)
+    {
+        return;
+    }
 
     image_size_s win = window_get_framebuffer_size();
     if (win.x <= 0 || win.y <= 0)
@@ -101,15 +115,35 @@ void viewport_apply_wheel(double wheel, point_s screen)
         return;
     }
 
+    // Курсор должен быть в текущей видимой области
+    if ((float)screen.x < g_point_f.x || (float)screen.x >= g_point_f.x + g_size_f.x || (float)screen.y < g_point_f.y ||
+        (float)screen.y >= g_point_f.y + g_size_f.y)
+    {
+        return;
+    }
+
+    // Sub-pixel позиция кадра под курсором. int-версия даёт сдвиг до
+    // 0.5 * size / frame_w = ~10-16 px экрана на клик при zoom >= 10.
+    const float fframe_x = ((float)screen.x - g_point_f.x) * (float)g_frame.x / g_size_f.x;
+    const float fframe_y = ((float)screen.y - g_point_f.y) * (float)g_frame.y / g_size_f.y;
+
+    float factor = utils_max(1.0f + (float)wheel * 0.15f, 0.1f);
+    g_zoom       = utils_clamp(g_zoom * factor, ZOOM_MIN, ZOOM_MAX);
+
     point_s base_start = {0};
     image_size_s base  = {0};
     compute_base(win, &base_start, &base);
 
-    float want_x = (float)screen.x - (float)base_start.x - ((float)frame.x * (float)base.x * g_zoom) / (float)g_frame.x;
-    float want_y = (float)screen.y - (float)base_start.y - ((float)frame.y * (float)base.y * g_zoom) / (float)g_frame.y;
+    // Anchor в double: держим один и тот же sub-pixel кадра под курсором.
+    const double new_size_x   = (double)base.x * (double)g_zoom;
+    const double new_size_y   = (double)base.y * (double)g_zoom;
+    const double want_point_x = (double)screen.x - (double)fframe_x * new_size_x / (double)g_frame.x;
+    const double want_point_y = (double)screen.y - (double)fframe_y * new_size_y / (double)g_frame.y;
 
-    g_pan.x = -want_x / g_zoom;
-    g_pan.y = -want_y / g_zoom;
+    g_pan.x = (float)(((double)base_start.x - want_point_x) / (double)g_zoom);
+    g_pan.y = (float)(((double)base_start.y - want_point_y) / (double)g_zoom);
+
+    viewport_update(win);
 }
 
 void viewport_apply_pan_drag(point_s screen, bool middle_down)
@@ -137,27 +171,33 @@ void viewport_apply_pan_drag(point_s screen, bool middle_down)
 
         g_pan.x -= dx / g_zoom;
         g_pan.y -= dy / g_zoom;
+
+        image_size_s win = window_get_framebuffer_size();
+        if (win.x > 0 && win.y > 0)
+        {
+            viewport_update(win);
+        }
     }
 }
 
 bool viewport_screen_to_frame(point_s screen, point_s * frame)
 {
-    if (g_size.x <= 0 || g_size.y <= 0)
+    if (g_size_f.x <= 0.0f || g_size_f.y <= 0.0f)
     {
         return false;
     }
 
-    if (screen.x < g_point.x || screen.x >= g_point.x + g_size.x || //
-        screen.y < g_point.y || screen.y >= g_point.y + g_size.y)
+    if ((float)screen.x < g_point_f.x || (float)screen.x >= g_point_f.x + g_size_f.x || //
+        (float)screen.y < g_point_f.y || (float)screen.y >= g_point_f.y + g_size_f.y)
     {
         return false;
     }
 
-    int frame_x = (screen.x - g_point.x) * g_frame.x / g_size.x;
-    int frame_y = (screen.y - g_point.y) * g_frame.y / g_size.y;
+    float fx = ((float)screen.x - g_point_f.x) * (float)g_frame.x / g_size_f.x;
+    float fy = ((float)screen.y - g_point_f.y) * (float)g_frame.y / g_size_f.y;
 
-    frame->x = utils_clamp(frame_x, 0, g_frame.x - 1);
-    frame->y = utils_clamp(frame_y, 0, g_frame.y - 1);
+    frame->x = utils_clamp((int)fx, 0, g_frame.x - 1);
+    frame->y = utils_clamp((int)fy, 0, g_frame.y - 1);
 
     return true;
 }

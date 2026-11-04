@@ -1,7 +1,5 @@
 #include "mouse.h"
 
-#include <stddef.h>
-
 static double g_wheel_pending = 0.0;
 
 static void scroll_callback(GLFWwindow * /*unused*/, double /*unused*/, double yoff)
@@ -39,7 +37,26 @@ void mouse_state_update(GLFWwindow * window, mouse_state_s * m)
         return;
     }
 
-    glfwGetCursorPos(window, &m->x, &m->y);
+    double px = 0.0;
+    double py = 0.0;
+    glfwGetCursorPos(window, &px, &py);
+
+    // glfwGetCursorPos возвращает позицию в screen coords (window coords).
+    // Renderer и viewport работают в framebuffer coords. Приводим по реальному отношению framebuffer/window, а не по
+    // content_scale — он на некоторых конфигурациях врёт (framebuffer == window, но content_scale > 1), и тогда
+    // координаты «уползают» вправо-вниз.
+    int fb_w = 0;
+    int fb_h = 0;
+    glfwGetFramebufferSize(window, &fb_w, &fb_h);
+    int win_w = 0;
+    int win_h = 0;
+    glfwGetWindowSize(window, &win_w, &win_h);
+
+    const double sx = (win_w > 0) ? (double)fb_w / (double)win_w : 1.0;
+    const double sy = (win_h > 0) ? (double)fb_h / (double)win_h : 1.0;
+
+    m->x = px * sx;
+    m->y = py * sy;
 
     m->left   = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
     m->middle = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS;

@@ -9,14 +9,16 @@ static char POST_SHADER_FRAGMENT[] = {
 #embed "../res/post.glsl" suffix(, 0)
 };
 
-static GLuint g_program           = 0;
-static GLuint g_quad_vao          = 0;
+static GLuint g_program        = 0;
+static GLuint g_quad_vao       = 0;
+static bool g_gradient_enabled = false;
+
 static GLint g_uniform_tex        = -1;
 static GLint g_uniform_saturation = -1;
-
 static GLint g_uniform_gradient   = -1;
 static GLint g_uniform_texel_size = -1;
-static bool g_gradient_enabled    = false;
+static GLint g_uniform_origin     = -1;
+static GLint g_uniform_size       = -1;
 
 static fimage_size_s g_texel = {};
 
@@ -37,7 +39,8 @@ bool post_pass_init(GLuint quad_vao)
     g_uniform_saturation = glGetUniformLocation(g_program, "saturation_enabled");
     g_uniform_gradient   = glGetUniformLocation(g_program, "gradient_enabled");
     g_uniform_texel_size = glGetUniformLocation(g_program, "texel_size");
-
+    g_uniform_origin     = glGetUniformLocation(g_program, "image_origin");
+    g_uniform_size       = glGetUniformLocation(g_program, "image_size");
     return true;
 }
 
@@ -52,10 +55,17 @@ void post_pass_cleanup(void)
 
 void post_pass_render(GLuint source_tex, point_s dst, image_size_s size, image_size_s win)
 {
-    // dst — в top-left координатах окна, glViewport ждёт bottom-left.
+    if (win.x <= 0 || win.y <= 0 || size.x <= 0 || size.y <= 0)
+    {
+        return;
+    }
+
+    // dst — top-left в координатах окна. Для шейдера нужен bottom-left (gl).
     int gl_y = win.y - dst.y - size.y;
 
-    glViewport(dst.x, gl_y, size.x, size.y);
+    // Всегда полный экран. Никаких огромных вьюпортов — иначе GL_MAX_VIEWPORT_DIMS
+    // молча обрежет его при zoom >= 20 (AMD) или 40 (NVIDIA), и картинка «прыгнет».
+    glViewport(0, 0, win.x, win.y);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
@@ -70,8 +80,6 @@ void post_pass_render(GLuint source_tex, point_s dst, image_size_s size, image_s
     {
         glUniform1i(g_uniform_saturation, g_saturation_enabled ? 1 : 0);
     }
-
-    glBindVertexArray(g_quad_vao);
     if (g_uniform_gradient >= 0)
     {
         glUniform1i(g_uniform_gradient, g_gradient_enabled ? 1 : 0);
@@ -80,6 +88,16 @@ void post_pass_render(GLuint source_tex, point_s dst, image_size_s size, image_s
     {
         glUniform2f(g_uniform_texel_size, g_texel.x, g_texel.y);
     }
+    if (g_uniform_origin >= 0)
+    {
+        glUniform2f(g_uniform_origin, (float)dst.x, (float)gl_y);
+    }
+    if (g_uniform_size >= 0)
+    {
+        glUniform2f(g_uniform_size, (float)size.x, (float)size.y);
+    }
+
+    glBindVertexArray(g_quad_vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
 }
