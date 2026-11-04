@@ -7,6 +7,7 @@
 #include "log/stats.h"
 #include "render/renderer.h"
 #include "render/ui/progress_bar.h"
+#include "render/ui/svg_icons.h"
 #include "render/ui/window_title.h"
 #include "save/saver.h"
 #include "source/source.h"
@@ -114,8 +115,14 @@ bool app_seek_to(int target_frame)
         return false;
     }
 
-    if (target_frame < 0)  target_frame = 0;
-    if (target_frame >= tot) target_frame = tot - 1;
+    if (target_frame < 0)
+    {
+        target_frame = 0;
+    }
+    if (target_frame >= tot)
+    {
+        target_frame = tot - 1;
+    }
 
     if (!source_seek_to(g_source, target_frame))
     {
@@ -179,9 +186,14 @@ int app_run(const app_config_s * cfg)
 
     if (!renderer_init(cfg->image, cfg->format, cfg->effective_bits, cfg->smooth_start))
     {
-        log_error("app: Не удалось инициализировать OpenGL\n");
+        log_error("app: Failed to initialize OpenGL\n");
         stats_cleanup();
         return EXIT_FAILURE;
+    }
+
+    if (!svg_icons_init())
+    {
+        log_error("app: Failed to initialize NanoVG");
     }
 
     int bpp = renderer_get_bytes_per_pixel();
@@ -403,6 +415,7 @@ int app_run(const app_config_s * cfg)
 
     saver_cleanup();
     stats_cleanup();
+    svg_icons_cleanup();
     renderer_cleanup();
     source_close(src);
 

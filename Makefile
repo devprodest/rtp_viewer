@@ -8,6 +8,7 @@ MKDIR_P = mkdir -p
 RM_RF   = rm -rf
 RC      = windres
 
+LIB_DIR      = lib
 SRC_DIR      = src
 OBJ_DIR      = obj
 PUBLISH_DIR  = publish
@@ -46,6 +47,7 @@ SRCS += $(SRC_DIR)/render/viewport.c
 SRCS += $(SRC_DIR)/render/ui/window_title.c
 SRCS += $(SRC_DIR)/render/ui/context_menu.c
 SRCS += $(SRC_DIR)/render/ui/progress_bar.c
+SRCS += $(SRC_DIR)/render/ui/svg_icons.c
 SRCS += $(SRC_DIR)/save/saver.c
 SRCS += $(SRC_DIR)/save/screenshot.c
 SRCS += $(SRC_DIR)/source/source_factory.c
@@ -53,6 +55,13 @@ SRCS += $(SRC_DIR)/source/source_file.c
 SRCS += $(SRC_DIR)/source/source_rtp.c
 SRCS += $(SRC_DIR)/source/source.c
 SRCS += $(SRC_DIR)/util/utils.c
+SRCS += $(LIB_DIR)/nanovg/src/nanovg.c
+
+INCS += $(SRC_DIR)
+INCS += $(LIB_DIR)
+INCS += $(LIB_DIR)/nanovg/src
+INCS += $(LIB_DIR)/nanosvg/src
+INCS += $(LIB_DIR)/glfw/include
 
 # --- Windows resources ---
 RES_OBJ = obj/version.o
@@ -61,7 +70,7 @@ VERSION_SRC = $(SRC_DIR)/res/version.rc
 OBJS = $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) $(RES_OBJ)
 vpath %.c $(sort $(dir $(SRCS)))
 
-CFLAGS  = -std=gnu2x -Wall -Wextra -Oz -g -Isrc -Ilib -Ilib/glfw/include
+CFLAGS  = -std=gnu2x -Wall -Wextra -Oz -g $(addprefix -I,$(INCS))
 LDFLAGS = -Llib/glfw/lib -lglfw3 -lopengl32 -lgdi32 -luser32 -lshell32 -lws2_32 -lwinmm
 
 all: $(TARGET)
@@ -97,6 +106,8 @@ $(OBJ_DIR)/%.o: %.c | $(OBJ_DIR)
 $(OBJ_DIR):
 	$(MKDIR_P) $(OBJ_DIR)
 
+obj/nanovg.o: lib/nanovg/src/nanovg.c
+	$(CC) $(CFLAGS) -w -c $< -o $@
 
 print-%: ; @echo $*=$($*)
 

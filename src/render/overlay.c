@@ -13,14 +13,16 @@
 #include "log/logger.h"
 #include "util/utils.h"
 
-#include <math.h>
-#include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+
+#define STBTT_STATIC
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
+
+#pragma GCC diagnostic pop
 
 //------------------------------------------------------ Macros --------------------------------------------------------
 

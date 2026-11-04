@@ -37,6 +37,21 @@ extern PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers;
 extern PFNGLDELETEBUFFERSPROC glDeleteBuffers;
 extern PFNGLUNIFORM2FPROC glUniform2f;
 extern PFNGLUNIFORM3FPROC glUniform3f;
+// ---- NanoVG (GL 2.0+ / 3.x) ----
+extern PFNGLBINDATTRIBLOCATIONPROC glBindAttribLocation;
+extern PFNGLGETATTRIBLOCATIONPROC glGetAttribLocation;
+extern PFNGLGENERATEMIPMAPPROC glGenerateMipmap;
+extern PFNGLGETUNIFORMBLOCKINDEXPROC glGetUniformBlockIndex;
+extern PFNGLUNIFORMBLOCKBINDINGPROC glUniformBlockBinding;
+extern PFNGLBINDBUFFERRANGEPROC glBindBufferRange;
+extern PFNGLUNIFORM1FPROC glUniform1f;
+extern PFNGLUNIFORM4FPROC glUniform4f;
+extern PFNGLUNIFORM2FVPROC glUniform2fv;
+extern PFNGLUNIFORM4FVPROC glUniform4fv;
+extern PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv;
+extern PFNGLBLENDFUNCSEPARATEPROC glBlendFuncSeparate;
+extern PFNGLSTENCILOPSEPARATEPROC glStencilOpSeparate;
+extern PFNGLDISABLEVERTEXATTRIBARRAYPROC glDisableVertexAttribArray;
 
 // Загрузить указатели (вызывать после glfwMakeContextCurrent)
 int gl_api_load(void);

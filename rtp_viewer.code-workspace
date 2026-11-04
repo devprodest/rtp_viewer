@@ -28,6 +28,8 @@
 				"includePath": [
 					"./lib/GLFW/include/GLFW",
 					"./lib/GLFW/include/",
+					"./lib/nanovg/src",
+					"./lib/nanosvg/src",
 					"./lib",
 					"./src",
 				],

@@ -25,6 +25,7 @@ bool window_init(int width, int height, const char * title)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+    glfwWindowHint(GLFW_STENCIL_BITS, 8);
 
     g_window = glfwCreateWindow(width, height, title ? title : "RTP Viewer", nullptr, nullptr);
     if (!g_window)

@@ -95,7 +95,7 @@
 #define UI_MENU_BG                   ((fcolor_rgba_s) {0.15f, 0.15f, 0.15f, 0.75f})
 #define UI_MENU_BORDER               UI_RGBA_GRAY
 #define UI_MENU_SEPARATOR            UI_RGBA_GRAY_DIM
-#define UI_MENU_ITEM_HOVER           ((fcolor_rgba_s) {0.30f, 0.35f, 0.45f, 1.00f})
+#define UI_MENU_ITEM_HOVER           ((fcolor_rgba_s) {0.25f, 0.40f, 0.25f, 1.00f})
 #define UI_MENU_ITEM_ACTIVE          ((fcolor_rgba_s) {0.20f, 0.50f, 0.20f, 1.00f})
 #define UI_MENU_ITEM_ACTIVE_HOVER    ((fcolor_rgba_s) {0.30f, 0.70f, 0.30f, 1.00f})
 

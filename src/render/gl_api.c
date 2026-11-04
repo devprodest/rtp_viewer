@@ -5,38 +5,52 @@
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
-PFNGLCREATESHADERPROC glCreateShader                       = nullptr;
-PFNGLSHADERSOURCEPROC glShaderSource                       = nullptr;
-PFNGLCOMPILESHADERPROC glCompileShader                     = nullptr;
-PFNGLGETSHADERIVPROC glGetShaderiv                         = nullptr;
-PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog               = nullptr;
-PFNGLDELETESHADERPROC glDeleteShader                       = nullptr;
-PFNGLCREATEPROGRAMPROC glCreateProgram                     = nullptr;
-PFNGLATTACHSHADERPROC glAttachShader                       = nullptr;
-PFNGLLINKPROGRAMPROC glLinkProgram                         = nullptr;
-PFNGLGETPROGRAMIVPROC glGetProgramiv                       = nullptr;
-PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog             = nullptr;
-PFNGLDELETEPROGRAMPROC glDeleteProgram                     = nullptr;
-PFNGLGENVERTEXARRAYSPROC glGenVertexArrays                 = nullptr;
-PFNGLGENBUFFERSPROC glGenBuffers                           = nullptr;
-PFNGLBINDVERTEXARRAYPROC glBindVertexArray                 = nullptr;
-PFNGLBINDBUFFERPROC glBindBuffer                           = nullptr;
-PFNGLBUFFERDATAPROC glBufferData                           = nullptr;
-PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer         = nullptr;
-PFNGLENABLEVERTEXATTRIBARRAYPROC glEnableVertexAttribArray = nullptr;
-PFNGLUSEPROGRAMPROC glUseProgram                           = nullptr;
-PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation           = nullptr;
-PFNGLUNIFORM1IPROC glUniform1i                             = nullptr;
-PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays           = nullptr;
-PFNGLACTIVETEXTUREPROC glActiveTexture                     = nullptr;
-PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers                 = nullptr;
-PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer                 = nullptr;
-PFNGLFRAMEBUFFERTEXTURE2DPROC glFramebufferTexture2D       = nullptr;
-PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus   = nullptr;
-PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers           = nullptr;
-PFNGLDELETEBUFFERSPROC glDeleteBuffers                     = nullptr;
-PFNGLUNIFORM2FPROC glUniform2f                             = nullptr;
-PFNGLUNIFORM3FPROC glUniform3f                             = nullptr;
+PFNGLCREATESHADERPROC glCreateShader                         = nullptr;
+PFNGLSHADERSOURCEPROC glShaderSource                         = nullptr;
+PFNGLCOMPILESHADERPROC glCompileShader                       = nullptr;
+PFNGLGETSHADERIVPROC glGetShaderiv                           = nullptr;
+PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog                 = nullptr;
+PFNGLDELETESHADERPROC glDeleteShader                         = nullptr;
+PFNGLCREATEPROGRAMPROC glCreateProgram                       = nullptr;
+PFNGLATTACHSHADERPROC glAttachShader                         = nullptr;
+PFNGLLINKPROGRAMPROC glLinkProgram                           = nullptr;
+PFNGLGETPROGRAMIVPROC glGetProgramiv                         = nullptr;
+PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog               = nullptr;
+PFNGLDELETEPROGRAMPROC glDeleteProgram                       = nullptr;
+PFNGLGENVERTEXARRAYSPROC glGenVertexArrays                   = nullptr;
+PFNGLGENBUFFERSPROC glGenBuffers                             = nullptr;
+PFNGLBINDVERTEXARRAYPROC glBindVertexArray                   = nullptr;
+PFNGLBINDBUFFERPROC glBindBuffer                             = nullptr;
+PFNGLBUFFERDATAPROC glBufferData                             = nullptr;
+PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer           = nullptr;
+PFNGLENABLEVERTEXATTRIBARRAYPROC glEnableVertexAttribArray   = nullptr;
+PFNGLUSEPROGRAMPROC glUseProgram                             = nullptr;
+PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation             = nullptr;
+PFNGLUNIFORM1IPROC glUniform1i                               = nullptr;
+PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays             = nullptr;
+PFNGLACTIVETEXTUREPROC glActiveTexture                       = nullptr;
+PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers                   = nullptr;
+PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer                   = nullptr;
+PFNGLFRAMEBUFFERTEXTURE2DPROC glFramebufferTexture2D         = nullptr;
+PFNGLCHECKFRAMEBUFFERSTATUSPROC glCheckFramebufferStatus     = nullptr;
+PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers             = nullptr;
+PFNGLDELETEBUFFERSPROC glDeleteBuffers                       = nullptr;
+PFNGLUNIFORM2FPROC glUniform2f                               = nullptr;
+PFNGLUNIFORM3FPROC glUniform3f                               = nullptr;
+PFNGLBINDATTRIBLOCATIONPROC glBindAttribLocation             = nullptr;
+PFNGLGETATTRIBLOCATIONPROC glGetAttribLocation               = nullptr;
+PFNGLGENERATEMIPMAPPROC glGenerateMipmap                     = nullptr;
+PFNGLGETUNIFORMBLOCKINDEXPROC glGetUniformBlockIndex         = nullptr;
+PFNGLUNIFORMBLOCKBINDINGPROC glUniformBlockBinding           = nullptr;
+PFNGLBINDBUFFERRANGEPROC glBindBufferRange                   = nullptr;
+PFNGLUNIFORM1FPROC glUniform1f                               = nullptr;
+PFNGLUNIFORM4FPROC glUniform4f                               = nullptr;
+PFNGLUNIFORM2FVPROC glUniform2fv                             = nullptr;
+PFNGLUNIFORM4FVPROC glUniform4fv                             = nullptr;
+PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv                 = nullptr;
+PFNGLBLENDFUNCSEPARATEPROC glBlendFuncSeparate               = nullptr;
+PFNGLSTENCILOPSEPARATEPROC glStencilOpSeparate               = nullptr;
+PFNGLDISABLEVERTEXATTRIBARRAYPROC glDisableVertexAttribArray = nullptr;
 
 #define LOAD(name)                                                    \
     ({                                                                \
@@ -83,6 +97,20 @@ int gl_api_load(void)
     LOAD(glDeleteBuffers);
     LOAD(glUniform2f);
     LOAD(glUniform3f);
+    LOAD(glBindAttribLocation);
+    LOAD(glGetAttribLocation);
+    LOAD(glGenerateMipmap);
+    LOAD(glGetUniformBlockIndex);
+    LOAD(glUniformBlockBinding);
+    LOAD(glBindBufferRange);
+    LOAD(glUniform1f);
+    LOAD(glUniform4f);
+    LOAD(glUniform2fv);
+    LOAD(glUniform4fv);
+    LOAD(glUniformMatrix4fv);
+    LOAD(glBlendFuncSeparate);
+    LOAD(glStencilOpSeparate);
+    LOAD(glDisableVertexAttribArray);
 
     return 0;
 }

@@ -2,6 +2,7 @@
 
 #include "control/commands.h"
 #include "render/overlay.h"
+#include "render/ui/svg_icons.h"
 #include "render/ui/ui_color_scheme.h"
 
 //-------------------------------------------------- Панель -----------------------------------------------------------
@@ -26,6 +27,7 @@
 /// кнопки.
 #define CELL_INNER_PAD 4
 
+
 //----------------------------------------------------------------------------------------------------------------------
 
 typedef struct context_menu_item_s
@@ -35,29 +37,35 @@ typedef struct context_menu_item_s
     bool is_toggle;
 } context_menu_item_s;
 
+#define CMD_NONE ((commands_e) - 1)
+
 static const context_menu_item_s g_items[] = {
-    {"Smoothing",       CMD_TOGGLE_SMOOTHING,       true },
-    {"Auto-levels",     CMD_TOGGLE_AUTO_LEVELS,     true },
+    {"Gradient",        CMD_TOGGLE_GRADIENT,        true },
+    {"Crosshair",       CMD_TOGGLE_CROSSHAIR,       true },
     {"Saturation",      CMD_TOGGLE_SATURATION,      true },
     {"Histogram",       CMD_TOGGLE_HISTOGRAM,       true },
     {"Log Scale",       CMD_TOGGLE_HISTOGRAM_SCALE, true },
     {"CDF",             CMD_TOGGLE_HISTOGRAM_CDF,   true },
-    {"Gradient",        CMD_TOGGLE_GRADIENT,        true },
+
     {"Inspector",       CMD_TOGGLE_INSPECTOR,       true },
     {"Stats",           CMD_TOGGLE_STATS,           true },
-    {"Crosshair",       CMD_TOGGLE_CROSSHAIR,       true },
-    {"Set Reference",   CMD_SET_REFERENCE,          false},
+    {"Diff Ref",        CMD_SET_REFERENCE,          false},
     {"Diff View",       CMD_TOGGLE_DIFF,            true },
     {"Diff Gain -",     CMD_DIFF_GAIN_DOWN,         false},
     {"Diff Gain +",     CMD_DIFF_GAIN_UP,           false},
+
+    {"Backward",        CMD_STEP_BACKWARD,          false},
     {"Pause",           CMD_TOGGLE_PAUSE,           true },
     {"Forward",         CMD_STEP_FORWARD,           false},
-    {"Backward",        CMD_STEP_BACKWARD,          false},
     {"Recording",       CMD_TOGGLE_RECORDING,       true },
-    {"Screenshot",      CMD_REQUEST_SCREENSHOT,     false},
     {"Flush Save",      CMD_FLUSH_SAVER,            false},
+    {"Screenshot",      CMD_REQUEST_SCREENSHOT,     false},
+
+    {"Auto-levels",     CMD_TOGGLE_AUTO_LEVELS,     true },
+    {"Smoothing",       CMD_TOGGLE_SMOOTHING,       true },
     {"Clear Selection", CMD_CLEAR_SELECTION,        false},
     {"Reset Zoom",      CMD_ZOOM_RESET,             false},
+    {"Full screen",     CMD_TOGGLE_FULLSCREEN,      true },
     {"Help",            CMD_SHOW_HELP,              false},
 };
 
@@ -87,112 +95,12 @@ void context_menu_set_hover(point_s mouse)
 
 //------------------------------------------------- Иконки (примитивы) -------------------------------------------------
 
-static void draw_icon(commands_e cmd, point_s center, float scale)
+static void draw_icon(point_s center, float scale)
 {
     int s           = (int)(ICON_SIZE * scale);
     fcolor_rgba_s c = UI_RGBA_WHITE;
 
-    switch (cmd)
-    {
-        case CMD_TOGGLE_SMOOTHING:
-            overlay_rect_draw((rect_s) {center.x - s / 2, center.y - s / 2, center.x, center.y}, c);
-            overlay_rect_draw((rect_s) {center.x, center.y, center.x + s / 2, center.y + s / 2}, c);
-            break;
-        case CMD_TOGGLE_AUTO_LEVELS:
-            overlay_rect_draw((rect_s) {center.x - s / 2, center.y + s / 2, center.x + s / 2, center.y + s / 2 + 2}, c);
-            overlay_rect_draw((rect_s) {center.x - s / 4, center.y, center.x + s / 4, center.y + s / 2}, c);
-            break;
-        case CMD_TOGGLE_SATURATION:
-            overlay_rect_draw((rect_s) {center.x - s / 4, center.y - s / 4, center.x + s / 4, center.y + s / 4}, c);
-            break;
-        case CMD_TOGGLE_HISTOGRAM:
-        case CMD_TOGGLE_HISTOGRAM_SCALE:
-        case CMD_TOGGLE_HISTOGRAM_CDF:
-            overlay_rect_draw((rect_s) {center.x - s / 2, center.y, center.x - s / 4, center.y + s / 2}, c);
-            overlay_rect_draw((rect_s) {center.x - s / 8, center.y - s / 4, center.x + s / 8, center.y + s / 2}, c);
-            overlay_rect_draw((rect_s) {center.x + s / 4, center.y + s / 8, center.x + s / 2, center.y + s / 2}, c);
-            break;
-        case CMD_TOGGLE_GRADIENT:
-            for (int i = 0; i < s; i += 3)
-            {
-                overlay_rect_draw((rect_s) {center.x - s / 2 + i, center.y + s / 2 - i, center.x - s / 2 + i + 2,
-                                            center.y + s / 2 - i + 2},
-                                  c);
-            }
-            break;
-        case CMD_TOGGLE_INSPECTOR:
-            overlay_rect_draw((rect_s) {center.x - s / 3, center.y - s / 6, center.x + s / 3, center.y + s / 6}, c);
-            overlay_rect_draw((rect_s) {center.x - s / 6, center.y - s / 6, center.x + s / 6, center.y + s / 6},
-                              UI_RGBA_BLACK);
-            break;
-        case CMD_TOGGLE_STATS:
-            overlay_rect_draw((rect_s) {center.x - s / 2, center.y - s / 3, center.x + s / 2, center.y - s / 3 + 2}, c);
-            overlay_rect_draw((rect_s) {center.x - s / 2, center.y + s / 3, center.x + s / 2, center.y + s / 3 + 2}, c);
-            break;
-        case CMD_TOGGLE_CROSSHAIR:
-            overlay_rect_draw((rect_s) {center.x - s / 2, center.y - 1, center.x + s / 2, center.y + 1}, c);
-            overlay_rect_draw((rect_s) {center.x - 1, center.y - s / 2, center.x + 1, center.y + s / 2}, c);
-            break;
-        case CMD_SET_REFERENCE:
-            overlay_rect_outline_draw((rect_s) {center.x - s / 3, center.y - s / 3, center.x + s / 3, center.y + s / 3},
-                                      c, 2);
-            overlay_rect_draw((rect_s) {center.x - 2, center.y - 2, center.x + 2, center.y + 2}, c);
-            break;
-        case CMD_TOGGLE_DIFF:
-            overlay_rect_outline_draw((rect_s) {center.x - s / 2, center.y - s / 2, center.x + s / 4, center.y + s / 4},
-                                      c, 2);
-            overlay_rect_outline_draw((rect_s) {center.x - s / 4, center.y - s / 4, center.x + s / 2, center.y + s / 2},
-                                      c, 2);
-            break;
-        case CMD_DIFF_GAIN_DOWN:
-            overlay_rect_draw((rect_s) {center.x - s / 2, center.y - 2, center.x + s / 2, center.y + 2}, c);
-            break;
-        case CMD_DIFF_GAIN_UP:
-            overlay_rect_draw((rect_s) {center.x - s / 2, center.y - 2, center.x + s / 2, center.y + 2}, c);
-            overlay_rect_draw((rect_s) {center.x - 2, center.y - s / 2, center.x + 2, center.y + s / 2}, c);
-            break;
-        case CMD_TOGGLE_PAUSE:
-            overlay_rect_draw((rect_s) {center.x - s / 3, center.y - s / 3, center.x - s / 6, center.y + s / 3}, c);
-            overlay_rect_draw((rect_s) {center.x + s / 6, center.y - s / 3, center.x + s / 3, center.y + s / 3}, c);
-            break;
-        case CMD_STEP_FORWARD:
-            overlay_rect_draw((rect_s) {center.x - s / 3, center.y - s / 3, center.x + s / 3, center.y}, c);
-            overlay_rect_draw((rect_s) {center.x - s / 3, center.y, center.x + s / 3, center.y + s / 3}, c);
-            break;
-        case CMD_STEP_BACKWARD:
-            overlay_rect_draw((rect_s) {center.x + s / 3, center.y - s / 3, center.x - s / 3, center.y}, c);
-            overlay_rect_draw((rect_s) {center.x + s / 3, center.y, center.x - s / 3, center.y + s / 3}, c);
-            break;
-        case CMD_TOGGLE_RECORDING:
-            overlay_rect_outline_draw((rect_s) {center.x - s / 3, center.y - s / 3, center.x + s / 3, center.y + s / 3},
-                                      c, 3);
-            break;
-        case CMD_REQUEST_SCREENSHOT:
-            overlay_rect_outline_draw((rect_s) {center.x - s / 2, center.y - s / 3, center.x + s / 2, center.y + s / 3},
-                                      c, 2);
-            break;
-        case CMD_FLUSH_SAVER:
-            overlay_rect_draw((rect_s) {center.x - 2, center.y - s / 2, center.x + 2, center.y + s / 4}, c);
-            overlay_rect_draw((rect_s) {center.x - s / 4, center.y, center.x + s / 4, center.y + 2}, c);
-            break;
-        case CMD_CLEAR_SELECTION:
-            overlay_rect_outline_draw((rect_s) {center.x - s / 3, center.y - s / 3, center.x + s / 3, center.y + s / 3},
-                                      c, 2);
-            break;
-        case CMD_ZOOM_RESET:
-            overlay_rect_outline_draw((rect_s) {center.x - s / 3, center.y - s / 3, center.x + s / 6, center.y + s / 6},
-                                      c, 2);
-            overlay_rect_draw((rect_s) {center.x + s / 6, center.y + s / 6, center.x + s / 3, center.y + s / 3}, c);
-            break;
-        case CMD_SHOW_HELP:
-            overlay_rect_draw((rect_s) {center.x - 2, center.y - s / 3, center.x + 2, center.y - s / 6}, c);
-            overlay_rect_draw((rect_s) {center.x - 2, center.y - 2, center.x + 2, center.y + 2}, c);
-            break;
-        default:
-            overlay_rect_outline_draw((rect_s) {center.x - s / 3, center.y - s / 3, center.x + s / 3, center.y + s / 3},
-                                      c, 1);
-            break;
-    }
+    overlay_rect_outline_draw((rect_s) {center.x - s / 3, center.y - s / 3, center.x + s / 3, center.y + s / 3}, c, 1);
 }
 
 //----------------------------------------------- Отрисовка панели -----------------------------------------------------
@@ -200,14 +108,7 @@ static void draw_icon(commands_e cmd, point_s center, float scale)
 static void get_panel_rect(image_size_s win, float scale, rect_s * out_panel, int * out_visible_count)
 {
     int cols    = PANEL_COLS;
-    int visible = 0;
-    for (int i = 0; i < g_item_count; i++)
-    {
-        if (g_items[ i ].cmd != 0)
-        {
-            visible++;
-        }
-    }
+    int visible = g_item_count;
 
     int rows = (visible + cols - 1) / cols;
     int pad  = (int)(PANEL_PADDING * scale);
@@ -254,14 +155,14 @@ void context_menu_draw(image_size_s win, float scale)
 
     for (int i = 0; i < g_item_count; i++)
     {
-        if (g_items[ i ].cmd == 0)
-        {
-            continue;
-        }
-
         int row = idx / cols;
         int col = idx % cols;
         idx++;
+
+        if (g_items[ i ].cmd == CMD_NONE)
+        {
+            continue;
+        }
 
         int cx = start_x + col * cell_w;
         int cy = start_y + row * cell_h;
@@ -271,7 +172,6 @@ void context_menu_draw(image_size_s win, float scale)
         bool hovered = (g_hover.x >= cell.x0 && g_hover.x < cell.x1 && g_hover.y >= cell.y0 && g_hover.y < cell.y1);
         bool active  = g_items[ i ].is_toggle && cmd_is_active(g_items[ i ].cmd);
 
-        // Фон ячейки
         if (active)
         {
             overlay_rect_draw(cell, hovered ? UI_MENU_ITEM_ACTIVE_HOVER : UI_MENU_ITEM_ACTIVE);
@@ -286,18 +186,19 @@ void context_menu_draw(image_size_s win, float scale)
         }
         overlay_rect_outline_draw(cell, UI_CELL_BORDER, 1);
 
-        // Иконка — по центру верхней части ячейки
-        int icon_s          = (int)(ICON_SIZE * scale);
-        int icon_top        = cell.y0 + inner_pad;
-        point_s icon_center = {cell.x0 + (cell.x1 - cell.x0) / 2, icon_top + icon_s / 2};
-        draw_icon(g_items[ i ].cmd, icon_center, scale);
+        // Иконка — только fallback-примитив, если SVG нет.
+        // SVG рисуется отдельным проходом в context_menu_draw_icons.
+        if (!svg_icon_exists(g_items[ i ].cmd))
+        {
+            point_s icon_center = {cx + cell_w / 2, cy + cell_h / 2 - 8};
+            draw_icon(icon_center, scale);
+        }
 
-        // Текст — по центру нижней части
+        // Текст
         const char * label = g_items[ i ].label;
-
-        float fit_scale = TEXT_SCALE * scale;
-        int tw          = overlay_text_measure(label, fit_scale);
-        int max_w       = (cell.x1 - cell.x0) - 2 * inner_pad;
+        float fit_scale    = TEXT_SCALE * scale;
+        int tw             = overlay_text_measure(label, fit_scale);
+        int max_w          = (cell.x1 - cell.x0) - 2 * inner_pad;
         while (tw > max_w && fit_scale > 0.45f)
         {
             fit_scale -= 0.05f;
@@ -338,14 +239,14 @@ bool context_menu_handle_click(point_s mouse, image_size_s win, float scale)
 
     for (int i = 0; i < g_item_count; i++)
     {
-        if (g_items[ i ].cmd == 0)
-        {
-            continue;
-        }
-
         int row = idx / cols;
         int col = idx % cols;
         idx++;
+
+        if (g_items[ i ].cmd == CMD_NONE)
+        {
+            continue;
+        }
 
         int cx = start_x + col * cell_w;
         int cy = start_y + row * cell_h;
@@ -362,4 +263,45 @@ bool context_menu_handle_click(point_s mouse, image_size_s win, float scale)
 
     context_menu_close();
     return true;
+}
+
+void context_menu_draw_icons(image_size_s win, float scale)
+{
+    if (!g_open)
+    {
+        return;
+    }
+
+    rect_s panel;
+    get_panel_rect(win, scale, &panel, nullptr);
+
+    int cols      = PANEL_COLS;
+    int cell_w    = (int)(CELL_SIZE * scale);
+    int cell_h    = (int)(CELL_SIZE * scale);
+    int inner_pad = (int)(CELL_INNER_PAD * scale);
+    int panel_pad = (int)(PANEL_PADDING * scale);
+
+    int start_x = panel.x0 + panel_pad;
+    int start_y = panel.y0 + panel_pad;
+    int idx     = 0;
+
+    for (int i = 0; i < g_item_count; i++)
+    {
+        int row = idx / cols;
+        int col = idx % cols;
+        idx++;
+
+        if (g_items[ i ].cmd == CMD_NONE)
+        {
+            continue;
+        }
+
+        int cx              = start_x + col * cell_w;
+        int cy              = start_y + row * cell_h;
+        int icon_s          = (int)(ICON_SIZE * scale);
+        int icon_top        = cy + (int)(CELL_OUTER_PAD * scale) + inner_pad;
+        point_s icon_center = {cx + cell_w / 2, icon_top + icon_s / 2};
+
+        svg_icons_draw(g_items[ i ].cmd, icon_center, (float)icon_s, UI_RGBA_WHITE);
+    }
 }

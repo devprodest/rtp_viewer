@@ -17,6 +17,7 @@
 #include "selection_view.h"
 #include "ui/context_menu.h"
 #include "ui/progress_bar.h"
+#include "ui/svg_icons.h"
 #include "ui/ui_color_scheme.h"
 #include "ui/window_title.h"
 #include "util/utils.h"
@@ -361,11 +362,18 @@ void renderer_update_texture(const uint8_t * data)
     render_stats_overlay();
     render_crosshair();
     progress_bar_draw(win, g_dpi_scale);
+
     context_menu_draw(win, g_dpi_scale);
     overlay_end();
 
-    screenshot_process_if_requested();
+    if (context_menu_is_open())
+    {
+        svg_icons_begin(win, g_dpi_scale);
+        context_menu_draw_icons(win, g_dpi_scale);
+        svg_icons_end();
+    }
 
+    screenshot_process_if_requested();
     window_swap_buffers();
 }
 

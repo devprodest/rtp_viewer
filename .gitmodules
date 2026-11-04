@@ -1,0 +1,6 @@
+[submodule "lib/nanovg"]
+	path = lib/nanovg
+	url = https://github.com/memononen/nanovg.git
+[submodule "lib/nanosvg"]
+	path = lib/nanosvg
+	url = https://github.com/memononen/nanosvg.git
