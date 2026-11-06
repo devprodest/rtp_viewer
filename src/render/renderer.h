@@ -26,7 +26,6 @@ void renderer_toggle_histogram(void);
 void renderer_toggle_histogram_scale(void);
 void renderer_toggle_histogram_cdf(void);
 void renderer_toggle_saturation(void);
-void renderer_toggle_crosshair(void);
 void renderer_toggle_gradient(void);
 
 void renderer_request_screenshot(void);
@@ -39,8 +38,6 @@ void renderer_zoom_reset(void);
 void renderer_zoom_apply_wheel(double wheel, point_s point);
 void renderer_pan_apply_drag(point_s point, bool middle_down);
 
-void renderer_draw_inspector(point_s point);
-void renderer_toggle_inspector(void);
 void renderer_set_mouse_pos(point_s mouse);
 
 bool renderer_handle_context_menu(point_s mouse, bool right_down, bool left_down);
@@ -48,8 +45,6 @@ bool renderer_handle_context_menu(point_s mouse, bool right_down, bool left_down
 bool renderer_is_smoothing_active(void);
 bool renderer_is_saturation_active(void);
 bool renderer_is_gradient_active(void);
-bool renderer_is_inspector_active(void);
-bool renderer_is_crosshair_active(void);
 
 float renderer_get_dpi_scale(void);
 

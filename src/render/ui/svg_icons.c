@@ -30,9 +30,6 @@
 
 //------------------------------------------------------- SVG-иконки ---------------------------------------------------
 
-static const char svg_crosshair[] = {
-#embed "../../res/icons/crosshair.svg" suffix(, 0)
-};
 static const char svg_stats[] = {
 #embed "../../res/icons/stats.svg" suffix(, 0)
 };
@@ -112,7 +109,6 @@ typedef struct
 } icon_entry_t;
 
 static const icon_entry_t g_icon_table[] = {
-    {CMD_TOGGLE_CROSSHAIR,       svg_crosshair      },
     {CMD_TOGGLE_STATS,           svg_stats          },
     {CMD_SHOW_HELP,              svg_help           },
     {CMD_TOGGLE_SMOOTHING,       svg_smoothing      },

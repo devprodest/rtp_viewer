@@ -16,6 +16,7 @@
 #include "save/screenshot.h"
 #include "selection_view.h"
 #include "ui/context_menu.h"
+#include "ui/pixel_probe.h"
 #include "ui/progress_bar.h"
 #include "ui/svg_icons.h"
 #include "ui/ui_color_scheme.h"
@@ -30,7 +31,6 @@
 //----------------------------------------------------------------------------------------------------------------------
 
 static void render_stats_overlay(void);
-static void render_crosshair(void);
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -49,16 +49,11 @@ static float g_dpi_scale = 1.0f;
 
 static bool g_left_was_down = false;
 
-static bool g_inspector_enabled     = false;
-static float g_inspector_text_scale = 1.f;
-static point_s g_last_mouse         = {};
 static const uint8_t * g_last_frame = nullptr;
 
 static bool g_auto_levels_enabled = false;
 static bool g_gradient_enabled    = false;
 static sharpness_s g_sharpness;
-
-static bool g_crosshair_enabled = false;
 
 static uint8_t * g_reference_buffer = nullptr;
 static size_t g_reference_bytes     = 0;
@@ -272,6 +267,7 @@ void renderer_update_texture(const uint8_t * data)
     format_pass_upload(frame_to_upload);
 
     analytics_update(data, g_win, &g_format, &g_selection, g_eff_bits);
+    pixel_probe_set_frame(data, g_win, g_format.bytes_per_pixel);
 
     if (g_gradient_enabled)
     {
@@ -355,12 +351,8 @@ void renderer_update_texture(const uint8_t * data)
 
     overlay_begin(win);
     selection_view_draw(&g_selection, viewport_get_point(), viewport_get_size(), g_win);
-    if (g_inspector_enabled)
-    {
-        renderer_draw_inspector(g_last_mouse);
-    }
+    pixel_probe_draw(win, g_dpi_scale);
     render_stats_overlay();
-    render_crosshair();
     progress_bar_draw(win, g_dpi_scale);
 
     context_menu_draw(win, g_dpi_scale);
@@ -525,182 +517,9 @@ static void render_stats_overlay(void)
     }
 }
 
-static void render_crosshair(void)
-{
-    if (!g_crosshair_enabled)
-    {
-        return;
-    }
-
-    image_size_s win = window_get_framebuffer_size();
-    if (win.x <= 0 || win.y <= 0)
-    {
-        return;
-    }
-
-    const int mx = g_last_mouse.x;
-    const int my = g_last_mouse.y;
-    if (mx < 0 || my < 0 || mx >= win.x || my >= win.y)
-    {
-        return;
-    }
-
-    const fcolor_rgba_s line_color = UI_CROSSHAIR_LINE;
-
-    overlay_rect_draw((rect_s) {0, my, win.x, my + 1}, line_color);
-    overlay_rect_draw((rect_s) {mx, 0, mx + 1, win.y}, line_color);
-
-    // Показываем цифры только если курсор действительно над изображением.
-    point_s frame;
-    const bool inside = viewport_screen_to_frame((point_s) {mx, my}, &frame) && frame.x >= 0 && frame.x < g_win.x &&
-                        frame.y >= 0 && frame.y < g_win.y;
-    if (!inside)
-    {
-        return;
-    }
-
-    char buf[ 64 ];
-    snprintf(buf, sizeof(buf), "x=%d y=%d", frame.x, frame.y);
-
-    const float text_scale = g_dpi_scale * 1.f;
-    const int pad          = (int)(4 * g_dpi_scale);
-    const int line_h       = (int)(14 * text_scale);
-    const int tw           = overlay_text_measure(buf, text_scale);
-
-    int px = mx + 12;
-    int py = my + 12;
-    if (px + tw + 2 * pad > win.x)
-    {
-        px = mx - tw - 12 - 2 * pad;
-    }
-    if (py + line_h + 2 * pad > win.y)
-    {
-        py = my - line_h - 12 - 2 * pad;
-    }
-    if (px < 0)
-    {
-        px = 0;
-    }
-    if (py < 0)
-    {
-        py = 0;
-    }
-
-    rect_s panel = {px, py, px + tw + 2 * pad, py + line_h + 2 * pad};
-    overlay_rect_draw(panel, UI_PANEL_BG_STRONG);
-    overlay_text_draw((point_s) {px + pad, py + pad}, buf, UI_TEXT_PRIMARY, text_scale);
-}
-
-void renderer_draw_inspector(point_s point)
-{
-    point_s frame;
-    if (!viewport_screen_to_frame(point, &frame))
-    {
-        return;
-    }
-
-    if (!g_last_frame)
-    {
-        return;
-    }
-
-    color_rgb_s rgb = {0, 0, 0};
-    uint32_t raw    = 0;
-
-    if (g_format.bytes_per_pixel == 1)
-    {
-        uint8_t v = g_last_frame[ ((size_t)frame.y * (size_t)g_win.x) + (size_t)frame.x ];
-        rgb       = (color_rgb_s) {v, v, v};
-        raw       = v;
-    }
-    else if (g_format.bytes_per_pixel == 2)
-    {
-        const uint16_t * p = (const uint16_t *)g_last_frame;
-        uint16_t v         = p[ ((size_t)frame.y * (size_t)g_win.x) + (size_t)frame.x ];
-        raw                = v;
-        uint8_t v8         = (uint8_t)(v >> 8);
-        rgb                = (color_rgb_s) {v8, v8, v8};
-    }
-    else if (g_format.bytes_per_pixel == 3)
-    {
-        size_t idx = (((size_t)frame.y * (size_t)g_win.x) + (size_t)frame.x) * 3;
-        rgb.r      = g_last_frame[ idx + 0 ];
-        rgb.g      = g_last_frame[ idx + 1 ];
-        rgb.b      = g_last_frame[ idx + 2 ];
-    }
-    else if (g_format.bytes_per_pixel == 4)
-    {
-        size_t idx = (((size_t)frame.y * (size_t)g_win.x) + (size_t)frame.x) * 4;
-        rgb.r      = g_last_frame[ idx + 0 ];
-        rgb.g      = g_last_frame[ idx + 1 ];
-        rgb.b      = g_last_frame[ idx + 2 ];
-    }
-
-    image_size_s win = window_get_framebuffer_size();
-
-    const float text_scale = g_dpi_scale * g_inspector_text_scale;
-    const int margin       = (int)(10 * g_dpi_scale);
-    const int box_size     = (int)(40 * g_dpi_scale);
-    const int gap          = (int)(10 * g_dpi_scale);
-    const int pad          = (int)(6 * g_dpi_scale);
-    const int line_h       = (int)(14 * text_scale);
-
-    const int box_x  = margin;
-    const int box_y  = win.y - margin - box_size;
-    const int text_x = box_x + box_size + gap;
-
-
-    typedef char text_line_t[ 64 ];
-    text_line_t line[ 2 ];
-
-    snprintf(line[ 0 ], sizeof(text_line_t), "x;y=(%d;%d)", frame.x, frame.y);
-
-    if (g_format.bytes_per_pixel <= 2)
-    {
-        snprintf(line[ 1 ], sizeof(text_line_t), "val=%u", raw);
-    }
-    else
-    {
-        snprintf(line[ 1 ], sizeof(text_line_t), "RGB=(%u;%u;%u)", rgb.r, rgb.g, rgb.b);
-    }
-
-    int w1     = overlay_text_measure(line[ 0 ], text_scale);
-    int w2     = overlay_text_measure(line[ 1 ], text_scale);
-    int text_w = (w1 > w2) ? w1 : w2;
-
-    // Плашка под текстом, справа от квадрата
-
-    rect_s panel = {
-        .x0 = text_x - pad,
-        .y0 = box_y - pad,
-        .x1 = text_x + text_w + pad,
-        .y1 = box_y + line_h + line_h + pad,
-    };
-    overlay_rect_draw(panel, UI_PANEL_BG_STRONG);
-
-    // Квадрат цвета пикселя + рамка
-    rect_s pix_color = {box_x, box_y, box_x + box_size, box_y + box_size};
-
-    overlay_rect_draw(pix_color, (fcolor_rgba_s) {rgb.r / 255.0f, rgb.g / 255.0f, rgb.b / 255.0f, 1.0f});
-    overlay_rect_outline_draw(pix_color, UI_PANEL_BORDER, 1);
-
-    // Текст
-    for (size_t i = 0; i < 2; i++)
-    {
-        overlay_text_draw((point_s) {text_x, box_y + (i * line_h)}, line[ i ], (fcolor_rgb_s) {1.0f, 1.0f, 1.0f},
-                          text_scale);
-    }
-}
-
-void renderer_toggle_inspector(void)
-{
-    g_inspector_enabled = !g_inspector_enabled;
-    log_info("Inspector %s", g_inspector_enabled ? "enabled" : "disabled");
-}
-
 void renderer_set_mouse_pos(point_s mouse)
 {
-    g_last_mouse = mouse;
+    pixel_probe_set_mouse(mouse);
     progress_bar_notify_mouse(mouse);
 }
 
@@ -726,12 +545,6 @@ void renderer_toggle_auto_levels(void)
 bool renderer_is_auto_levels_active(void)
 {
     return g_auto_levels_enabled;
-}
-
-void renderer_toggle_crosshair(void)
-{
-    g_crosshair_enabled = !g_crosshair_enabled;
-    log_info("Crosshair %s", g_crosshair_enabled ? "enabled" : "disabled");
 }
 
 void renderer_set_reference(void)
@@ -843,12 +656,4 @@ bool renderer_is_saturation_active(void)
 bool renderer_is_gradient_active(void)
 {
     return g_gradient_enabled;
-}
-bool renderer_is_inspector_active(void)
-{
-    return g_inspector_enabled;
-}
-bool renderer_is_crosshair_active(void)
-{
-    return g_crosshair_enabled;
 }

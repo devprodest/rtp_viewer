@@ -30,7 +30,6 @@ static const char * build_hotkeys_text(void)
              "  Ctrl+H \tToggle histogram scale (linear / log)\n"
              "  C \tToggle histogram CDF overlay\n"
              "  T \tToggle statistics overlay (min/max/mean/std)\n"
-             "  X \tToggle crosshair + cursor coordinates\n"
              "  I \tToggle pixel inspector\n"
              "\n"
              "Reference diff:\n"

@@ -5,7 +5,7 @@
 #include "help/help.h"
 #include "render/histogram_view.h"
 #include "render/renderer.h"
-#include "render/ui/context_menu.h"
+#include "render/ui/pixel_probe.h"
 #include "render/ui/window_title.h"
 #include "render/window.h"
 #include "save/saver.h"
@@ -22,13 +22,12 @@ void cmd_execute(commands_e cmd)
         case CMD_TOGGLE_FULLSCREEN: window_toggle_fullscreen(); break;
 
         case CMD_TOGGLE_GRADIENT: renderer_toggle_gradient(); break;
-        case CMD_TOGGLE_INSPECTOR: renderer_toggle_inspector(); break;
+        case CMD_TOGGLE_INSPECTOR: pixel_probe_toggle(); break;
         case CMD_TOGGLE_SATURATION: renderer_toggle_saturation(); break;
         case CMD_TOGGLE_HISTOGRAM: renderer_toggle_histogram(); break;
         case CMD_TOGGLE_HISTOGRAM_SCALE: renderer_toggle_histogram_scale(); break;
         case CMD_TOGGLE_HISTOGRAM_CDF: renderer_toggle_histogram_cdf(); break;
         case CMD_TOGGLE_STATS: analytics_toggle_stats_visible(); break;
-        case CMD_TOGGLE_CROSSHAIR: renderer_toggle_crosshair(); break;
 
         case CMD_FLUSH_SAVER: saver_flush(); break;
         case CMD_TOGGLE_RECORDING:
@@ -64,13 +63,12 @@ bool cmd_is_active(commands_e cmd)
         case CMD_TOGGLE_AUTO_LEVELS: return renderer_is_auto_levels_active();
         case CMD_TOGGLE_FULLSCREEN: return window_is_fullscreen();
         case CMD_TOGGLE_GRADIENT: return renderer_is_gradient_active();
-        case CMD_TOGGLE_INSPECTOR: return renderer_is_inspector_active();
+        case CMD_TOGGLE_INSPECTOR: return pixel_probe_is_enabled();
         case CMD_TOGGLE_SATURATION: return renderer_is_saturation_active();
         case CMD_TOGGLE_HISTOGRAM: return histogram_view_is_enabled();
         case CMD_TOGGLE_HISTOGRAM_SCALE: return histogram_view_is_log_scale();
         case CMD_TOGGLE_HISTOGRAM_CDF: return histogram_view_is_cdf();
         case CMD_TOGGLE_STATS: return analytics_is_stats_visible();
-        case CMD_TOGGLE_CROSSHAIR: return renderer_is_crosshair_active();
         case CMD_TOGGLE_RECORDING: return saver_is_recording();
         case CMD_TOGGLE_PAUSE: return app_is_paused();
         case CMD_TOGGLE_DIFF: return renderer_is_diff_active();
