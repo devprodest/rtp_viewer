@@ -1,12 +1,20 @@
 #pragma once
 
-// Единственный источник правды о версии.
+// Единственный источник правды о версии — version.mk в корне проекта.
 
-#define RTP_VIEWER_VERSION_MAJOR 1
-#define RTP_VIEWER_VERSION_MINOR 0
-#define RTP_VIEWER_VERSION_PATCH 7
-#define RTP_VIEWER_VERSION_STR   "1.0.7"
+#ifndef RTP_VIEWER_VERSION_MAJOR
+    #define RTP_VIEWER_VERSION_MAJOR 0
+#endif
+#ifndef RTP_VIEWER_VERSION_MINOR
+    #define RTP_VIEWER_VERSION_MINOR 0
+#endif
+#ifndef RTP_VIEWER_VERSION_PATCH
+    #define RTP_VIEWER_VERSION_PATCH 0
+#endif
+#ifndef RTP_VIEWER_VERSION_STR
+    #define RTP_VIEWER_VERSION_STR "0.0.0"
+#endif
 
-#define RTP_VIEWER_PRODUCT_NAME  "RTP Viewer"
-#define RTP_VIEWER_COMPANY_NAME  "CDE"
-#define RTP_VIEWER_COPYRIGHT     "Copyright (C) 2026"
+#define RTP_VIEWER_PRODUCT_NAME "RTP Viewer"
+#define RTP_VIEWER_COMPANY_NAME "CDE"
+#define RTP_VIEWER_COPYRIGHT    "Copyright (C) 2026"

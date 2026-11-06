@@ -199,12 +199,23 @@ static int ensure_icon_loaded(int idx)
         return -1;
     }
 
-    for (NSVGshape * shape = image->shapes; shape != nullptr; shape = shape->next)
-    {
-        shape->fill.type   = NSVG_PAINT_COLOR;
-        shape->fill.color  = 0xFFFFFFFF;
-        shape->stroke.type = NSVG_PAINT_NONE;
-    }
+        for (NSVGshape * shape = image->shapes; shape != nullptr; shape = shape->next)
+        {
+            // Если фигура заливная — делаем её белой
+            if (shape->fill.type != NSVG_PAINT_NONE)
+            {
+                shape->fill.color = 0xFFFFFFFF;
+            }
+            // Если фигура контурная — делаем контур белым и задаём толщину
+            if (shape->stroke.type != NSVG_PAINT_NONE)
+            {
+                shape->stroke.color = 0xFFFFFFFF;
+                if (shape->strokeWidth <= 0.0f)
+                {
+                    shape->strokeWidth = 1.f;
+                }
+            }
+        }
 
     memset(g_raster_buf, 0, ICON_RASTER_SIZE * ICON_RASTER_SIZE * 4);
 

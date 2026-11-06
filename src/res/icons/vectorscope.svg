@@ -1,5 +1,1 @@
-<svg width="24" height="24" viewBox="0 0 24 24">
-<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
-<path d="M11 3h2v8h-2zM11 13h2v8h-2zM3 11h8v2H3zM13 11h8v2h-8z"/>
-<circle cx="15" cy="9" r="2"/>
-</svg>
+<svg viewBox="0 0 24 24" stroke="#FFF" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="2" fill="#FFF"/></svg>

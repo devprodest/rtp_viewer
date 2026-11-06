@@ -1,8 +1,8 @@
-obj/*.o
+obj/*
 publish/**/*
 .PVS-Studio/*
 *.exe
 *.raw
 *.log
-rgb-mock.bat
-ycbcr-mock.bat
+*-mock.bat
+*_help.txt
