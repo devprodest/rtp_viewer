@@ -16,12 +16,13 @@
 #include "save/screenshot.h"
 #include "selection_view.h"
 #include "ui/context_menu.h"
+#include "ui/line_profile_view.h"
 #include "ui/pixel_probe.h"
 #include "ui/progress_bar.h"
 #include "ui/svg_icons.h"
 #include "ui/ui_color_scheme.h"
+#include "ui/vectorscope_view.h"
 #include "ui/window_title.h"
-#include "ui/line_profile_view.h"
 #include "util/utils.h"
 #include "viewport.h"
 #include "window.h"
@@ -154,6 +155,16 @@ bool renderer_init(image_size_s win, const char * format_name, int effective_bit
         return false;
     }
 
+    if (!vectorscope_view_init(g_quad_vao))
+    {
+        histogram_view_cleanup();
+        post_pass_cleanup();
+        format_pass_cleanup();
+        overlay_cleanup();
+        window_cleanup();
+        return false;
+    }
+
     screenshot_init();
     screenshot_set_size(win.x, win.y);
 
@@ -170,6 +181,7 @@ void renderer_cleanup(void)
 {
     screenshot_cleanup();
     histogram_view_cleanup();
+    vectorscope_view_cleanup();
     post_pass_cleanup();
     format_pass_cleanup();
 
@@ -319,8 +331,8 @@ void renderer_set_frame(const uint8_t * data)
         window_title_set_sharpness(g_sharpness.valid, g_sharpness.lap_var, g_sharpness.tenengrad);
     }
 
-        histogram_view_update(g_eff_bits); 
-    
+    histogram_view_update(g_eff_bits);
+    vectorscope_view_update(data, g_win, &g_format, &g_selection, g_format.bytes_per_pixel);
 }
 
 void renderer_draw(void)
@@ -344,12 +356,13 @@ void renderer_draw(void)
     post_pass_render(format_pass_get_output_tex(), viewport_get_point(), viewport_get_size(), win);
 
     histogram_view_render(win);
+    vectorscope_view_render(win, g_dpi_scale);
 
     overlay_begin(win);
     selection_view_draw(&g_selection, viewport_get_point(), viewport_get_size(), g_win);
     pixel_probe_draw(win, g_dpi_scale);
     render_stats_overlay();
-    line_profile_view_draw(win, g_dpi_scale); 
+    line_profile_view_draw(win, g_dpi_scale);
     progress_bar_draw(win, g_dpi_scale);
     context_menu_draw(win, g_dpi_scale);
     overlay_end();
@@ -417,8 +430,27 @@ void renderer_request_screenshot(void)
     screenshot_request();
 }
 
+void renderer_refresh_analytics(void)
+{
+    if (!g_last_frame)
+    {
+        return;
+    }
+
+    analytics_update(g_last_frame, g_win, &g_format, &g_selection, g_eff_bits);
+    pixel_probe_set_frame(g_last_frame, g_win, g_format.bytes_per_pixel);
+
+    if (histogram_view_is_enabled())
+    {
+        histogram_view_update(g_eff_bits);
+    }
+    vectorscope_view_update(g_last_frame, g_win, &g_format, &g_selection, g_format.bytes_per_pixel);
+}
+
 void renderer_set_selection_from_mouse(point_s mouse, bool left_down, bool in_view)
 {
+    bool was_dragging = g_left_was_down;
+
     if (left_down && !g_left_was_down && in_view)
     {
         selection_begin(&g_selection, mouse);
@@ -433,6 +465,12 @@ void renderer_set_selection_from_mouse(point_s mouse, bool left_down, bool in_vi
     }
 
     g_left_was_down = left_down;
+
+    // Выделение закончилось — пересчитать аналитику по новому ROI
+    if (was_dragging && !left_down)
+    {
+        renderer_refresh_analytics();
+    }
 }
 
 void renderer_clear_selection(void)
@@ -648,4 +686,18 @@ bool renderer_is_saturation_active(void)
 bool renderer_is_gradient_active(void)
 {
     return g_gradient_enabled;
+}
+
+void renderer_toggle_vectorscope(void)
+{
+    vectorscope_view_toggle_enabled();
+    if (vectorscope_view_is_enabled() && g_last_frame)
+    {
+        vectorscope_view_update(g_last_frame, g_win, &g_format, &g_selection, g_format.bytes_per_pixel);
+    }
+}
+
+bool renderer_is_vectorscope_active(void)
+{
+    return vectorscope_view_is_enabled();
 }

@@ -8,6 +8,7 @@
 #include "render/ui/line_profile_view.h"
 #include "render/ui/pixel_probe.h"
 #include "render/ui/window_title.h"
+#include "render/ui/vectorscope_view.h"
 #include "render/window.h"
 #include "save/saver.h"
 
@@ -29,6 +30,7 @@ void cmd_execute(commands_e cmd)
         case CMD_TOGGLE_HISTOGRAM_SCALE: renderer_toggle_histogram_scale(); break;
         case CMD_TOGGLE_LINE_PROFILE: line_profile_view_toggle(); break;
         case CMD_TOGGLE_STATS: analytics_toggle_stats_visible(); break;
+        case CMD_TOGGLE_VECTORSCOPE: renderer_toggle_vectorscope(); break;
 
         case CMD_FLUSH_SAVER: saver_flush(); break;
         case CMD_TOGGLE_RECORDING:
@@ -73,6 +75,7 @@ bool cmd_is_active(commands_e cmd)
         case CMD_TOGGLE_RECORDING: return saver_is_recording();
         case CMD_TOGGLE_PAUSE: return app_is_paused();
         case CMD_TOGGLE_DIFF: return renderer_is_diff_active();
+        case CMD_TOGGLE_VECTORSCOPE: return renderer_is_vectorscope_active();
 
         default: return false;
     }

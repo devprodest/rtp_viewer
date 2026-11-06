@@ -16,6 +16,8 @@ void renderer_poll_events(void);
 void renderer_set_frame(const uint8_t * data);
 void renderer_draw(void);
 
+void renderer_refresh_analytics(void);
+
 int renderer_get_bytes_per_pixel(void);
 
 void renderer_set_demosaic_mode(int mode);
@@ -56,3 +58,6 @@ void renderer_toggle_diff(void);
 void renderer_diff_gain_up(void);
 void renderer_diff_gain_down(void);
 bool renderer_is_diff_active(void);
+
+void renderer_toggle_vectorscope(void);
+bool renderer_is_vectorscope_active(void);

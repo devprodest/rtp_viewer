@@ -28,6 +28,7 @@ static const char * build_hotkeys_text(void)
              "  Ctrl+H   Toggle histogram scale (linear / log)\n"
              "  T        Toggle statistics overlay (min/max/mean/std)\n"
              "  L        Toggle line profile (cross-section under cursor)\n"
+             "  M        Toggle vectorscope (Cb/Cr 2D histogram)\n"
              "  I        Toggle pixel probe (crosshair + pixel value at cursor)\n\n"
              "Reference / Diff:\n"
              "  V        Set current frame as reference\n"

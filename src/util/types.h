@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 //----------------------------------------------------------------------------------------------------------------------
 
 typedef struct point_s
@@ -42,6 +44,14 @@ typedef fpoint_s fimage_size_s;
 
 //----------------------------------------------------------------------------------------------------------------------
 
+typedef struct u8color_rgba_s
+{
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+    uint8_t a;
+} u8color_rgba_s;
+
 typedef struct color_rgba_s
 {
     int r;
@@ -57,6 +67,13 @@ typedef struct fcolor_rgba_s
     float b;
     float a;
 } fcolor_rgba_s;
+
+typedef struct u8color_rgb_s
+{
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+} u8color_rgb_s;
 
 typedef struct color_rgb_s
 {

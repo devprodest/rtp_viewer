@@ -21,6 +21,7 @@ static bool h_pressed     = false;
 static bool h_was_down    = false;
 static bool i_pressed     = false;
 static bool l_pressed     = false;
+static bool m_pressed     = false;
 static bool r_pressed     = false;
 static bool s_pressed     = false;
 static bool t_pressed     = false;
@@ -48,6 +49,7 @@ void hotkeys_process(GLFWwindow * window)
     bool e = glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS;
     bool i = glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS;
     bool l = glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS;
+    bool m = glfwGetKey(window, GLFW_KEY_M) == GLFW_PRESS;
     bool f = glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS;
     bool t = glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS;
     bool v = glfwGetKey(window, GLFW_KEY_V) == GLFW_PRESS;
@@ -126,6 +128,10 @@ void hotkeys_process(GLFWwindow * window)
     {
         cmd_execute(CMD_TOGGLE_STATS);
     }
+    if (m && no_modificator && !m_pressed)
+    {
+        cmd_execute(CMD_TOGGLE_VECTORSCOPE);
+    }
 
     if (h && ctrl && !shift && !alt && !h_was_down)
     {
@@ -178,6 +184,7 @@ void hotkeys_process(GLFWwindow * window)
     f_pressed     = f;
     i_pressed     = i;
     l_pressed     = l;
+    m_pressed     = m;
     e_pressed     = e;
     s_pressed     = s;
     r_pressed     = r;

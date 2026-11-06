@@ -7,12 +7,8 @@
 /// Слои:
 ///   1. Базовая палитра (UI_RGB_*, UI_RGBA_*) — именованные цвета.
 ///   2. Хелперы UI_RGBA_FROM_RGB / UI_RGB_FROM_RGBA — конвертация.
-///   3. Семантические макросы (UI_TEXT_*, UI_PANEL_*, UI_MENU_*, ...) —
-///      то, что реально используется в коде UI.
-///
-/// `fcolor_rgb_s`  — для overlay_text_draw (без альфы).
-/// `fcolor_rgba_s` — для overlay_rect_draw / outline_draw.
-/// Все макросы — compound literals, передаются в функции по значению.
+///   3. Семантические роли (UI_COLOR_*) — базовые сущности (панели, акценты, текст).
+///   4. Привязки к элементам (UI_PANEL_*, UI_TEXT_*, ...) — чтобы не ломать старый код.
 
 #include "util/types.h"
 
@@ -28,8 +24,6 @@
 #define UI_RGB_MAGENTA               ((fcolor_rgb_s) {1.00f, 0.00f, 1.00f})
 #define UI_RGB_ORANGE                ((fcolor_rgb_s) {1.00f, 0.60f, 0.00f})
 #define UI_RGB_PURPLE                ((fcolor_rgb_s) {0.60f, 0.30f, 0.80f})
-
-//---- Серые (шкала) ---------------------------------------------------------------------------------------------------
 
 #define UI_RGB_GRAY_DARK             ((fcolor_rgb_s) {0.25f, 0.25f, 0.25f})
 #define UI_RGB_GRAY_DIM              ((fcolor_rgb_s) {0.40f, 0.40f, 0.40f})
@@ -63,71 +57,89 @@
 #define UI_RGBA_FROM_RGB(rgb, alpha) ((fcolor_rgba_s) {(rgb).r, (rgb).g, (rgb).b, (alpha)})
 #define UI_RGB_FROM_RGBA(rgba)       ((fcolor_rgb_s) {(rgba).r, (rgba).g, (rgba).b})
 
-//--------------------------------------------- Семантика: текст -------------------------------------------------------
+//============================================= СЕМАНТИЧЕСКИЕ РОЛИ =====================================================
 
-#define UI_TEXT_PRIMARY              UI_RGB_WHITE
-#define UI_TEXT_SECONDARY            UI_RGB_GRAY_LIGHT
+//---- Поверхности (панели, фоны) --------------------------------------------------------------------------------------
+// Единый базовый цвет для всех панелей (меню, статистика, профили, пиксель-проб).
 
-//--------------------------------------------- Семантика: панели ------------------------------------------------------
+#define UI_COLOR_BG_PANEL            ((fcolor_rgba_s) {0.12f, 0.12f, 0.12f, 0.65f})
+#define UI_COLOR_BG_SURFACE          ((fcolor_rgba_s) {0.22f, 0.22f, 0.22f, 0.75f}) // ячейки меню, кнопки
+#define UI_COLOR_BORDER              ((fcolor_rgba_s) {0.35f, 0.35f, 0.35f, 1.00f}) // рамки панелей и кнопок
 
-#define UI_PANEL_BG                  UI_RGBA_FROM_RGB(UI_RGB_BLACK, 0.55f)
-#define UI_PANEL_BG_STRONG           UI_RGBA_FROM_RGB(UI_RGB_BLACK, 0.60f)
-#define UI_PANEL_BORDER              UI_RGBA_WHITE
+//---- Текст -----------------------------------------------------------------------------------------------------------
 
-//--------------------------------------------- Семантика: прогресс-бар ------------------------------------------------
+#define UI_COLOR_TEXT_PRIMARY        UI_RGB_WHITE
+#define UI_COLOR_TEXT_SECONDARY      UI_RGB_GRAY_LIGHT
 
-#define UI_PROGRESS_PANEL_BG         ((fcolor_rgba_s) {0.15f, 0.15f, 0.15f, 0.35f})
-#define UI_PROGRESS_BG               ((fcolor_rgba_s) {0.15f, 0.15f, 0.15f, 0.85f})
-#define UI_PROGRESS_FILL             ((fcolor_rgba_s) {0.20f, 0.50f, 0.20f, 0.85f})
-#define UI_PROGRESS_BORDER           UI_RGBA_GRAY_SILVER
+//---- Акценты (графики, индикаторы) -----------------------------------------------------------------------------------
 
-//--------------------------------------------- Семантика: crosshair ---------------------------------------------------
+#define UI_COLOR_ACCENT_PRIMARY      UI_RGBA_CYAN            // главный акцент (min-границы, оси Y)
+#define UI_COLOR_ACCENT_SECONDARY    UI_RGBA_MAGENTA         // второй акцент (max-границы)
+#define UI_COLOR_ACCENT_X            UI_RGBA_RED             // ось X / горизонтальные профили
+#define UI_COLOR_ACCENT_ACTIVE       ((fcolor_rgba_s) {0.20f, 0.50f, 0.20f, 1.00f}) // включенные тогглы
+#define UI_COLOR_ACCENT_ACTIVE_HOVER ((fcolor_rgba_s) {0.30f, 0.70f, 0.30f, 1.00f}) // включенные тогглы под курсором
+#define UI_COLOR_ACCENT_HOVER        ((fcolor_rgba_s) {0.25f, 0.40f, 0.25f, 1.00f}) // обычный ховер меню
+#define UI_COLOR_ACCENT_PROGRESS     ((fcolor_rgba_s) {0.20f, 0.50f, 0.20f, 0.85f}) // заполнение прогресс-бара
+
+//============================================= ПРИВЯЗКИ ЭЛЕМЕНТОВ =====================================================
+
+//---- Текст ----
+
+#define UI_TEXT_PRIMARY              UI_COLOR_TEXT_PRIMARY
+#define UI_TEXT_SECONDARY            UI_COLOR_TEXT_SECONDARY
+
+//---- Панели ----
+// UI_PANEL_BG_STRONG оставлен как алиас для обратной совместимости, 
+// чтобы не ломать старый код в меню и пробе.
+
+#define UI_PANEL_BG                  UI_COLOR_BG_PANEL
+#define UI_PANEL_BG_STRONG           UI_COLOR_BG_PANEL
+#define UI_PANEL_BORDER              UI_COLOR_BORDER
+
+//---- Прогресс-бар ----
+
+#define UI_PROGRESS_PANEL_BG         UI_COLOR_BG_PANEL
+#define UI_PROGRESS_BG               UI_COLOR_BG_SURFACE
+#define UI_PROGRESS_FILL             UI_COLOR_ACCENT_PROGRESS
+#define UI_PROGRESS_BORDER           UI_COLOR_BORDER
+
+//---- Crosshair ----
 
 #define UI_CROSSHAIR_LINE            UI_RGBA_FROM_RGB(UI_RGB_GREEN, 0.75f)
 
-//--------------------------------------------- Семантика: контекстное меню --------------------------------------------
+//---- Контекстное меню ----
 
-//---- Ячейки панели (кнопки) ------------------------------------------------------------------------------------------
-
-#define UI_CELL_BG                   ((fcolor_rgba_s) {0.22f, 0.22f, 0.22f, 0.75f})
-#define UI_CELL_BORDER               ((fcolor_rgba_s) {0.35f, 0.35f, 0.35f, 1.00f})
-#define UI_MENU_BG                   ((fcolor_rgba_s) {0.15f, 0.15f, 0.15f, 0.75f})
-#define UI_MENU_BORDER               UI_RGBA_GRAY
+#define UI_CELL_BG                   UI_COLOR_BG_SURFACE
+#define UI_CELL_BORDER               UI_COLOR_BORDER
+#define UI_MENU_BG                   UI_COLOR_BG_PANEL
+#define UI_MENU_BORDER               UI_COLOR_BORDER
 #define UI_MENU_SEPARATOR            UI_RGBA_GRAY_DIM
-#define UI_MENU_ITEM_HOVER           ((fcolor_rgba_s) {0.25f, 0.40f, 0.25f, 1.00f})
-#define UI_MENU_ITEM_ACTIVE          ((fcolor_rgba_s) {0.20f, 0.50f, 0.20f, 1.00f})
-#define UI_MENU_ITEM_ACTIVE_HOVER    ((fcolor_rgba_s) {0.30f, 0.70f, 0.30f, 1.00f})
+#define UI_MENU_ITEM_HOVER           UI_COLOR_ACCENT_HOVER
+#define UI_MENU_ITEM_ACTIVE          UI_COLOR_ACCENT_ACTIVE
+#define UI_MENU_ITEM_ACTIVE_HOVER    UI_COLOR_ACCENT_ACTIVE_HOVER
 
-//---- Фоновые оттенки для групп меню ----------------------------------------------------------------------------------
-// Очень приглушённые, чтобы не перебивать hover/active (они ярко-зелёные).
-// Разные по оттенку, но одинаковые по светлоте — визуально «ровный» ряд плиток.
+//---- Фоновые оттенки для групп меню ----
 
-#define UI_CELL_BG_DISPLAY           ((fcolor_rgba_s) {0.16f, 0.20f, 0.28f, 0.95f}) // синеватый — отображение
-#define UI_CELL_BG_ANALYSIS          ((fcolor_rgba_s) {0.22f, 0.18f, 0.28f, 0.95f}) // фиолетовый — анализ
-#define UI_CELL_BG_DIFF              ((fcolor_rgba_s) {0.18f, 0.24f, 0.16f, 0.95f}) // зеленоватый — различие
-#define UI_CELL_BG_PLAYBACK          ((fcolor_rgba_s) {0.16f, 0.24f, 0.24f, 0.95f}) // бирюзовый — воспроизведение
-#define UI_CELL_BG_RECORDING         ((fcolor_rgba_s) {0.24f, 0.16f, 0.16f, 0.95f}) // красноватый — запись
-#define UI_CELL_BG_UTILITY           ((fcolor_rgba_s) {0.24f, 0.22f, 0.18f, 0.95f}) // тёплый серый — утилиты
+#define UI_CELL_BG_DISPLAY           ((fcolor_rgba_s) {0.16f, 0.20f, 0.28f, 0.95f})
+#define UI_CELL_BG_ANALYSIS          ((fcolor_rgba_s) {0.22f, 0.18f, 0.28f, 0.95f})
+#define UI_CELL_BG_DIFF              ((fcolor_rgba_s) {0.18f, 0.24f, 0.16f, 0.95f})
+#define UI_CELL_BG_PLAYBACK          ((fcolor_rgba_s) {0.16f, 0.24f, 0.24f, 0.95f})
+#define UI_CELL_BG_RECORDING         ((fcolor_rgba_s) {0.24f, 0.16f, 0.16f, 0.95f})
+#define UI_CELL_BG_UTILITY           ((fcolor_rgba_s) {0.24f, 0.22f, 0.18f, 0.95f})
 
-//--------------------------------------------- Семантика: выделение ---------------------------------------------------
+//---- Выделение ----
 
 #define UI_SELECTION_LINE            UI_RGBA_WHITE
 #define UI_SELECTION_FILL            UI_RGBA_FROM_RGB(UI_RGB_WHITE, 0.08f)
 
-//---- Line Profile / Waveform -----------------------------------------------------------------------------------------
+//---- Line Profile ----
 
-// Полупрозрачный чёрный фон (чтобы видеть картинку под графиком)
-#define UI_LINE_PROFILE_BG           ((fcolor_rgba_s) {0.0f, 0.0f, 0.0f, 0.65f})
-// Едва заметная сетка для осей
+#define UI_LINE_PROFILE_BG           UI_COLOR_BG_PANEL
 #define UI_LINE_PROFILE_GRID         ((fcolor_rgba_s) {1.0f, 1.0f, 1.0f, 0.15f})
-// Яркий красный для горизонтального профиля (X)
-#define UI_LINE_PROFILE_X            ((fcolor_rgba_s) {1.0f, 0.3f, 0.3f, 0.55f})
-// Яркий голубой для вертикального профиля (Y)
-#define UI_LINE_PROFILE_Y            ((fcolor_rgba_s) {0.3f, 0.8f, 1.0f, 0.55f})
+#define UI_LINE_PROFILE_X            UI_RGBA_FROM_RGB(UI_RGB_RED, 0.55f)
+#define UI_LINE_PROFILE_Y            UI_RGBA_FROM_RGB(UI_RGB_CYAN, 0.55f)
 
-//---- Histogram Edges -------------------------------------------------------------------------------------------------
+//---- Histogram ----
 
-// Белый/Циан для минимума (не сливается с красным/зелёным/синим)
-#define UI_HIST_EDGE_MIN             ((fcolor_rgba_s) {0.0f, 1.0f, 1.0f, 1.0f})
-// Маджента для максимума (контрастирует со всеми цветами каналов)
-#define UI_HIST_EDGE_MAX             ((fcolor_rgba_s) {1.0f, 0.0f, 1.0f, 1.0f})
+#define UI_HIST_EDGE_MIN             UI_COLOR_ACCENT_PRIMARY
+#define UI_HIST_EDGE_MAX             UI_COLOR_ACCENT_SECONDARY

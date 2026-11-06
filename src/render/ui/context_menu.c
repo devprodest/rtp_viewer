@@ -59,7 +59,7 @@ static const context_menu_item_s g_items[] = {
     {"Stats",           CMD_TOGGLE_STATS,           true,  MENU_GROUP_ANALYSIS },
 
     {"Line Profile",    CMD_TOGGLE_LINE_PROFILE,    true,  MENU_GROUP_ANALYSIS },
-    {"",                CMD_NONE,                   false, MENU_GROUP_DIFF     },
+    {"Vectorscope",     CMD_TOGGLE_VECTORSCOPE,     true,  MENU_GROUP_ANALYSIS },
     {"Diff Ref",        CMD_SET_REFERENCE,          false, MENU_GROUP_DIFF     },
     {"Diff View",       CMD_TOGGLE_DIFF,            true,  MENU_GROUP_DIFF     },
     {"Diff Gain -",     CMD_DIFF_GAIN_DOWN,         false, MENU_GROUP_DIFF     },

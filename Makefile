@@ -44,6 +44,7 @@ SRCS += $(SRC_DIR)/render/selection_view.c
 SRCS += $(SRC_DIR)/render/overlay.c
 SRCS += $(SRC_DIR)/render/window.c
 SRCS += $(SRC_DIR)/render/viewport.c
+SRCS += $(SRC_DIR)/render/ui/vectorscope_view.c
 SRCS += $(SRC_DIR)/render/ui/window_title.c
 SRCS += $(SRC_DIR)/render/ui/context_menu.c
 SRCS += $(SRC_DIR)/render/ui/progress_bar.c

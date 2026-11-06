@@ -99,6 +99,9 @@ static const char svg_reset_zoom[] = {
 static const char svg_fullscreen[] = {
 #embed "../../res/icons/fullscreen.svg" suffix(, 0)
 };
+static const char svg_vectorscope[] = {
+#embed "../../res/icons/vectorscope.svg" suffix(, 0)
+};
 
 //------------------------------------------------------- Таблица -----------------------------------------------------
 
@@ -120,6 +123,7 @@ static const icon_entry_t g_icon_table[] = {
     {CMD_TOGGLE_GRADIENT,        svg_gradient       },
     {CMD_TOGGLE_INSPECTOR,       svg_inspector      },
     {CMD_TOGGLE_DIFF,            svg_diff_view      },
+    {CMD_TOGGLE_VECTORSCOPE,     svg_vectorscope    },
     {CMD_SET_REFERENCE,          svg_set_reference  },
     {CMD_DIFF_GAIN_DOWN,         svg_diff_gain_down },
     {CMD_DIFF_GAIN_UP,           svg_diff_gain_up   },
