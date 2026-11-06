@@ -5,28 +5,26 @@
 #include "render/ui/svg_icons.h"
 #include "render/ui/ui_color_scheme.h"
 
+#include <stdio.h>
+
 //-------------------------------------------------- Панель -----------------------------------------------------------
 
 /// Количество колонок в сетке кнопок.
 #define PANEL_COLS     6
-/// Сторона одной ячейки (кнопки) в логических пикселях (до dpi-скейла). Иконка и текст располагаются внутри этой
-/// области.
-#define CELL_SIZE      80
-/// Размер иконки внутри ячейки в пикселях (до dpi-скейла). Обычно заметно меньше CELL_SIZE, чтобы осталось место под
-/// текст.
+/// Сторона одной ячейки (кнопки) в логических пикселях (до dpi-скейла).
+#define CELL_SIZE      64
+/// Размер иконки внутри ячейки в пикселях.
 #define ICON_SIZE      48
-/// Отступ от края панели до крайних ячеек (до dpi-скейла). Формирует «воздух» вокруг сетки внутри полупрозрачного фона.
+/// Отступ от края панели до крайних ячеек.
 #define PANEL_PADDING  4
-/// Базовый масштаб шрифта подписи под иконкой. Меньше 1.0f, чтобы длинные названия («Clear Selection») влезали в ширину
-/// ячейки. Для совсем длинных — авто-фит уменьшает дальше.
+/// Базовый масштаб шрифта подписи под иконкой.
 #define TEXT_SCALE     0.75f
-/// Расстояние между соседними ячейками (до dpi-скейла). Слишком большое — сетка «разваливается», слишком маленькое —
-/// кнопки сливаются в один блок.
+/// Расстояние между соседними ячейками.
 #define CELL_OUTER_PAD 2
-/// Внутренний отступ внутри ячейки от её края до иконки/текста (до dpi-скейла). Не даёт контенту прилипать к рамке
-/// кнопки.
+/// Внутренний отступ внутри ячейки.
 #define CELL_INNER_PAD 4
-
+/// Высота нижней панели с подсказкой.
+#define TOOLTIP_HEIGHT 28
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -46,38 +44,39 @@ typedef struct context_menu_item_s
     commands_e cmd;
     bool is_toggle;
     menu_group_e group;
+    const char * hotkey;
 } context_menu_item_s;
 
 #define CMD_NONE ((commands_e) - 1)
 
 static const context_menu_item_s g_items[] = {
-    {"Sobel Mask",      CMD_TOGGLE_GRADIENT,        true,  MENU_GROUP_ANALYSIS },
-    {"Inspector",       CMD_TOGGLE_INSPECTOR,       true,  MENU_GROUP_ANALYSIS },
-    {"Saturation",      CMD_TOGGLE_SATURATION,      true,  MENU_GROUP_ANALYSIS },
-    {"Histogram",       CMD_TOGGLE_HISTOGRAM,       true,  MENU_GROUP_ANALYSIS },
-    {"Log Scale",       CMD_TOGGLE_HISTOGRAM_SCALE, true,  MENU_GROUP_ANALYSIS },
-    {"Stats",           CMD_TOGGLE_STATS,           true,  MENU_GROUP_ANALYSIS },
+    {"Sobel Mask",      CMD_TOGGLE_GRADIENT,        true,  MENU_GROUP_ANALYSIS,  "F"     },
+    {"Inspector",       CMD_TOGGLE_INSPECTOR,       true,  MENU_GROUP_ANALYSIS,  "I"     },
+    {"Saturation",      CMD_TOGGLE_SATURATION,      true,  MENU_GROUP_ANALYSIS,  "E"     },
+    {"Histogram",       CMD_TOGGLE_HISTOGRAM,       true,  MENU_GROUP_ANALYSIS,  "H"     },
+    {"Log Scale",       CMD_TOGGLE_HISTOGRAM_SCALE, true,  MENU_GROUP_ANALYSIS,  "Ctrl+H"},
+    {"Stats",           CMD_TOGGLE_STATS,           true,  MENU_GROUP_ANALYSIS,  "T"     },
 
-    {"Line Profile",    CMD_TOGGLE_LINE_PROFILE,    true,  MENU_GROUP_ANALYSIS },
-    {"Vectorscope",     CMD_TOGGLE_VECTORSCOPE,     true,  MENU_GROUP_ANALYSIS },
-    {"Diff Ref",        CMD_SET_REFERENCE,          false, MENU_GROUP_DIFF     },
-    {"Diff View",       CMD_TOGGLE_DIFF,            true,  MENU_GROUP_DIFF     },
-    {"Diff Gain -",     CMD_DIFF_GAIN_DOWN,         false, MENU_GROUP_DIFF     },
-    {"Diff Gain +",     CMD_DIFF_GAIN_UP,           false, MENU_GROUP_DIFF     },
+    {"Line Profile",    CMD_TOGGLE_LINE_PROFILE,    true,  MENU_GROUP_ANALYSIS,  "L"     },
+    {"Vectorscope",     CMD_TOGGLE_VECTORSCOPE,     true,  MENU_GROUP_ANALYSIS,  "M"     },
+    {"Diff Ref",        CMD_SET_REFERENCE,          false, MENU_GROUP_DIFF,      "V"     },
+    {"Diff View",       CMD_TOGGLE_DIFF,            true,  MENU_GROUP_DIFF,      "B"     },
+    {"Diff Gain -",     CMD_DIFF_GAIN_DOWN,         false, MENU_GROUP_DIFF,      "-"     },
+    {"Diff Gain +",     CMD_DIFF_GAIN_UP,           false, MENU_GROUP_DIFF,      "="     },
 
-    {"Backward",        CMD_STEP_BACKWARD,          false, MENU_GROUP_PLAYBACK },
-    {"Pause",           CMD_TOGGLE_PAUSE,           true,  MENU_GROUP_PLAYBACK },
-    {"Forward",         CMD_STEP_FORWARD,           false, MENU_GROUP_PLAYBACK },
-    {"Recording",       CMD_TOGGLE_RECORDING,       true,  MENU_GROUP_RECORDING},
-    {"Flush Save",      CMD_FLUSH_SAVER,            false, MENU_GROUP_RECORDING},
-    {"Screenshot",      CMD_REQUEST_SCREENSHOT,     false, MENU_GROUP_RECORDING},
+    {"Backward",        CMD_STEP_BACKWARD,          false, MENU_GROUP_PLAYBACK,  "Left"  },
+    {"Pause",           CMD_TOGGLE_PAUSE,           true,  MENU_GROUP_PLAYBACK,  "Space" },
+    {"Forward",         CMD_STEP_FORWARD,           false, MENU_GROUP_PLAYBACK,  "Right" },
+    {"Recording",       CMD_TOGGLE_RECORDING,       true,  MENU_GROUP_RECORDING, "R"     },
+    {"Flush Save",      CMD_FLUSH_SAVER,            false, MENU_GROUP_RECORDING, "W"     },
+    {"Screenshot",      CMD_REQUEST_SCREENSHOT,     false, MENU_GROUP_RECORDING, "S"     },
 
-    {"Auto-levels",     CMD_TOGGLE_AUTO_LEVELS,     true,  MENU_GROUP_DISPLAY  },
-    {"Smoothing",       CMD_TOGGLE_SMOOTHING,       true,  MENU_GROUP_DISPLAY  },
-    {"Clear Selection", CMD_CLEAR_SELECTION,        false, MENU_GROUP_UTILITY  },
-    {"Reset Zoom",      CMD_ZOOM_RESET,             false, MENU_GROUP_UTILITY  },
-    {"Full screen",     CMD_TOGGLE_FULLSCREEN,      true,  MENU_GROUP_UTILITY  },
-    {"Help",            CMD_SHOW_HELP,              false, MENU_GROUP_UTILITY  },
+    {"Auto-levels",     CMD_TOGGLE_AUTO_LEVELS,     true,  MENU_GROUP_DISPLAY,   "2"     },
+    {"Smoothing",       CMD_TOGGLE_SMOOTHING,       true,  MENU_GROUP_DISPLAY,   "1"     },
+    {"Clear Selection", CMD_CLEAR_SELECTION,        false, MENU_GROUP_UTILITY,   "Esc"   },
+    {"Reset Zoom",      CMD_ZOOM_RESET,             false, MENU_GROUP_UTILITY,   "0"     },
+    {"Full screen",     CMD_TOGGLE_FULLSCREEN,      true,  MENU_GROUP_UTILITY,   "F11"   },
+    {"Help",            CMD_SHOW_HELP,              false, MENU_GROUP_UTILITY,   "F1"    },
 };
 
 static const int g_item_count = (int)(sizeof(g_items) / sizeof(g_items[ 0 ]));
@@ -117,7 +116,7 @@ static fcolor_rgba_s group_bg_color(menu_group_e group)
         case MENU_GROUP_RECORDING: return UI_CELL_BG_RECORDING;
         case MENU_GROUP_UTILITY: return UI_CELL_BG_UTILITY;
     }
-    return UI_CELL_BG; // fallback
+    return UI_CELL_BG;
 }
 
 static void draw_icon(point_s center, float scale)
@@ -135,10 +134,12 @@ static void get_panel_rect(image_size_s win, float scale, rect_s * out_panel, in
     int cols    = PANEL_COLS;
     int visible = g_item_count;
 
-    int rows = (visible + cols - 1) / cols;
-    int pad  = (int)(PANEL_PADDING * scale);
-    int w    = cols * (int)(CELL_SIZE * scale) + 2 * pad;
-    int h    = rows * (int)(CELL_SIZE * scale) + 2 * pad;
+    int rows  = (visible + cols - 1) / cols;
+    int pad   = (int)(PANEL_PADDING * scale);
+    int tip_h = (int)(TOOLTIP_HEIGHT * scale);
+
+    int w = cols * (int)(CELL_SIZE * scale) + 2 * pad;
+    int h = rows * (int)(CELL_SIZE * scale) + 2 * pad + tip_h;
 
     int x = (win.x - w) / 2;
     int y = (win.y - h) / 2;
@@ -164,7 +165,7 @@ void context_menu_draw(image_size_s win, float scale)
     int visible_count = 0;
     get_panel_rect(win, scale, &panel, &visible_count);
 
-    // Фон панели (обводку убрали)
+    // Фон панели
     overlay_rect_draw(panel, UI_MENU_BG);
 
     int cols      = PANEL_COLS;
@@ -174,9 +175,10 @@ void context_menu_draw(image_size_s win, float scale)
     int inner_pad = (int)(CELL_INNER_PAD * scale);
     int panel_pad = (int)(PANEL_PADDING * scale);
 
-    int start_x = panel.x0 + panel_pad;
-    int start_y = panel.y0 + panel_pad;
-    int idx     = 0;
+    int start_x     = panel.x0 + panel_pad;
+    int start_y     = panel.y0 + panel_pad;
+    int idx         = 0;
+    int hovered_idx = -1;
 
     for (int i = 0; i < g_item_count; i++)
     {
@@ -197,6 +199,11 @@ void context_menu_draw(image_size_s win, float scale)
         bool hovered = (g_hover.x >= cell.x0 && g_hover.x < cell.x1 && g_hover.y >= cell.y0 && g_hover.y < cell.y1);
         bool active  = g_items[ i ].is_toggle && cmd_is_active(g_items[ i ].cmd);
 
+        if (hovered)
+        {
+            hovered_idx = i;
+        }
+
         if (active)
         {
             overlay_rect_draw(cell, hovered ? UI_MENU_ITEM_ACTIVE_HOVER : UI_MENU_ITEM_ACTIVE);
@@ -212,8 +219,7 @@ void context_menu_draw(image_size_s win, float scale)
 
         overlay_rect_outline_draw(cell, UI_CELL_BORDER, 1);
 
-        // Иконка — только fallback-примитив, если SVG нет.
-        // SVG рисуется отдельным проходом в context_menu_draw_icons.
+        // Иконка (fallback)
         if (!svg_icon_exists(g_items[ i ].cmd))
         {
             point_s icon_center = {cx + cell_w / 2, cy + cell_h / 2 - 8};
@@ -235,6 +241,34 @@ void context_menu_draw(image_size_s win, float scale)
         int ty = cell.y1 - inner_pad - (int)(16 * fit_scale);
         overlay_text_draw((point_s) {tx, ty}, label, UI_TEXT_PRIMARY, fit_scale);
     }
+
+    // --- Тултип (нижняя панель) ---
+    if (hovered_idx >= 0)
+    {
+        int tip_h         = (int)(TOOLTIP_HEIGHT * scale);
+        rect_s tooltip_bg = {panel.x0, panel.y1 - tip_h, panel.x1, panel.y1};
+
+        char tip_buf[ 128 ];
+        const char * hotkey = g_items[ hovered_idx ].hotkey;
+
+        if (hotkey && hotkey[ 0 ] != '\0')
+        {
+            snprintf(tip_buf, sizeof(tip_buf), "%s  [%s]", g_items[ hovered_idx ].label, hotkey);
+        }
+        else
+        {
+            snprintf(tip_buf, sizeof(tip_buf), "%s", g_items[ hovered_idx ].label);
+        }
+
+        float tip_scale = 0.85f * scale;
+        int tw          = overlay_text_measure(tip_buf, tip_scale);
+        int tx          = tooltip_bg.x0 + (tooltip_bg.x1 - tooltip_bg.x0 - tw) / 2;
+
+        // Центрируем по вертикали
+        int ty = tooltip_bg.y0 + (tooltip_bg.y1 - tooltip_bg.y0 - (int)(14 * tip_scale)) / 2;
+
+        overlay_text_draw((point_s) {tx, ty}, tip_buf, UI_TEXT_PRIMARY, tip_scale);
+    }
 }
 
 bool context_menu_handle_click(point_s mouse, image_size_s win, float scale)
@@ -250,6 +284,13 @@ bool context_menu_handle_click(point_s mouse, image_size_s win, float scale)
     if (mouse.x < panel.x0 || mouse.x >= panel.x1 || mouse.y < panel.y0 || mouse.y >= panel.y1)
     {
         context_menu_close();
+        return true;
+    }
+
+    int tip_h = (int)(TOOLTIP_HEIGHT * scale);
+    // Клик по зоне тултипа просто поглощаем, чтобы меню не закрывалось случайно
+    if (mouse.y >= panel.y1 - tip_h)
+    {
         return true;
     }
 
