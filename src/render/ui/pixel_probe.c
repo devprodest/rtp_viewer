@@ -15,13 +15,6 @@ static image_size_s g_frame_size    = {0, 0};
 static int g_bytes_per_pixel        = 0;
 static point_s g_mouse              = {-1, -1};
 
-// Тип для хранения rgb и raw-значения пикселя. raw — это просто uint8_t/uint16_t/uint32_t в зависимости от формата.
-typedef struct pixel_sample_s
-{
-    color_rgb_s rgb;
-    uint32_t raw;
-} pixel_sample_s;
-
 //------------------------------------------------------- API ---------------------------------------------------------
 
 void pixel_probe_toggle(void)
@@ -49,7 +42,7 @@ void pixel_probe_set_mouse(point_s screen)
 //------------------------------------------------------- Помощники ---------------------------------------------------
 
 /// \brief Читает пиксель из текущего кадра. Возвращает RGB и raw-значение.
-static pixel_sample_s sample_pixel(point_s pixel)
+pixel_sample_s pixel_probe_read_pixel(point_s pixel)
 {
     pixel_sample_s sample = {0};
 
@@ -103,6 +96,21 @@ static pixel_sample_s sample_pixel(point_s pixel)
     return sample;
 }
 
+point_s pixel_probe_get_mouse(void)
+{
+    return g_mouse;
+}
+
+image_size_s pixel_probe_get_frame_size(void)
+{
+    return g_frame_size;
+}
+
+int pixel_probe_get_bpp(void)
+{
+    return g_bytes_per_pixel;
+}
+
 //------------------------------------------------------- Отрисовка ---------------------------------------------------
 
 void pixel_probe_draw(image_size_s win, float dpi_scale)
@@ -144,7 +152,7 @@ void pixel_probe_draw(image_size_s win, float dpi_scale)
     overlay_rect_draw((rect_s) {mx, 0, mx + lw, win.y}, UI_CROSSHAIR_LINE);
 
     // ----- Читаем пиксель -----
-    pixel_sample_s sample = sample_pixel(frame);
+    pixel_sample_s sample = pixel_probe_read_pixel(frame);
 
     // ----- Формируем строки -----
     char line1[ 64 ];

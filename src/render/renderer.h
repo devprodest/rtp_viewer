@@ -13,7 +13,8 @@ void renderer_cleanup(void);
 
 GLFWwindow * renderer_get_window(void);
 void renderer_poll_events(void);
-void renderer_update_texture(const uint8_t * data);
+void renderer_set_frame(const uint8_t * data);
+void renderer_draw(void);
 
 int renderer_get_bytes_per_pixel(void);
 
@@ -24,7 +25,6 @@ void renderer_toggle_fullscreen(void);
 void renderer_toggle_smoothing(void);
 void renderer_toggle_histogram(void);
 void renderer_toggle_histogram_scale(void);
-void renderer_toggle_histogram_cdf(void);
 void renderer_toggle_saturation(void);
 void renderer_toggle_gradient(void);
 

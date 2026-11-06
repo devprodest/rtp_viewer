@@ -51,8 +51,8 @@ static const char svg_histogram[] = {
 static const char svg_log_scale[] = {
 #embed "../../res/icons/log_scale.svg" suffix(, 0)
 };
-static const char svg_cdf[] = {
-#embed "../../res/icons/cdf.svg" suffix(, 0)
+static const char svg_line_profile[] = {
+#embed "../../res/icons/line_profile.svg" suffix(, 0)
 };
 static const char svg_gradient[] = {
 #embed "../../res/icons/gradient.svg" suffix(, 0)
@@ -116,7 +116,7 @@ static const icon_entry_t g_icon_table[] = {
     {CMD_TOGGLE_SATURATION,      svg_saturation     },
     {CMD_TOGGLE_HISTOGRAM,       svg_histogram      },
     {CMD_TOGGLE_HISTOGRAM_SCALE, svg_log_scale      },
-    {CMD_TOGGLE_HISTOGRAM_CDF,   svg_cdf            },
+    {CMD_TOGGLE_LINE_PROFILE,    svg_line_profile   },
     {CMD_TOGGLE_GRADIENT,        svg_gradient       },
     {CMD_TOGGLE_INSPECTOR,       svg_inspector      },
     {CMD_TOGGLE_DIFF,            svg_diff_view      },

@@ -51,19 +51,19 @@ typedef struct context_menu_item_s
 #define CMD_NONE ((commands_e) - 1)
 
 static const context_menu_item_s g_items[] = {
-    {"Gradient",        CMD_TOGGLE_GRADIENT,        true,  MENU_GROUP_ANALYSIS },
+    {"Sobel Mask",      CMD_TOGGLE_GRADIENT,        true,  MENU_GROUP_ANALYSIS },
     {"Inspector",       CMD_TOGGLE_INSPECTOR,       true,  MENU_GROUP_ANALYSIS },
     {"Saturation",      CMD_TOGGLE_SATURATION,      true,  MENU_GROUP_ANALYSIS },
     {"Histogram",       CMD_TOGGLE_HISTOGRAM,       true,  MENU_GROUP_ANALYSIS },
     {"Log Scale",       CMD_TOGGLE_HISTOGRAM_SCALE, true,  MENU_GROUP_ANALYSIS },
-    {"CDF",             CMD_TOGGLE_HISTOGRAM_CDF,   true,  MENU_GROUP_ANALYSIS },
-
     {"Stats",           CMD_TOGGLE_STATS,           true,  MENU_GROUP_ANALYSIS },
+
+    {"Line Profile",    CMD_TOGGLE_LINE_PROFILE,    true,  MENU_GROUP_ANALYSIS },
+    {"",                CMD_NONE,                   false, MENU_GROUP_DIFF     },
     {"Diff Ref",        CMD_SET_REFERENCE,          false, MENU_GROUP_DIFF     },
     {"Diff View",       CMD_TOGGLE_DIFF,            true,  MENU_GROUP_DIFF     },
     {"Diff Gain -",     CMD_DIFF_GAIN_DOWN,         false, MENU_GROUP_DIFF     },
     {"Diff Gain +",     CMD_DIFF_GAIN_UP,           false, MENU_GROUP_DIFF     },
-    {"",                CMD_NONE,                   false, MENU_GROUP_DIFF     },
 
     {"Backward",        CMD_STEP_BACKWARD,          false, MENU_GROUP_PLAYBACK },
     {"Pause",           CMD_TOGGLE_PAUSE,           true,  MENU_GROUP_PLAYBACK },

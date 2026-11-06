@@ -21,6 +21,7 @@
 #include "ui/svg_icons.h"
 #include "ui/ui_color_scheme.h"
 #include "ui/window_title.h"
+#include "ui/line_profile_view.h"
 #include "util/utils.h"
 #include "viewport.h"
 #include "window.h"
@@ -239,12 +240,53 @@ static void compute_diff(const uint8_t * cur, const uint8_t * ref, uint8_t * out
     }
 }
 
-void renderer_update_texture(const uint8_t * data)
+
+static void autolevel_calculate(void)
+{
+    if (g_auto_levels_enabled)
+    {
+        const analytics_stats_s * st = analytics_get_stats();
+        if (st && st->valid)
+        {
+            const double max_range = (g_format.bytes_per_pixel == 2) ? (double)((1u << g_eff_bits) - 1u) : 255.0;
+
+            float lmin[ 3 ] = {0.0f, 0.0f, 0.0f};
+            float lmax[ 3 ] = {1.0f, 1.0f, 1.0f};
+
+            for (int c = 0; c < 3; c++)
+            {
+                double lo = st->min[ c ] / max_range;
+                double hi = st->max[ c ] / max_range;
+                if (hi <= lo + 1e-3)
+                {
+                    lo = 0.0;
+                    hi = 1.0;
+                }
+                lmin[ c ] = utils_clamp((float)lo, 0.0f, 1.0f);
+                lmax[ c ] = utils_clamp((float)hi, 0.0f, 1.0f);
+            }
+            if (st->channels == 1)
+            {
+                lmin[ 1 ] = lmin[ 2 ] = lmin[ 0 ];
+                lmax[ 1 ] = lmax[ 2 ] = lmax[ 0 ];
+            }
+            post_pass_set_levels(lmin, lmax);
+        }
+        else
+        {
+            post_pass_set_levels((float[ 3 ]) {0.f, 0.f, 0.f}, (float[ 3 ]) {1.f, 1.f, 1.f});
+        }
+    }
+}
+
+
+void renderer_set_frame(const uint8_t * data)
 {
     g_last_frame = data;
 
     const uint8_t * frame_to_upload = data;
 
+    // --- Diff ---
     if (g_diff_enabled && g_reference_buffer)
     {
         const size_t bytes = current_frame_bytes();
@@ -266,6 +308,8 @@ void renderer_update_texture(const uint8_t * data)
 
     format_pass_upload(frame_to_upload);
 
+    // Аналитика, probe, sharpness, гистограмма — по РЕАЛЬНОМУ кадру (data),
+    // не по diff. Diff — только визуальный слой.
     analytics_update(data, g_win, &g_format, &g_selection, g_eff_bits);
     pixel_probe_set_frame(data, g_win, g_format.bytes_per_pixel);
 
@@ -275,11 +319,12 @@ void renderer_update_texture(const uint8_t * data)
         window_title_set_sharpness(g_sharpness.valid, g_sharpness.lap_var, g_sharpness.tenengrad);
     }
 
-    if (histogram_view_is_enabled())
-    {
-        histogram_view_update();
-    }
+        histogram_view_update(g_eff_bits); 
+    
+}
 
+void renderer_draw(void)
+{
     image_size_s win = window_get_framebuffer_size();
     if (win.x <= 0 || win.y <= 0)
     {
@@ -287,74 +332,25 @@ void renderer_update_texture(const uint8_t * data)
     }
 
     format_pass_render_to_fbo();
-
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
     viewport_update(win);
 
     glViewport(0, 0, win.x, win.y);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    if (g_auto_levels_enabled)
-    {
-        const analytics_stats_s * st = analytics_get_stats();
-        if (st && st->valid)
-        {
-            const double max_range = (g_format.bytes_per_pixel == 2) ? (double)((1u << g_eff_bits) - 1u) : 255.0;
-            float lmin[ 3 ]        = {0.0f, 0.0f, 0.0f};
-            float lmax[ 3 ]        = {1.0f, 1.0f, 1.0f};
-
-            for (int c = 0; c < 3; c++)
-            {
-                double lo = st->min[ c ] / max_range;
-                double hi = st->max[ c ] / max_range;
-                if (hi <= lo + 1e-3) // плоский канал — не растягиваем, будет мусор
-                {
-                    lo = 0.0;
-                    hi = 1.0;
-                }
-                lmin[ c ] = (float)utils_clamp(lo, 0.0, 1.0);
-                lmax[ c ] = (float)utils_clamp(hi, 0.0, 1.0);
-            }
-
-            if (st->channels == 1) // gray — уровни одинаковы по трём каналам
-            {
-                lmin[ 1 ] = lmin[ 2 ] = lmin[ 0 ];
-                lmax[ 1 ] = lmax[ 2 ] = lmax[ 0 ];
-            }
-
-            post_pass_set_levels(lmin, lmax);
-        }
-        else
-        {
-            // Нет валидных stats — нейтральные уровни (0..1), шейдер ничего не исказит
-            const float lmin[ 3 ] = {0.0f, 0.0f, 0.0f};
-            const float lmax[ 3 ] = {1.0f, 1.0f, 1.0f};
-            post_pass_set_levels(lmin, lmax);
-        }
-    }
+    autolevel_calculate();
 
     post_pass_render(format_pass_get_output_tex(), viewport_get_point(), viewport_get_size(), win);
 
-    if (histogram_view_is_enabled() && histogram_view_get_active_channels() > 0)
-    {
-        const image_size_s hist_view_size = {320, 240};
-
-        const int margin = 10;
-        const point_s ov = {
-            .x = utils_max(win.x - hist_view_size.x - margin, 0),
-            .y = utils_max(win.y - hist_view_size.y - margin, 0),
-        };
-        histogram_view_render(ov, hist_view_size);
-    }
+    histogram_view_render(win);
 
     overlay_begin(win);
     selection_view_draw(&g_selection, viewport_get_point(), viewport_get_size(), g_win);
     pixel_probe_draw(win, g_dpi_scale);
     render_stats_overlay();
+    line_profile_view_draw(win, g_dpi_scale); 
     progress_bar_draw(win, g_dpi_scale);
-
     context_menu_draw(win, g_dpi_scale);
     overlay_end();
 
@@ -368,6 +364,7 @@ void renderer_update_texture(const uint8_t * data)
     screenshot_process_if_requested();
     window_swap_buffers();
 }
+
 
 int renderer_get_bytes_per_pixel(void)
 {
@@ -405,11 +402,6 @@ void renderer_toggle_histogram(void)
 void renderer_toggle_histogram_scale(void)
 {
     histogram_view_toggle_log_scale();
-}
-
-void renderer_toggle_histogram_cdf(void)
-{
-    histogram_view_toggle_cdf();
 }
 
 void renderer_toggle_saturation(void)

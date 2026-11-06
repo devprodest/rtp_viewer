@@ -6,61 +6,51 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifdef _WIN32
-    #include <windows.h>
-#endif
-
 #define DEFAULT_BATCH_SIZE 500
+#define HELP_FILE_NAME     "rtp_viewer_help.txt"
 
-static char g_buf[ 2048 ];
+static char g_buf[ 8192 ];
 
-/// \brief Формирует текст справки по горячим клавишам.
-/// \brief Формирует текст справки по горячим клавишам.
+/// \brief Формирует текст справки по горячим клавишам (без CLI).
 static const char * build_hotkeys_text(void)
 {
     snprintf(g_buf, sizeof(g_buf),
              "%s v%s\n"
-             "\n"
+             "================================================\n\n"
+             "HOTKEYS\n\n"
              "Display:\n"
-             "  1 \tToggle smoothing (linear / nearest)\n"
-             "  2 \tToggle auto-levels (stretch by ROI min/max)\n"
-             "  F \tToggle gradient view (Sobel) + sharpness metrics\n"
-             "  E \tToggle saturation markers (blue=under, red=over)\n"
-             "  H \tToggle histogram overlay\n"
-             "  Ctrl+H \tToggle histogram scale (linear / log)\n"
-             "  C \tToggle histogram CDF overlay\n"
-             "  T \tToggle statistics overlay (min/max/mean/std)\n"
-             "  I \tToggle pixel inspector\n"
-             "\n"
-             "Reference diff:\n"
-             "  V \tSet current frame as reference\n"
-             "  B \tToggle diff view (|current - ref| * gain)\n"
-             "  -/= \tDecrease / increase diff gain (1x..64x)\n"
-             "\n"
-             "Zoom / pan:\n"
-             "  Wheel \tZoom around cursor\n"
-             "  Middle \tPan (drag)\n"
-             "  0 \tReset zoom / pan\n"
-             "\n"
-             "Selection:\n"
-             "  LMB \tSelect ROI (stats, auto-levels follow selection)\n"
-             "  Esc \tClear selection / close menu\n"
-             "\n"
-             "File source:\n"
-             "  Space \tPause/resume display and analysis\n"
-             "  Left/Right \tStep prev/next frame\n"
-             "  Progress bar \tClick or drag to seek (visible 3s after mouse motion)\n"
-             "\n"
-             "Recording / saving:\n"
-             "  S \tSave screenshot (PNG)\n"
-             "  R \tToggle recording (on / off)\n"
-             "  W \tForce save accumulated frames\n"
-             "\n"
-             "  F1 \tShow this help\n"
-             "  F11 \tToggle fullscreen\n"
-             "\n"
-             "CLI options: run %s with -h\n",
-             RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR, "rtp_viewer");
+             "  1        Toggle smoothing (linear / nearest)\n"
+             "  2        Toggle auto-levels (stretch by ROI percentiles)\n\n"
+             "Analysis:\n"
+             "  F        Toggle Sobel gradient view + sharpness metrics\n"
+             "  E        Toggle saturation markers (blue=under, red=over)\n"
+             "  H        Toggle histogram + CDF overlay\n"
+             "  Ctrl+H   Toggle histogram scale (linear / log)\n"
+             "  T        Toggle statistics overlay (min/max/mean/std)\n"
+             "  L        Toggle line profile (cross-section under cursor)\n"
+             "  I        Toggle pixel probe (crosshair + pixel value at cursor)\n\n"
+             "Reference / Diff:\n"
+             "  V        Set current frame as reference\n"
+             "  B        Toggle diff view (|current - ref| * gain)\n"
+             "  - / =    Decrease / increase diff gain (1x..64x)\n\n"
+             "Zoom / Pan / Selection:\n"
+             "  Wheel    Zoom around cursor\n"
+             "  Middle   Pan (drag)\n"
+             "  0        Reset zoom / pan\n"
+             "  LMB      Select ROI (stats, auto-levels, diff follow selection)\n"
+             "  Esc      Clear selection / close menu\n\n"
+             "Playback (file source):\n"
+             "  Space    Pause / resume display and analysis\n"
+             "  Left     Step prev frame\n"
+             "  Right    Step next frame\n"
+             "  Bar      Click or drag to seek\n\n"
+             "Recording / Saving:\n"
+             "  S        Save screenshot (PNG)\n"
+             "  R        Toggle recording (on / off)\n"
+             "  W        Force save accumulated frames\n\n"
+             "  F1       Save this help to file and open it\n"
+             "  F11      Toggle fullscreen\n",
+             RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR);
 
     return g_buf;
 }
@@ -69,8 +59,8 @@ static const char * build_hotkeys_text(void)
 static const char * build_cli_text(const char * prog)
 {
     snprintf(g_buf, sizeof(g_buf),
-             "%s v%s\n"
-             "\n"
+             "================================================\n"
+             "COMMAND-LINE OPTIONS\n\n"
              "Usage: %s -x <width> -y <height> [-p <port> | -i <file>] -f <format> [options]\n"
              "\n"
              "Required:\n"
@@ -95,22 +85,39 @@ static const char * build_cli_text(const char * prog)
              "  -o <dir>            Output directory for saved files (default \".\")\n"
              "  -S                  Start with smoothing enabled (default off)\n"
              "  -h, --help          Show this help\n"
-             "  -V, --version       Show program version\n"
-             "\n"
-             "Press F1 in the running program for hotkey help.\n",
-             RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR, prog, DEFAULT_BATCH_SIZE);
+             "  -V, --version       Show program version\n",
+             prog, DEFAULT_BATCH_SIZE);
 
     return g_buf;
 }
 
 void help_dialog_show(void)
 {
-    const char * text = build_hotkeys_text();
+    FILE * f = fopen(HELP_FILE_NAME, "w");
+    if (!f)
+    {
+        log_error("help: failed to create %s", HELP_FILE_NAME);
+        return;
+    }
 
-#if defined(_WIN32)
-    MessageBoxA(nullptr, text, "RTP Viewer - Help", MB_OK | MB_ICONINFORMATION);
+    fprintf(f, "%s\n\n", build_hotkeys_text());
+    fprintf(f, "%s", build_cli_text("rtp_viewer"));
+
+    fclose(f);
+    log_info("help: saved to %s", HELP_FILE_NAME);
+
+#ifdef _WIN32
+    char cmd[ 512 ];
+    snprintf(cmd, sizeof(cmd), "start \"\" \"%s\"", HELP_FILE_NAME);
+    system(cmd);
+#elif defined(__APPLE__)
+    char cmd[ 256 ];
+    snprintf(cmd, sizeof(cmd), "open %s", HELP_FILE_NAME);
+    system(cmd);
 #else
-    log_info("%s", text);
+    char cmd[ 256 ];
+    snprintf(cmd, sizeof(cmd), "xdg-open %s", HELP_FILE_NAME);
+    system(cmd);
 #endif
 }
 

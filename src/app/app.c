@@ -15,6 +15,7 @@
 #include "util/utils.h"
 #include "util/version.h"
 
+#include <pthread.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -24,53 +25,62 @@
 #ifdef _WIN32
     #include <mmsystem.h>
     #include <windows.h>
-    #define SLEEP_MS(ms) Sleep(ms)
     #define SLEEP_US(us) Sleep((us) >= 1000 ? ((DWORD)((us) / 1000)) : 1)
 #else
     #include <unistd.h>
-    #define SLEEP_MS(ms) usleep((ms) * 1000)
     #define SLEEP_US(us) usleep(us)
 #endif
 
-#define NUM_FRAME_BUFFERS 2
-
-static volatile bool g_running = true;
-
-static uint8_t * g_frame_buffers[ NUM_FRAME_BUFFERS ] = {nullptr, nullptr};
-static uint8_t * g_paused_buffer                      = nullptr;
-static int g_last_rendered_idx                        = 0;
-static bool g_has_rendered                            = false;
-static size_t g_frame_bytes                           = 0;
-static bool g_paused                                  = false;
-
+static volatile bool g_running    = true;
 static const app_config_s * g_cfg = nullptr;
 
-static source_s * g_source              = nullptr;
-static int g_step_pending               = 0;
-static bool g_seek_pending              = false;
-static bool g_scrubbing                 = false;
-static uint64_t g_last_paused_render_us = 0;
+//------------------------------------------------------- Синхронизация ------------------------------------------------
+
+static pthread_mutex_t g_frame_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_state_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static uint8_t * g_worker_buffer = nullptr; // Сюда читает воркер
+static uint8_t * g_render_buffer = nullptr; // Общий буфер (под мьютексом)
+static uint8_t * g_main_buffer   = nullptr; // Сюда копирует главный поток для рендера
+static size_t g_frame_bytes      = 0;
+
+static bool g_has_new_frame = false;
+
+static source_s * g_source        = nullptr;
+static bool g_worker_paused       = false;
+static int g_worker_step_pending  = 0;
+static bool g_worker_seek_pending = false;
+static int g_worker_seek_target   = 0;
+static int g_worker_cur_frame     = 0;
+static int g_worker_tot_frames    = 0;
+
+static bool g_scrubbing = false;
 
 static void signal_handler(int /* unused */)
 {
     g_running = false;
 }
 
+//------------------------------------------------------- Управление (Main Thread)
+//--------------------------------------
+
 bool app_toggle_pause(void)
 {
-    g_paused = !g_paused;
-    if (g_paused && g_has_rendered && g_paused_buffer)
-    {
-        memcpy(g_paused_buffer, g_frame_buffers[ g_last_rendered_idx ], g_frame_bytes);
-        g_last_paused_render_us = 0;
-    }
-    renderer_set_paused(g_paused);
-    return g_paused;
+    pthread_mutex_lock(&g_state_mutex);
+    g_worker_paused = !g_worker_paused;
+    bool paused     = g_worker_paused;
+    pthread_mutex_unlock(&g_state_mutex);
+
+    renderer_set_paused(paused);
+    return paused;
 }
 
 bool app_is_paused(void)
 {
-    return g_paused;
+    pthread_mutex_lock(&g_state_mutex);
+    bool paused = g_worker_paused;
+    pthread_mutex_unlock(&g_state_mutex);
+    return paused;
 }
 
 bool app_step_forward(void)
@@ -79,11 +89,13 @@ bool app_step_forward(void)
     {
         return false;
     }
-    if (!g_paused)
+    if (!app_is_paused())
     {
         app_toggle_pause();
     }
-    g_step_pending = +1;
+    pthread_mutex_lock(&g_state_mutex);
+    g_worker_step_pending = +1;
+    pthread_mutex_unlock(&g_state_mutex);
     return true;
 }
 
@@ -93,11 +105,13 @@ bool app_step_backward(void)
     {
         return false;
     }
-    if (!g_paused)
+    if (!app_is_paused())
     {
         app_toggle_pause();
     }
-    g_step_pending = -1;
+    pthread_mutex_lock(&g_state_mutex);
+    g_worker_step_pending = -1;
+    pthread_mutex_unlock(&g_state_mutex);
     return true;
 }
 
@@ -108,28 +122,22 @@ bool app_seek_to(int target_frame)
         return false;
     }
 
-    int cur = 0;
     int tot = 0;
-    if (!source_get_frame_position(g_source, &cur, &tot) || tot <= 0)
+    pthread_mutex_lock(&g_state_mutex);
+    tot = g_worker_tot_frames;
+    pthread_mutex_unlock(&g_state_mutex);
+
+    if (tot <= 0)
     {
         return false;
     }
 
-    if (target_frame < 0)
-    {
-        target_frame = 0;
-    }
-    if (target_frame >= tot)
-    {
-        target_frame = tot - 1;
-    }
+    target_frame = utils_clamp(target_frame, 0, tot - 1);
 
-    if (!source_seek_to(g_source, target_frame))
-    {
-        return false;
-    }
-
-    g_seek_pending = true;
+    pthread_mutex_lock(&g_state_mutex);
+    g_worker_seek_pending = true;
+    g_worker_seek_target  = target_frame;
+    pthread_mutex_unlock(&g_state_mutex);
     return true;
 }
 
@@ -140,35 +148,130 @@ bool app_seek_fraction(float fraction)
         return false;
     }
 
-    int cur = 0;
     int tot = 0;
-    if (!source_get_frame_position(g_source, &cur, &tot) || tot <= 0)
+    pthread_mutex_lock(&g_state_mutex);
+    tot = g_worker_tot_frames;
+    pthread_mutex_unlock(&g_state_mutex);
+
+    if (tot <= 0)
     {
         return false;
     }
 
-    if (fraction < 0.0f)
-    {
-        fraction = 0.0f;
-    }
-    if (fraction > 1.0f)
-    {
-        fraction = 1.0f;
-    }
-
+    fraction   = utils_clamp(fraction, 0.0f, 1.0f);
     int target = (int)(fraction * (float)(tot - 1) + 0.5f);
     return app_seek_to(target);
 }
 
+//------------------------------------------------------- Worker Thread -----------------------------------------------
+
+static void * worker_thread(void * arg)
+{
+    source_s * src = (source_s *)arg;
+    frame_state_s state;
+    frame_state_init(&state, g_cfg->image, (uint16_t)renderer_get_bytes_per_pixel());
+
+    while (g_running)
+    {
+        int step  = 0;
+        bool seek = false, paused = false;
+        int target = 0;
+
+        pthread_mutex_lock(&g_state_mutex);
+        step   = g_worker_step_pending;
+        seek   = g_worker_seek_pending;
+        target = g_worker_seek_target;
+        paused = g_worker_paused;
+        pthread_mutex_unlock(&g_state_mutex);
+
+        bool step_this_iter = false;
+
+        if (seek)
+        {
+            source_seek_to(src, target);
+            pthread_mutex_lock(&g_state_mutex);
+            g_worker_seek_pending = false;
+            pthread_mutex_unlock(&g_state_mutex);
+            step           = 1; // Принудительно вычитываем один кадр после seek
+            step_this_iter = true;
+        }
+
+        if (step != 0)
+        {
+            if (step > 0)
+            {
+                source_step_forward(src);
+            }
+            else
+            {
+                source_step_backward(src);
+            }
+
+            pthread_mutex_lock(&g_state_mutex);
+            g_worker_step_pending = 0;
+            pthread_mutex_unlock(&g_state_mutex);
+            step_this_iter = true;
+        }
+
+        const bool skip_receive = paused && g_cfg->use_file_source && !step_this_iter;
+
+        int received = 0;
+        if (!skip_receive)
+        {
+            received = source_receive(src, &state, g_worker_buffer);
+            if (received < 0)
+            {
+                log_error("app: source receive failed\n");
+                break;
+            }
+            if (received > 0 && !g_cfg->use_file_source)
+            {
+                stats_add_packets(received);
+            }
+        }
+
+        bool frame_ready = g_cfg->use_file_source ? (received == 1)
+                                                  : (frame_state_is_ready(&state) || source_check_timeout(src, &state));
+
+        if (frame_ready)
+        {
+            pthread_mutex_lock(&g_frame_mutex);
+            memcpy(g_render_buffer, g_worker_buffer, g_frame_bytes);
+            g_has_new_frame = true;
+            pthread_mutex_unlock(&g_frame_mutex);
+
+            saver_add_frame(g_worker_buffer);
+            stats_frame_rendered();
+            frame_state_reset(&state);
+
+            int cur = 0;
+            int tot = 0;
+            if (source_get_frame_position(src, &cur, &tot))
+            {
+                pthread_mutex_lock(&g_state_mutex);
+                g_worker_cur_frame  = cur;
+                g_worker_tot_frames = tot;
+                pthread_mutex_unlock(&g_state_mutex);
+            }
+        }
+        else
+        {
+            SLEEP_US(1000); // 1ms, если кадр ещё не собран
+        }
+    }
+    return nullptr;
+}
+
+//------------------------------------------------------- Main ---------------------------------------------------------
+
 static void cleanup_buffers(void)
 {
-    for (int i = 0; i < NUM_FRAME_BUFFERS; i++)
-    {
-        free(g_frame_buffers[ i ]);
-        g_frame_buffers[ i ] = nullptr;
-    }
-    free(g_paused_buffer);
-    g_paused_buffer = nullptr;
+    free(g_worker_buffer);
+    g_worker_buffer = nullptr;
+    free(g_render_buffer);
+    g_render_buffer = nullptr;
+    free(g_main_buffer);
+    g_main_buffer = nullptr;
 }
 
 int app_run(const app_config_s * cfg)
@@ -221,7 +324,7 @@ int app_run(const app_config_s * cfg)
     source_s * src = source_create(&src_params);
     if (!source_open(src, &src_params))
     {
-        log_error("app: Не удалось открыть источник данных\n");
+        log_error("app: Failed to open data source\n");
         saver_cleanup();
         renderer_cleanup();
         stats_cleanup();
@@ -230,36 +333,17 @@ int app_run(const app_config_s * cfg)
 
     g_source = src;
 
-    int frame_cur = 0;
-    int frame_tot = 0;
-    if (source_get_frame_position(src, &frame_cur, &frame_tot))
-    {
-        window_title_set_frame(frame_cur, frame_tot);
-        progress_bar_set(frame_cur, frame_tot);
-    }
-
     signal(SIGINT, signal_handler);
 
     g_frame_bytes = cfg->image.x * cfg->image.y * bpp;
 
-    for (int i = 0; i < NUM_FRAME_BUFFERS; i++)
-    {
-        g_frame_buffers[ i ] = calloc(1, g_frame_bytes);
-        if (!g_frame_buffers[ i ])
-        {
-            perror("calloc frame buffer");
-            cleanup_buffers();
-            source_close(src);
-            renderer_cleanup();
-            stats_cleanup();
-            return EXIT_FAILURE;
-        }
-    }
+    g_worker_buffer = (uint8_t *)calloc(1, g_frame_bytes);
+    g_render_buffer = (uint8_t *)calloc(1, g_frame_bytes);
+    g_main_buffer   = (uint8_t *)calloc(1, g_frame_bytes);
 
-    g_paused_buffer = calloc(1, g_frame_bytes);
-    if (!g_paused_buffer)
+    if (!g_worker_buffer || !g_render_buffer || !g_main_buffer)
     {
-        perror("calloc paused buffer");
+        log_error("app: Failed to allocate frame buffers\n");
         cleanup_buffers();
         source_close(src);
         renderer_cleanup();
@@ -267,13 +351,20 @@ int app_run(const app_config_s * cfg)
         return EXIT_FAILURE;
     }
 
-    int recv_idx = 0;
-
-    frame_state_s state;
-    frame_state_init(&state, cfg->image, (uint16_t)bpp);
-
     GLFWwindow * window = renderer_get_window();
     mouse_state_init(window);
+
+    // Запускаем воркер чтения данных
+    pthread_t thread;
+    if (pthread_create(&thread, nullptr, worker_thread, src) != 0)
+    {
+        log_error("app: Failed to create worker thread\n");
+        cleanup_buffers();
+        source_close(src);
+        renderer_cleanup();
+        stats_cleanup();
+        return EXIT_FAILURE;
+    }
 
     mouse_state_s mouse;
 
@@ -295,7 +386,7 @@ int app_run(const app_config_s * cfg)
 
         bool menu_consumed = renderer_handle_context_menu(mouse_point, mouse.right, mouse.left);
 
-        // Progress bar — клик и скраб.
+        // Progress bar
         bool progress_consumed = false;
         if (!menu_consumed && cfg->use_file_source)
         {
@@ -314,7 +405,6 @@ int app_run(const app_config_s * cfg)
         }
 
         bool input_consumed = menu_consumed || progress_consumed;
-
         renderer_set_mouse_pos(mouse_point);
 
         if (!input_consumed)
@@ -324,91 +414,43 @@ int app_run(const app_config_s * cfg)
             renderer_set_selection_from_mouse(frame, mouse.left, in_view);
         }
 
-        bool step_this_iter = false;
-        if (g_step_pending != 0)
+        // --- ЗАБИРАЕМ НОВЫЙ КАДР ИЗ ВОРКЕРА ---
+        bool new_frame = false;
+        pthread_mutex_lock(&g_frame_mutex);
+        if (g_has_new_frame)
         {
-            if (g_step_pending > 0)
-            {
-                source_step_forward(g_source);
-            }
-            else
-            {
-                source_step_backward(g_source);
-            }
-            g_step_pending = 0;
-            step_this_iter = true;
+            memcpy(g_main_buffer, g_render_buffer, g_frame_bytes);
+            g_has_new_frame = false;
+            new_frame       = true;
         }
-        if (g_seek_pending)
+        pthread_mutex_unlock(&g_frame_mutex);
+
+        if (new_frame)
         {
-            g_seek_pending = false;
-            step_this_iter = true;
+            renderer_set_frame(g_main_buffer);
         }
 
-        const bool skip_receive = g_paused && cfg->use_file_source && !step_this_iter;
+        // --- ОБНОВЛЯЕМ UI ---
+        int cur = 0, tot = 0;
+        pthread_mutex_lock(&g_state_mutex);
+        cur = g_worker_cur_frame;
+        tot = g_worker_tot_frames;
+        pthread_mutex_unlock(&g_state_mutex);
 
-        int received = 0;
-        if (!skip_receive)
+        if (tot > 0)
         {
-            received = source_receive(src, &state, g_frame_buffers[ recv_idx ]);
-            if (received < 0)
-            {
-                log_error("app: source receive failed\n");
-                break;
-            }
-            if (received > 0 && !cfg->use_file_source)
-            {
-                stats_add_packets(received);
-            }
+            window_title_set_frame(cur, tot);
+            progress_bar_set(cur, tot);
         }
 
-        bool frame_ready = cfg->use_file_source ? (received == 1)
-                                                : (frame_state_is_ready(&state) || source_check_timeout(src, &state));
-
-        if (frame_ready)
-        {
-            if (g_paused && cfg->use_file_source)
-            {
-                memcpy(g_paused_buffer, g_frame_buffers[ recv_idx ], g_frame_bytes);
-            }
-
-            renderer_update_texture(g_paused ? g_paused_buffer : g_frame_buffers[ recv_idx ]);
-
-            saver_add_frame(g_frame_buffers[ recv_idx ]);
-            stats_frame_rendered();
-
-            g_last_rendered_idx     = recv_idx;
-            g_has_rendered          = true;
-            g_last_paused_render_us = get_time_us();
-
-            int cur = 0;
-            int tot = 0;
-            if (source_get_frame_position(src, &cur, &tot))
-            {
-                window_title_set_frame(cur, tot);
-                progress_bar_set(cur, tot);
-            }
-
-            if (step_this_iter)
-            {
-                window_title_refresh();
-            }
-
-            recv_idx = (recv_idx + 1) % NUM_FRAME_BUFFERS;
-            frame_state_reset(&state);
-        }
-        else if (g_paused && g_has_rendered && g_paused_buffer)
-        {
-            uint64_t now_us = get_time_us();
-            if (now_us - g_last_paused_render_us >= 100000)
-            {
-                renderer_update_texture(g_paused_buffer);
-                g_last_paused_render_us = now_us;
-            }
-        }
+        // --- РИСУЕМ ВСЕГДА (плавный UI) ---
+        renderer_draw();
 
         stats_update();
-        SLEEP_US(200);
     }
+
+    g_running = false;
+    pthread_join(thread, nullptr); // Ждём завершения воркера
 
     g_source = nullptr;
     cleanup_buffers();

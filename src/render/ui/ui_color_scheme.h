@@ -113,3 +113,21 @@
 
 #define UI_SELECTION_LINE            UI_RGBA_WHITE
 #define UI_SELECTION_FILL            UI_RGBA_FROM_RGB(UI_RGB_WHITE, 0.08f)
+
+//---- Line Profile / Waveform -----------------------------------------------------------------------------------------
+
+// Полупрозрачный чёрный фон (чтобы видеть картинку под графиком)
+#define UI_LINE_PROFILE_BG           ((fcolor_rgba_s) {0.0f, 0.0f, 0.0f, 0.65f})
+// Едва заметная сетка для осей
+#define UI_LINE_PROFILE_GRID         ((fcolor_rgba_s) {1.0f, 1.0f, 1.0f, 0.15f})
+// Яркий красный для горизонтального профиля (X)
+#define UI_LINE_PROFILE_X            ((fcolor_rgba_s) {1.0f, 0.3f, 0.3f, 0.55f})
+// Яркий голубой для вертикального профиля (Y)
+#define UI_LINE_PROFILE_Y            ((fcolor_rgba_s) {0.3f, 0.8f, 1.0f, 0.55f})
+
+//---- Histogram Edges -------------------------------------------------------------------------------------------------
+
+// Белый/Циан для минимума (не сливается с красным/зелёным/синим)
+#define UI_HIST_EDGE_MIN             ((fcolor_rgba_s) {0.0f, 1.0f, 1.0f, 1.0f})
+// Маджента для максимума (контрастирует со всеми цветами каналов)
+#define UI_HIST_EDGE_MAX             ((fcolor_rgba_s) {1.0f, 0.0f, 1.0f, 1.0f})

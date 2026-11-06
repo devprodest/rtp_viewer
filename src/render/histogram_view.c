@@ -2,20 +2,20 @@
 #include "analysis/analytics.h"
 #include "gl_utils.h"
 #include "log/logger.h"
+#include "render/ui/ui_color_scheme.h"
+#include "util/utils.h"
 
 #include <math.h>
-#include <stdio.h>
 #include <string.h>
-
 
 static GLuint g_quad_vao        = 0;
 static GLuint g_hist_tex        = 0;
 static GLuint g_hist_program    = 0;
 static GLint g_hist_uniform_tex = -1;
 
-static bool g_enabled     = false;
-static bool g_log_scale   = false;
-static bool g_cdf_enabled = false;
+static bool g_enabled   = false;
+static bool g_log_scale = false;
+static int g_eff_bits   = 8;
 
 #define HIST_BAND_ROWS          (64)
 #define HIST_TEX_H              (HIST_BAND_ROWS * 3)
@@ -32,8 +32,32 @@ static union
     hist_pixel_t by_row[ HIST_TEX_H ][ HIST_BINS ];
 } g_hist_pixels;
 
-static void draw_cdf_line_gray(const float * cdf, uint8_t r, uint8_t g, uint8_t b)
+//------------------------------------------------------- CDF (сглаживание) --------------------------------------------
+
+/// \brief Простое скользящее среднее для сглаживания линии CDF.
+static void apply_smoothing(float * data, int size)
 {
+    if (size < 3)
+    {
+        return;
+    }
+
+    float temp[ HIST_BINS ];
+    temp[ 0 ] = data[ 0 ];
+    for (int i = 1; i < size - 1; i++)
+    {
+        temp[ i ] = (data[ i - 1 ] + data[ i ] * 2.0f + data[ i + 1 ]) / 4.0f;
+    }
+    temp[ size - 1 ] = data[ size - 1 ];
+    memcpy(data, temp, size * sizeof(float));
+}
+
+static void draw_cdf_line_gray(const float * cdf_in, uint8_t r, uint8_t g, uint8_t b)
+{
+    float cdf[ HIST_BINS ];
+    memcpy(cdf, cdf_in, sizeof(cdf));
+    apply_smoothing(cdf, HIST_BINS);
+
     int prev_y = -1;
 
     for (int x = 0; x < HIST_BINS; x++)
@@ -43,8 +67,8 @@ static void draw_cdf_line_gray(const float * cdf, uint8_t r, uint8_t g, uint8_t 
 
         if (prev_y >= 0)
         {
-            int ya = prev_y < y_pix ? prev_y : y_pix;
-            int yb = prev_y > y_pix ? prev_y : y_pix;
+            int ya = utils_min(prev_y, y_pix);
+            int yb = utils_max(prev_y, y_pix);
             for (int y = ya; y <= yb; y++)
             {
                 g_hist_pixels.by_row[ y ][ x ][ 0 ] = r;
@@ -57,27 +81,27 @@ static void draw_cdf_line_gray(const float * cdf, uint8_t r, uint8_t g, uint8_t 
     }
 }
 
-static void draw_cdf_line_channel(const float * cdf, int band_index, int x_lo, int x_hi, int span, uint8_t r, uint8_t g,
-                                  uint8_t b)
+static void draw_cdf_line_channel(const float * cdf_in, int band_index, int x_lo, int x_hi, int span, uint8_t r,
+                                  uint8_t g, uint8_t b)
 {
+    float cdf[ HIST_BINS ];
+    memcpy(cdf, cdf_in, sizeof(cdf));
+    apply_smoothing(cdf, HIST_BINS);
+
     int y0     = band_index * HIST_BAND_ROWS;
     int prev_y = -1;
 
     for (int x = x_lo; x <= x_hi; x++)
     {
-        int xs = (x - x_lo) * HIST_BINS / span;
-        if (xs >= HIST_BINS)
-        {
-            xs = HIST_BINS - 1;
-        }
+        int xs = utils_clamp((x - x_lo) * HIST_BINS / span, 0, HIST_BINS - 1);
 
         int y_local = (int)(cdf[ x ] * (float)(HIST_BAND_ROWS - 1) + 0.5f);
         int y_pix   = y0 + (HIST_BAND_ROWS - 1 - y_local);
 
         if (prev_y >= 0)
         {
-            int ya = prev_y < y_pix ? prev_y : y_pix;
-            int yb = prev_y > y_pix ? prev_y : y_pix;
+            int ya = utils_min(prev_y, y_pix);
+            int yb = utils_max(prev_y, y_pix);
             for (int y = ya; y <= yb; y++)
             {
                 if (y >= y0 && y < y0 + HIST_BAND_ROWS)
@@ -116,6 +140,80 @@ static void compute_cdf_channel(const uint32_t * bins, float * cdf_out)
         cdf_out[ i ] = (float)acc / (float)total;
     }
 }
+
+//------------------------------------------------------- Указатели краёв
+//-----------------------------------------------
+
+/// \brief Рисует вертикальные линии на позициях min и max из аналитики.
+//------------------------------------------------------- Указатели краёв
+//-----------------------------------------------
+
+/// \brief Рисует вертикальные линии на позициях перцентилей 1% и 99%, используя готовую CDF.
+static void draw_edge_pointers(const float * cdf, int channel, int lo, int span)
+{
+    if (!cdf)
+    {
+        return;
+    }
+
+    int min_bin = 0;
+    int max_bin = HIST_BINS - 1;
+
+    // Находим бины для 1% и 99% по уже готовой CDF
+    for (int i = 0; i < HIST_BINS; i++)
+    {
+        if (cdf[ i ] >= 0.01f)
+        {
+            min_bin = i;
+            break;
+        }
+    }
+    for (int i = 0; i < HIST_BINS; i++)
+    {
+        if (cdf[ i ] >= 0.99f)
+        {
+            max_bin = i;
+            break;
+        }
+    }
+
+    // Переводим в координаты X на текстуре
+    int x_min = utils_clamp((min_bin - lo) * HIST_BINS / span, 0, HIST_BINS - 1);
+    int x_max = utils_clamp((max_bin - lo) * HIST_BINS / span, 0, HIST_BINS - 1);
+
+    int y0 = (channel == -1) ? 0 : (channel * HIST_BAND_ROWS);
+    int h  = (channel == -1) ? HIST_TEX_H : HIST_BAND_ROWS;
+
+    uint8_t r_min = (uint8_t)(UI_HIST_EDGE_MIN.r * 255.0f);
+    uint8_t g_min = (uint8_t)(UI_HIST_EDGE_MIN.g * 255.0f);
+    uint8_t b_min = (uint8_t)(UI_HIST_EDGE_MIN.b * 255.0f);
+
+    uint8_t r_max = (uint8_t)(UI_HIST_EDGE_MAX.r * 255.0f);
+    uint8_t g_max = (uint8_t)(UI_HIST_EDGE_MAX.g * 255.0f);
+    uint8_t b_max = (uint8_t)(UI_HIST_EDGE_MAX.b * 255.0f);
+
+    for (int y = 0; y < h; y++)
+    {
+        // Ширина 1 пиксель
+        int xm = utils_clamp(x_min, 0, HIST_BINS - 1);
+        int xM = utils_clamp(x_max, 0, HIST_BINS - 1);
+
+        // Минимум (1%)
+        g_hist_pixels.by_row[ y0 + y ][ xm ][ 0 ] = r_min;
+        g_hist_pixels.by_row[ y0 + y ][ xm ][ 1 ] = g_min;
+        g_hist_pixels.by_row[ y0 + y ][ xm ][ 2 ] = b_min;
+        g_hist_pixels.by_row[ y0 + y ][ xm ][ 3 ] = 255;
+
+        // Максимум (99%)
+        g_hist_pixels.by_row[ y0 + y ][ xM ][ 0 ] = r_max;
+        g_hist_pixels.by_row[ y0 + y ][ xM ][ 1 ] = g_max;
+        g_hist_pixels.by_row[ y0 + y ][ xM ][ 2 ] = b_max;
+        g_hist_pixels.by_row[ y0 + y ][ xM ][ 3 ] = 255;
+    }
+}
+
+
+//------------------------------------------------------- Основная сборка ----------------------------------------------
 
 /// \brief Заполняет g_hist_pixels растр по текущей гистограмме из analytics.
 static void build_histogram_image(void)
@@ -159,13 +257,14 @@ static void build_histogram_image(void)
                     g_hist_pixels.by_row[ HIST_TEX_H - 1 - y ][ x ][ 3 ] = HIST_BIN_OPACITY;
                 }
             }
-        }
 
-        if (g_cdf_enabled && maxv > 0)
-        {
+            // CDF
             float cdf[ HIST_BINS ];
             compute_cdf_channel(hist->bins[ 0 ], cdf);
-            draw_cdf_line_gray(cdf, 255, 255, 0);
+            draw_cdf_line_gray(cdf, 255, 255, 0); // жёлтая линия CDF
+
+            // Указатели краёв (рисуем в самом конце)
+            draw_edge_pointers(cdf, 0, 0, HIST_BINS);
         }
     }
     else if (hist->active_channels == 3)
@@ -221,36 +320,21 @@ static void build_histogram_image(void)
                     bar = (int)((uint64_t)hist->bins[ c ][ x ] * HIST_BAND_ROWS / maxv);
                 }
 
-                int xs = (x - lo) * HIST_BINS / span;
+                int xs = utils_clamp((x - lo) * HIST_BINS / span, 0, HIST_BINS - 1);
 
                 for (int y = 0; y < bar; y++)
                 {
                     g_hist_pixels.by_channel[ c ][ HIST_BAND_ROWS - 1 - y ][ xs ][ 3 ] = HIST_BIN_OPACITY;
                 }
             }
-        }
 
-        if (g_cdf_enabled)
-        {
-            static const uint8_t cdf_colors[ 3 ][ 3 ] = {
-                {255, 255, 0  },
-                {0,   255, 255},
-                {255, 0,   255},
-            };
+            // CDF
+            float cdf[ HIST_BINS ];
+            compute_cdf_channel(hist->bins[ c ], cdf);
+            draw_cdf_line_channel(cdf, c, lo, hi, span, 255, 255, 0);
 
-            for (int c = 0; c < 3; c++)
-            {
-                float cdf[ HIST_BINS ];
-                compute_cdf_channel(hist->bins[ c ], cdf);
-
-                const bool use_window = is_ycbcr && c != 0;
-                const int lo          = use_window ? 96 : 0;
-                const int hi          = use_window ? 160 : (HIST_BINS - 1);
-                const int span        = hi - lo + 1;
-
-                draw_cdf_line_channel(cdf, c, lo, hi, span, cdf_colors[ c ][ 0 ], cdf_colors[ c ][ 1 ],
-                                      cdf_colors[ c ][ 2 ]);
-            }
+            // Указатели краёв (рисуем в самом конце)
+            draw_edge_pointers(cdf, c, lo, span);
         }
     }
 
@@ -259,7 +343,8 @@ static void build_histogram_image(void)
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HIST_BINS, HIST_TEX_H, GL_RGBA, GL_UNSIGNED_BYTE, &g_hist_pixels);
 }
 
-/// \brief Инициализирует текстуру и программу оверлея гистограммы.
+//------------------------------------------------------- API ---------------------------------------------------------
+
 bool histogram_view_init(GLuint quad_vao)
 {
     g_quad_vao = quad_vao;
@@ -310,13 +395,17 @@ void histogram_view_cleanup(void)
     }
 }
 
-/// \brief Пересобирает растр по текущей гистограмме из analytics.
-void histogram_view_update(void)
+void histogram_view_update(int effective_bits)
 {
+    if (!g_enabled)
+    {
+        return;
+    }
+    g_eff_bits = effective_bits;
     build_histogram_image();
 }
 
-void histogram_view_render(point_s s, image_size_s size)
+void histogram_view_render(image_size_s win)
 {
     const histogram_s * hist = analytics_get_histogram();
 
@@ -325,7 +414,13 @@ void histogram_view_render(point_s s, image_size_s size)
         return;
     }
 
-    glViewport(s.x, s.y, size.x, size.y);
+    const image_size_s hist_view_size = {320, 240};
+
+    const int margin = 10;
+    const point_s ov = {.x = utils_max(win.x - hist_view_size.x - margin, 0),
+                        .y = utils_max(win.y - hist_view_size.y - margin, 0)};
+
+    glViewport(ov.x, ov.y, hist_view_size.x, hist_view_size.y);
 
     glUseProgram(g_hist_program);
     glActiveTexture(GL_TEXTURE0);
@@ -352,12 +447,6 @@ void histogram_view_toggle_log_scale(void)
     log_info("Histogram scale: %s", g_log_scale ? "log" : "linear");
 }
 
-void histogram_view_toggle_cdf(void)
-{
-    g_cdf_enabled = !g_cdf_enabled;
-    log_info("Histogram CDF %s", g_cdf_enabled ? "enabled" : "disabled");
-}
-
 bool histogram_view_is_enabled(void)
 {
     return g_enabled;
@@ -371,9 +460,4 @@ int histogram_view_get_active_channels(void)
 bool histogram_view_is_log_scale(void)
 {
     return g_log_scale;
-}
-
-bool histogram_view_is_cdf(void)
-{
-    return g_cdf_enabled;
 }

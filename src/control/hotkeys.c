@@ -15,12 +15,12 @@ static bool right_pressed = false;
 static bool eq_pressed    = false;
 static bool minus_pressed = false;
 static bool b_pressed     = false;
-static bool c_pressed     = false;
 static bool e_pressed     = false;
 static bool f_pressed     = false;
 static bool h_pressed     = false;
 static bool h_was_down    = false;
 static bool i_pressed     = false;
+static bool l_pressed     = false;
 static bool r_pressed     = false;
 static bool s_pressed     = false;
 static bool t_pressed     = false;
@@ -41,13 +41,13 @@ void hotkeys_process(GLFWwindow * window)
     bool eq    = glfwGetKey(window, GLFW_KEY_EQUAL) == GLFW_PRESS;
     bool minus = glfwGetKey(window, GLFW_KEY_MINUS) == GLFW_PRESS;
 
-    bool c = glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS;
     bool s = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
     bool r = glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS;
     bool w = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
     bool h = glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS;
     bool e = glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS;
     bool i = glfwGetKey(window, GLFW_KEY_I) == GLFW_PRESS;
+    bool l = glfwGetKey(window, GLFW_KEY_L) == GLFW_PRESS;
     bool f = glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS;
     bool t = glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS;
     bool v = glfwGetKey(window, GLFW_KEY_V) == GLFW_PRESS;
@@ -114,6 +114,10 @@ void hotkeys_process(GLFWwindow * window)
     {
         cmd_execute(CMD_TOGGLE_INSPECTOR);
     }
+    if (l && no_modificator && !l_pressed)
+    {
+        cmd_execute(CMD_TOGGLE_LINE_PROFILE);
+    }
     if (f && no_modificator && !f_pressed)
     {
         cmd_execute(CMD_TOGGLE_GRADIENT);
@@ -148,11 +152,6 @@ void hotkeys_process(GLFWwindow * window)
         cmd_execute(CMD_DIFF_GAIN_DOWN);
     }
 
-    if (c && no_modificator && !c_pressed)
-    {
-        cmd_execute(CMD_TOGGLE_HISTOGRAM_CDF);
-    }
-
     if (esc && no_modificator && !esc_pressed)
     {
         if (context_menu_is_open())
@@ -178,7 +177,7 @@ void hotkeys_process(GLFWwindow * window)
     eq_pressed    = eq;
     f_pressed     = f;
     i_pressed     = i;
-    c_pressed     = c;
+    l_pressed     = l;
     e_pressed     = e;
     s_pressed     = s;
     r_pressed     = r;
