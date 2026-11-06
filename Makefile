@@ -26,6 +26,7 @@ SRCS += $(SRC_DIR)/analysis/selection.c
 SRCS += $(SRC_DIR)/analysis/sharpness.c
 SRCS += $(SRC_DIR)/app/app.c
 SRCS += $(SRC_DIR)/app/config.c
+SRCS += $(SRC_DIR)/app/pipeline.c
 SRCS += $(SRC_DIR)/control/commands.c
 SRCS += $(SRC_DIR)/control/hotkeys.c
 SRCS += $(SRC_DIR)/control/mouse.c
