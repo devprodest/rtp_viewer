@@ -2,7 +2,7 @@
 
 #include "analysis/selection.h"
 #include "format/format_config.h"
-#include "render/gl_api.h"
+#include "render/gl/gl_api.h"
 #include "util/types.h"
 
 #include <stdbool.h>

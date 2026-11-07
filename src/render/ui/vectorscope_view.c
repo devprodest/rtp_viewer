@@ -1,7 +1,7 @@
 #include "vectorscope_view.h"
 
 #include "log/logger.h"
-#include "render/gl_utils.h"
+#include "render/gl/gl_utils.h"
 #include "ui_color_scheme.h"
 #include "util/types.h"
 #include "util/utils.h"

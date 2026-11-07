@@ -5,21 +5,21 @@
 #include "analysis/sharpness.h"
 #include "format/format_config.h"
 #include "format_pass.h"
-#include "gl_api.h"
-#include "gl_utils.h"
-#include "histogram_view.h"
+#include "gl/gl_api.h"
+#include "gl/gl_utils.h"
 #include "log/logger.h"
 #include "log/stats.h"
 #include "overlay.h"
 #include "post_pass.h"
 #include "save/saver.h"
 #include "save/screenshot.h"
-#include "selection_view.h"
 #include "ui/context_menu.h"
 #include "ui/diff_view.h"
+#include "ui/histogram_view.h"
 #include "ui/line_profile_view.h"
 #include "ui/pixel_probe.h"
 #include "ui/progress_bar.h"
+#include "ui/selection_view.h"
 #include "ui/svg_icons.h"
 #include "ui/ui_color_scheme.h"
 #include "ui/vectorscope_view.h"
@@ -86,15 +86,13 @@ bool renderer_init(image_size_s win, const char * format_name, int effective_bit
 
     if (gl_api_load() != 0)
     {
-        log_error("Failed to load OpenGL functions\n");
-        window_cleanup();
-        return false;
+        log_error("renderer: Failed to load OpenGL functions");
+        goto fail_window;
     }
 
     if (!format_config_load(format_name, &g_format))
     {
-        window_cleanup();
-        return false;
+        goto fail_window;
     }
 
     selection_init(&g_selection);
@@ -104,33 +102,26 @@ bool renderer_init(image_size_s win, const char * format_name, int effective_bit
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
     g_win = win;
-
     viewport_init(win);
-
     g_eff_bits = effective_bits;
 
     g_quad_vao = gl_utils_create_fullscreen_quad();
     if (g_quad_vao == 0)
     {
-        log_error("renderer: failed to create fullscreen quad VAO\n");
-        overlay_cleanup();
-        window_cleanup();
-        return false;
+        log_error("renderer: failed to create fullscreen quad VAO");
+        goto fail_overlay;
     }
 
     if (!format_pass_init(win.x, win.y, g_quad_vao, effective_bits, &g_format))
     {
-        overlay_cleanup();
-        window_cleanup();
-        return false;
+        log_error("renderer: failed to initialize format pass");
+        goto fail_quad;
     }
 
     if (!post_pass_init(g_quad_vao))
     {
-        format_pass_cleanup();
-        overlay_cleanup();
-        window_cleanup();
-        return false;
+        log_error("renderer: failed to initialize post pass");
+        goto fail_format;
     }
 
     post_pass_set_format(g_format.bytes_per_pixel, effective_bits);
@@ -138,21 +129,14 @@ bool renderer_init(image_size_s win, const char * format_name, int effective_bit
 
     if (!histogram_view_init(g_quad_vao))
     {
-        post_pass_cleanup();
-        format_pass_cleanup();
-        overlay_cleanup();
-        window_cleanup();
-        return false;
+        log_error("renderer: failed to initialize histogram view");
+        goto fail_post;
     }
 
     if (!vectorscope_view_init(g_quad_vao))
     {
-        histogram_view_cleanup();
-        post_pass_cleanup();
-        format_pass_cleanup();
-        overlay_cleanup();
-        window_cleanup();
-        return false;
+        log_error("renderer: failed to initialize vectorscope view");
+        goto fail_hist;
     }
 
     screenshot_init();
@@ -165,6 +149,26 @@ bool renderer_init(image_size_s win, const char * format_name, int effective_bit
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     return true;
+
+    // --- Cleanup on failure (reverse order of init) ---
+
+fail_hist:
+    histogram_view_cleanup();
+fail_post:
+    post_pass_cleanup();
+fail_format:
+    format_pass_cleanup();
+fail_quad:
+    if (g_quad_vao)
+    {
+        glDeleteVertexArrays(1, &g_quad_vao);
+        g_quad_vao = 0;
+    }
+fail_overlay:
+    overlay_cleanup();
+fail_window:
+    window_cleanup();
+    return false;
 }
 
 void renderer_cleanup(void)
@@ -187,16 +191,6 @@ void renderer_cleanup(void)
 
     g_win.x = 0;
     g_win.y = 0;
-}
-
-GLFWwindow * renderer_get_window(void)
-{
-    return window_get();
-}
-
-void renderer_poll_events(void)
-{
-    window_poll_events();
 }
 
 void renderer_set_frame(const uint8_t * data)
@@ -259,17 +253,7 @@ int renderer_get_bytes_per_pixel(void)
 {
     return format_pass_get_bytes_per_pixel();
 }
-void renderer_set_demosaic_mode(int /*unused*/)
-{
-}
-void renderer_set_paused(bool paused)
-{
-    window_title_set_paused(paused);
-}
-void renderer_toggle_fullscreen(void)
-{
-    window_toggle_fullscreen();
-}
+
 void renderer_clear_selection(void)
 {
     selection_clear(&g_selection);

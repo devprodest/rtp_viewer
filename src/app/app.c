@@ -10,7 +10,9 @@
 #include "render/ui/progress_bar.h"
 #include "render/ui/svg_icons.h"
 #include "render/ui/window_title.h"
+#include "render/window.h"
 #include "save/saver.h"
+#include "save/screenshot.h"
 #include "source/source.h"
 #include "source/source_factory.h"
 #include "util/utils.h"
@@ -48,7 +50,7 @@ static void signal_handler(int /* unused */)
 bool app_toggle_pause(void)
 {
     bool paused = pipeline_toggle_pause();
-    renderer_set_paused(paused);
+    window_title_set_paused(paused);
     return paused;
 }
 
@@ -104,13 +106,13 @@ static bool app_init(const app_config_s * cfg)
 
     if (!renderer_init(cfg->image, cfg->format, cfg->effective_bits, cfg->smooth_start))
     {
-        log_error("app: Failed to initialize OpenGL\n");
-        stats_cleanup();
-        return false;
+        log_error("app: Failed to initialize OpenGL");
+        goto fail_renderer;
     }
 
     if (!svg_icons_init())
     {
+        // Non-fatal: fallback to primitive icons
         log_error("app: Failed to initialize NanoVG");
     }
 
@@ -139,11 +141,8 @@ static bool app_init(const app_config_s * cfg)
     g_source = source_create(&src_params);
     if (!source_open(g_source, &src_params))
     {
-        log_error("app: Failed to open data source\n");
-        saver_cleanup();
-        renderer_cleanup();
-        stats_cleanup();
-        return false;
+        log_error("app: Failed to open data source");
+        goto fail_source;
     }
 
     signal(SIGINT, signal_handler);
@@ -152,24 +151,14 @@ static bool app_init(const app_config_s * cfg)
     g_main_buffer = (uint8_t *)calloc(1, g_frame_bytes);
     if (!g_main_buffer)
     {
-        log_error("app: Failed to allocate main buffer\n");
-        source_close(g_source);
-        saver_cleanup();
-        renderer_cleanup();
-        stats_cleanup();
-        return false;
+        log_error("app: Failed to allocate main buffer");
+        goto fail_buffer;
     }
 
     if (!pipeline_start(g_source, cfg->image, bpp, g_frame_bytes, cfg->use_file_source))
     {
-        log_error("app: Failed to start pipeline\n");
-        free(g_main_buffer);
-        g_main_buffer = nullptr;
-        source_close(g_source);
-        saver_cleanup();
-        renderer_cleanup();
-        stats_cleanup();
-        return false;
+        log_error("app: Failed to start pipeline");
+        goto fail_pipeline;
     }
 
     int cur = 0;
@@ -180,11 +169,30 @@ static bool app_init(const app_config_s * cfg)
         progress_bar_set(cur, tot);
     }
 
-    GLFWwindow * window = renderer_get_window();
+    GLFWwindow * window = window_get();
     mouse_state_init(window);
     hotkeys_init(window);
 
     return true;
+
+    // --- Cleanup on failure (reverse order of init) ---
+
+fail_pipeline:
+    free(g_main_buffer);
+    g_main_buffer = nullptr;
+fail_buffer:
+    source_close(g_source);
+    g_source = nullptr;
+fail_source:
+    saver_cleanup();
+    svg_icons_cleanup();
+    renderer_cleanup();
+fail_renderer:
+    stats_cleanup();
+#ifdef _WIN32
+    timeEndPeriod(1);
+#endif
+    return false;
 }
 
 //------------------------------------------------------- Ввод / UI ----------------------------------------------------
@@ -282,12 +290,12 @@ int app_run(const app_config_s * cfg)
         return EXIT_FAILURE;
     }
 
-    GLFWwindow * window = renderer_get_window();
+    GLFWwindow * window = window_get();
     mouse_state_s mouse;
 
     while (g_running && !glfwWindowShouldClose(window))
     {
-        renderer_poll_events();
+        window_poll_events();
 
         app_process_input(window, &mouse);
         app_update_pipeline_and_ui();

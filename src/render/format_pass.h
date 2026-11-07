@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 #include "format/format_config.h"
-#include "gl_api.h"
+#include "gl/gl_api.h"
 
 bool format_pass_init(int width, int height, GLuint quad_vao, int effective_bits, const format_config_s * cfg);
 void format_pass_cleanup(void);

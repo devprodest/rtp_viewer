@@ -2,7 +2,7 @@
 
 #include <stdbool.h>
 
-#include "gl_api.h"
+#include "gl/gl_api.h"
 #include "util/types.h"
 
 bool post_pass_init(GLuint quad_vao);

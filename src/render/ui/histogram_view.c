@@ -1,8 +1,8 @@
 #include "histogram_view.h"
 #include "analysis/analytics.h"
-#include "gl_utils.h"
 #include "log/logger.h"
-#include "render/ui/ui_color_scheme.h"
+#include "render/gl/gl_utils.h"
+#include "ui_color_scheme.h"
 #include "util/utils.h"
 
 #include <math.h>

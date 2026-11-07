@@ -3,7 +3,7 @@
 #include "log/logger.h"
 #include "render/ui/window_title.h"
 #include "util/utils.h"
-#include "gl_utils.h"
+#include "gl/gl_utils.h"
 
 #include <stddef.h>
 #include <stdio.h>

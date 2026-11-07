@@ -1,7 +1,7 @@
 #include "screenshot.h"
 #include "log/logger.h"
 #include "render/format_pass.h"
-#include "render/gl_api.h"
+#include "render/gl/gl_api.h"
 #include "png_writer.h"
 #include "saver.h"
 

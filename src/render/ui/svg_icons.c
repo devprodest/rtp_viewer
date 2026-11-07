@@ -1,7 +1,7 @@
 #include "svg_icons.h"
 
 #include "log/logger.h"
-#include "render/gl_api.h"
+#include "render/gl/gl_api.h"
 
 #include <stdlib.h>
 #include <string.h>

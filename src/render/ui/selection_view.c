@@ -1,8 +1,6 @@
 #include "selection_view.h"
 #include "render/overlay.h"
-#include "ui/ui_color_scheme.h"
-
-#define SELECTION_COLOR 1.0f, 1.0f, 1.0f
+#include "ui_color_scheme.h"
 
 
 void selection_view_draw(const selection_s * sel, point_s vpoint, image_size_s vsize, image_size_s win)

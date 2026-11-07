@@ -8,8 +8,8 @@
 
 #include "overlay.h"
 
-#include "gl_api.h"
-#include "gl_utils.h"
+#include "gl/gl_api.h"
+#include "gl/gl_utils.h"
 #include "log/logger.h"
 #include "util/utils.h"
 
