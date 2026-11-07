@@ -201,3 +201,23 @@ bool viewport_screen_to_frame(point_s screen, point_s * frame)
 
     return true;
 }
+
+bool viewport_frame_to_screen(point_s frame, point_s * screen)
+{
+    if (g_size_f.x <= 0.0f || g_size_f.y <= 0.0f)
+    {
+        return false;
+    }
+    if (frame.x < 0 || frame.x >= g_frame.x)
+    {
+        return false;
+    }
+    if (frame.y < 0 || frame.y >= g_frame.y)
+    {
+        return false;
+    }
+
+    screen->x = (int)(g_point_f.x + (float)frame.x * g_size_f.x / (float)g_frame.x);
+    screen->y = (int)(g_point_f.y + (float)frame.y * g_size_f.y / (float)g_frame.y);
+    return true;
+}

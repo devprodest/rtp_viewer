@@ -53,6 +53,7 @@ SRCS += $(SRC_DIR)/render/ui/svg_icons.c
 SRCS += $(SRC_DIR)/render/ui/pixel_probe.c
 SRCS += $(SRC_DIR)/render/ui/line_profile_view.c
 SRCS += $(SRC_DIR)/render/ui/diff_view.c
+SRCS += $(SRC_DIR)/render/ui/defect_view.c
 SRCS += $(SRC_DIR)/save/saver.c
 SRCS += $(SRC_DIR)/save/screenshot.c
 SRCS += $(SRC_DIR)/save/png_writer.c

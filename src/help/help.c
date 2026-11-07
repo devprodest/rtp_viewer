@@ -30,6 +30,7 @@ static const char * build_hotkeys_text(void)
              "  L        Toggle line profile (cross-section under cursor)\n"
              "  M        Toggle vectorscope (Cb/Cr 2D histogram)\n"
              "  I        Toggle pixel probe (crosshair + pixel value at cursor)\n\n"
+             "  D        Find dead/stuck/hot pixels\n"
              "Reference / Diff:\n"
              "  V        Set current frame as reference\n"
              "  B        Toggle diff view (|current - ref| * gain)\n"

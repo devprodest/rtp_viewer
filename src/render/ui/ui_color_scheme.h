@@ -31,7 +31,7 @@
 #define UI_RGB_GRAY_SILVER           ((fcolor_rgb_s) {0.55f, 0.55f, 0.55f})
 #define UI_RGB_GRAY_LIGHT            ((fcolor_rgb_s) {0.80f, 0.80f, 0.80f})
 
-//----------------------------------------- Базовые цвета (RGBA, alpha = 1) --------------------------------------------
+//----------------------------------------- Базовые цвета (RGBA, alpha - 1) --------------------------------------------
 
 #define UI_RGBA_BLACK                ((fcolor_rgba_s) {0.00f, 0.00f, 0.00f, 1.0f})
 #define UI_RGBA_WHITE                ((fcolor_rgba_s) {1.00f, 1.00f, 1.00f, 1.0f})
@@ -57,7 +57,7 @@
 #define UI_RGBA_FROM_RGB(rgb, alpha) ((fcolor_rgba_s) {(rgb).r, (rgb).g, (rgb).b, (alpha)})
 #define UI_RGB_FROM_RGBA(rgba)       ((fcolor_rgb_s) {(rgba).r, (rgba).g, (rgba).b})
 
-//============================================= СЕМАНТИЧЕСКИЕ РОЛИ =====================================================
+//--------------------------------------------- СЕМАНТИЧЕСКИЕ РОЛИ -----------------------------------------------------
 
 //---- Поверхности (панели, фоны) --------------------------------------------------------------------------------------
 // Единый базовый цвет для всех панелей (меню, статистика, профили, пиксель-проб).
@@ -73,15 +73,15 @@
 
 //---- Акценты (графики, индикаторы) -----------------------------------------------------------------------------------
 
-#define UI_COLOR_ACCENT_PRIMARY      UI_RGBA_CYAN            // главный акцент (min-границы, оси Y)
-#define UI_COLOR_ACCENT_SECONDARY    UI_RGBA_MAGENTA         // второй акцент (max-границы)
-#define UI_COLOR_ACCENT_X            UI_RGBA_RED             // ось X / горизонтальные профили
+#define UI_COLOR_ACCENT_PRIMARY      UI_RGBA_CYAN    // главный акцент (min-границы, оси Y)
+#define UI_COLOR_ACCENT_SECONDARY    UI_RGBA_MAGENTA // второй акцент (max-границы)
+#define UI_COLOR_ACCENT_X            UI_RGBA_RED     // ось X / горизонтальные профили
 #define UI_COLOR_ACCENT_ACTIVE       ((fcolor_rgba_s) {0.20f, 0.50f, 0.20f, 1.00f}) // включенные тогглы
 #define UI_COLOR_ACCENT_ACTIVE_HOVER ((fcolor_rgba_s) {0.30f, 0.70f, 0.30f, 1.00f}) // включенные тогглы под курсором
 #define UI_COLOR_ACCENT_HOVER        ((fcolor_rgba_s) {0.25f, 0.40f, 0.25f, 1.00f}) // обычный ховер меню
 #define UI_COLOR_ACCENT_PROGRESS     ((fcolor_rgba_s) {0.20f, 0.50f, 0.20f, 0.85f}) // заполнение прогресс-бара
 
-//============================================= ПРИВЯЗКИ ЭЛЕМЕНТОВ =====================================================
+//--------------------------------------------- ПРИВЯЗКИ ЭЛЕМЕНТОВ -----------------------------------------------------
 
 //---- Текст ----
 
@@ -89,7 +89,7 @@
 #define UI_TEXT_SECONDARY            UI_COLOR_TEXT_SECONDARY
 
 //---- Панели ----
-// UI_PANEL_BG_STRONG оставлен как алиас для обратной совместимости, 
+// UI_PANEL_BG_STRONG оставлен как алиас для обратной совместимости,
 // чтобы не ломать старый код в меню и пробе.
 
 #define UI_PANEL_BG                  UI_COLOR_BG_PANEL
@@ -143,3 +143,9 @@
 
 #define UI_HIST_EDGE_MIN             UI_COLOR_ACCENT_PRIMARY
 #define UI_HIST_EDGE_MAX             UI_COLOR_ACCENT_SECONDARY
+
+//---- Defect View (Dead / Stuck / Hot pixels) ----
+
+#define UI_DEFECT_DEAD               ((fcolor_rgba_s) {0.3f, 0.6f, 1.0f, 0.9f}) // Синий (всегда 0)
+#define UI_DEFECT_STUCK              ((fcolor_rgba_s) {1.0f, 0.3f, 0.3f, 0.9f}) // Красный (всегда max)
+#define UI_DEFECT_HOT                ((fcolor_rgba_s) {1.0f, 1.0f, 0.2f, 0.9f}) // Жёлтый (выброс)

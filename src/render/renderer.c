@@ -14,6 +14,7 @@
 #include "save/saver.h"
 #include "save/screenshot.h"
 #include "ui/context_menu.h"
+#include "ui/defect_view.h"
 #include "ui/diff_view.h"
 #include "ui/histogram_view.h"
 #include "ui/line_profile_view.h"
@@ -179,6 +180,7 @@ void renderer_cleanup(void)
     post_pass_cleanup();
     format_pass_cleanup();
     diff_view_cleanup();
+    defect_view_cleanup();
 
     if (g_quad_vao)
     {
@@ -237,6 +239,7 @@ void renderer_draw(void)
     overlay_begin(win);
     selection_view_draw(&g_selection, viewport_get_point(), viewport_get_size(), g_win);
     pixel_probe_draw(win, g_dpi_scale);
+    defect_view_draw(win, g_dpi_scale);
     render_stats_overlay();
     line_profile_view_draw(win, g_dpi_scale);
     progress_bar_draw(win, g_dpi_scale);

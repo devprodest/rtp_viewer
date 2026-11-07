@@ -5,6 +5,7 @@
 #include "help/help.h"
 #include "render/post_pass.h"
 #include "render/renderer.h"
+#include "render/ui/defect_view.h"
 #include "render/ui/diff_view.h"
 #include "render/ui/histogram_view.h"
 #include "render/ui/line_profile_view.h"
@@ -34,6 +35,7 @@ static const command_info_s g_commands[] = {
     [CMD_STATS_TOGGLE]           = {"Stats",           "T",      GLFW_KEY_T,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_ANALYSIS },
     [CMD_LINE_PROFILE_TOGGLE]    = {"Line Profile",    "L",      GLFW_KEY_L,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_ANALYSIS },
     [CMD_VECTORSCOPE_TOGGLE]     = {"Vectorscope",     "M",      GLFW_KEY_M,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_ANALYSIS },
+    [CMD_DEFECT_VIEW_TOGGLE]     = {"Find Defects",    "D",      GLFW_KEY_D,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_ANALYSIS},
     [CMD_DIFF_SET_REFERENCE]     = {"Diff Ref",        "V",      GLFW_KEY_V,        0,                CMD_TYPE_ACTION, MENU_GROUP_DIFF     },
     [CMD_DIFF_TOGGLE]            = {"Diff View",       "B",      GLFW_KEY_B,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_DIFF     },
     [CMD_DIFF_GAIN_DOWN]         = {"Diff Gain -",     "-",      GLFW_KEY_MINUS,    0,                CMD_TYPE_ACTION, MENU_GROUP_DIFF     },
@@ -85,6 +87,7 @@ void cmd_execute(commands_e cmd)
         case CMD_STATS_TOGGLE: analytics_toggle_stats_visible(); break;
         case CMD_VECTORSCOPE_TOGGLE: vectorscope_view_toggle_enabled(); break;
         case CMD_LINE_PROFILE_TOGGLE: line_profile_view_toggle(); break;
+        case CMD_DEFECT_VIEW_TOGGLE: defect_view_toggle(); break;
 
         case CMD_DIFF_SET_REFERENCE: diff_view_set_reference(); break;
         case CMD_DIFF_TOGGLE: diff_view_toggle(); break;
@@ -176,6 +179,7 @@ bool cmd_is_active(commands_e cmd)
         case CMD_DIFF_TOGGLE: return diff_view_is_enabled();
         case CMD_RECORD_TOGGLE: return saver_is_recording();
         case CMD_PLAY_PAUSE_TOGGLE: return app_is_paused();
+        case CMD_DEFECT_VIEW_TOGGLE: return defect_view_is_enabled();
         default: return false;
     }
 }

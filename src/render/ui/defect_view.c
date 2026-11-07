@@ -1,0 +1,197 @@
+#include "defect_view.h"
+
+#include "log/logger.h"
+#include "render/overlay.h"
+#include "render/ui/pixel_probe.h"
+#include "render/ui/ui_color_scheme.h"
+#include "render/viewport.h"
+#include "util/utils.h"
+
+#include <stdio.h>
+
+#define MAX_DEFECTS 4096
+
+static bool g_enabled = false;
+static defect_s g_defects[ MAX_DEFECTS ];
+static int g_count     = 0;
+static int g_dead_cnt  = 0;
+static int g_stuck_cnt = 0;
+static int g_hot_cnt   = 0;
+
+void defect_view_cleanup(void)
+{
+    g_enabled   = false;
+    g_count     = 0;
+    g_dead_cnt  = 0;
+    g_stuck_cnt = 0;
+    g_hot_cnt   = 0;
+}
+
+static void add_defect(int x, int y, defect_type_e t, uint32_t v, int32_t d)
+{
+    if (g_count >= MAX_DEFECTS)
+    {
+        return;
+    }
+    g_defects[ g_count++ ] = (defect_s) {
+        {x, y},
+        t, v, d
+    };
+    switch (t)
+    {
+        case DEFECT_DEAD: g_dead_cnt++; break;
+        case DEFECT_STUCK: g_stuck_cnt++; break;
+        case DEFECT_HOT: g_hot_cnt++; break;
+    }
+}
+
+static uint32_t sample_luma(point_s p, int bpp)
+{
+    pixel_sample_s s = pixel_probe_read_pixel(p);
+    if (bpp <= 2)
+    {
+        return s.raw;
+    }
+    return (uint32_t)(0.299f * s.rgb.r + 0.587f * s.rgb.g + 0.114f * s.rgb.b);
+}
+
+void defect_view_rescan(void)
+{
+    g_count     = 0;
+    g_dead_cnt  = 0;
+    g_stuck_cnt = 0;
+    g_hot_cnt   = 0;
+
+    const uint8_t * frame = pixel_probe_get_frame();
+    if (!frame)
+    {
+        return;
+    }
+
+    image_size_s size = pixel_probe_get_frame_size();
+    int bpp           = pixel_probe_get_bpp();
+    if (size.x < 3 || size.y < 3 || bpp == 0)
+    {
+        return;
+    }
+
+    uint32_t max_val = 255;
+    if (bpp == 2)
+    {
+        max_val = 65535;
+    }
+
+    uint32_t dead_thr  = utils_max(1u, max_val / 64);
+    uint32_t stuck_thr = utils_max(1u, max_val / 64);
+    int32_t hot_thr    = (int32_t)utils_max(16u, max_val / 16);
+
+    for (int y = 1; y < size.y - 1; y++)
+    {
+        for (int x = 1; x < size.x - 1; x++)
+        {
+            uint32_t cv = sample_luma((point_s) {x, y}, bpp);
+
+            if (cv <= dead_thr)
+            {
+                add_defect(x, y, DEFECT_DEAD, cv, 0);
+                continue;
+            }
+            if (cv >= max_val - stuck_thr)
+            {
+                add_defect(x, y, DEFECT_STUCK, cv, 0);
+                continue;
+            }
+
+            int64_t sum = 0;
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    if (dx == 0 && dy == 0)
+                    {
+                        continue;
+                    }
+                    sum += sample_luma((point_s) {x + dx, y + dy}, bpp);
+                }
+            }
+            int32_t avg    = (int32_t)(sum / 8);
+            int32_t delta  = (int32_t)cv - avg;
+            int32_t adelta = (delta < 0) ? -delta : delta;
+
+            if (adelta > hot_thr)
+            {
+                add_defect(x, y, DEFECT_HOT, cv, delta);
+            }
+        }
+    }
+
+    log_info("Defect scan: %d found (dead %d, stuck %d, hot %d)", g_count, g_dead_cnt, g_stuck_cnt, g_hot_cnt);
+}
+
+void defect_view_toggle(void)
+{
+    if (!g_enabled)
+    {
+        defect_view_rescan();
+        g_enabled = true;
+    }
+    else
+    {
+        g_enabled = false;
+    }
+    log_info("Defect overlay %s", g_enabled ? "enabled" : "disabled");
+}
+
+bool defect_view_is_enabled(void)
+{
+    return g_enabled;
+}
+
+void defect_view_draw(image_size_s win, float dpi_scale)
+{
+    if (!g_enabled || g_count == 0)
+    {
+        return;
+    }
+
+    // Маркеры
+    for (int i = 0; i < g_count; i++)
+    {
+        point_s screen;
+        if (!viewport_frame_to_screen((point_s) {g_defects[ i ].pos.x, g_defects[ i ].pos.y}, &screen))
+        {
+            continue;
+        }
+
+        fcolor_rgba_s color;
+        switch (g_defects[ i ].type)
+        {
+            case DEFECT_DEAD: color = UI_DEFECT_DEAD; break;
+            case DEFECT_STUCK: color = UI_DEFECT_STUCK; break;
+            case DEFECT_HOT: color = UI_DEFECT_HOT; break;
+            default: color = UI_RGBA_WHITE; break;
+        }
+
+        int r       = (int)(3 * dpi_scale);
+        rect_s cell = {screen.x - r, screen.y - r, screen.x + r, screen.y + r};
+        overlay_rect_outline_draw(cell, color, utils_max(1, (int)dpi_scale));
+    }
+
+    // Итоговая панель
+    const float text_scale = dpi_scale * 1.0f;
+    const int pad          = (int)(6 * dpi_scale);
+    const int margin       = (int)(10 * dpi_scale);
+    const int line_h       = (int)(14 * text_scale);
+
+    char line[ 160 ];
+    snprintf(line, sizeof(line), "Defects: %d  (dead %d, stuck %d, hot %d)", g_count, g_dead_cnt, g_stuck_cnt,
+             g_hot_cnt);
+
+    int tw = overlay_text_measure(line, text_scale);
+    int tx = margin;
+    int ty = win.y - (int)(32 * dpi_scale);
+
+    rect_s panel = {tx - pad, ty - pad, tx + tw + pad, ty + line_h + pad};
+    overlay_rect_draw(panel, UI_PANEL_BG_STRONG);
+    overlay_text_draw((point_s) {tx, ty}, line, UI_TEXT_PRIMARY, text_scale);
+}
