@@ -220,3 +220,8 @@ void pixel_probe_draw(image_size_s win, float dpi_scale)
     overlay_text_draw((point_s) {tx, text_y}, line1, UI_TEXT_PRIMARY, text_scale);
     overlay_text_draw((point_s) {tx, text_y + line_h}, line2, UI_TEXT_PRIMARY, text_scale);
 }
+
+const uint8_t * pixel_probe_get_frame(void)
+{
+    return g_frame_data;
+}

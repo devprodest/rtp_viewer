@@ -177,6 +177,7 @@ int app_run(const app_config_s * cfg)
 
     GLFWwindow * window = renderer_get_window();
     mouse_state_init(window);
+    hotkeys_init(window);
 
     mouse_state_s mouse;
 
@@ -193,8 +194,6 @@ int app_run(const app_config_s * cfg)
             renderer_zoom_apply_wheel(wheel, mouse_point);
         }
         renderer_pan_apply_drag(mouse_point, mouse.middle);
-
-        hotkeys_process(window);
 
         bool menu_consumed = renderer_handle_context_menu(mouse_point, mouse.right, mouse.left);
 

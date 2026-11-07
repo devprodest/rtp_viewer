@@ -30,6 +30,37 @@ typedef enum commands_e
     CMD_SHOW_HELP,
 } commands_e;
 
-void cmd_execute(commands_e cmd);
+typedef enum menu_group_e
+{
+    MENU_GROUP_DISPLAY,
+    MENU_GROUP_ANALYSIS,
+    MENU_GROUP_DIFF,
+    MENU_GROUP_PLAYBACK,
+    MENU_GROUP_RECORDING,
+    MENU_GROUP_UTILITY,
+} menu_group_e;
 
+typedef enum command_type_e
+{
+    CMD_TYPE_NONE,   ///< Пустая (неинициализированная) ячейка
+    CMD_TYPE_ACTION, ///< Одноразовое действие
+    CMD_TYPE_TOGGLE, ///< Переключатель
+} command_type_e;
+
+typedef struct command_info_s
+{
+    const char * label;
+    const char * hotkey_str;
+    int key;
+    int mods_required;
+    command_type_e type;
+    menu_group_e group;
+} command_info_s;
+
+// --- Реестр ---
+const command_info_s * cmd_get_all(int * out_count);
+const command_info_s * cmd_get_info(commands_e cmd);
+
+// --- Управление ---
+void cmd_execute(commands_e cmd);
 bool cmd_is_active(commands_e cmd);

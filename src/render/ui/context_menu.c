@@ -1,6 +1,5 @@
 #include "context_menu.h"
 
-#include "control/commands.h"
 #include "render/overlay.h"
 #include "render/ui/svg_icons.h"
 #include "render/ui/ui_color_scheme.h"
@@ -28,58 +27,38 @@
 
 //----------------------------------------------------------------------------------------------------------------------
 
-typedef enum menu_group_e
-{
-    MENU_GROUP_DISPLAY,
-    MENU_GROUP_ANALYSIS,
-    MENU_GROUP_DIFF,
-    MENU_GROUP_PLAYBACK,
-    MENU_GROUP_RECORDING,
-    MENU_GROUP_UTILITY,
-} menu_group_e;
+#define CMD_GAP        ((commands_e) - 1)
 
-typedef struct context_menu_item_s
-{
-    const char * label;
-    commands_e cmd;
-    bool is_toggle;
-    menu_group_e group;
-    const char * hotkey;
-} context_menu_item_s;
+static const commands_e g_menu_order[] = {
+    CMD_TOGGLE_GRADIENT,
+    CMD_TOGGLE_INSPECTOR,
+    CMD_TOGGLE_SATURATION,
+    CMD_TOGGLE_HISTOGRAM,
+    CMD_TOGGLE_HISTOGRAM_SCALE,
+    CMD_TOGGLE_STATS,
 
-#define CMD_NONE ((commands_e) - 1)
+    CMD_TOGGLE_LINE_PROFILE,
+    CMD_TOGGLE_VECTORSCOPE,
+    CMD_SET_REFERENCE,
+    CMD_TOGGLE_DIFF,
+    CMD_DIFF_GAIN_DOWN,
+    CMD_DIFF_GAIN_UP,
 
-static const context_menu_item_s g_items[] = {
-    {"Sobel Mask",      CMD_TOGGLE_GRADIENT,        true,  MENU_GROUP_ANALYSIS,  "F"     },
-    {"Inspector",       CMD_TOGGLE_INSPECTOR,       true,  MENU_GROUP_ANALYSIS,  "I"     },
-    {"Saturation",      CMD_TOGGLE_SATURATION,      true,  MENU_GROUP_ANALYSIS,  "E"     },
-    {"Histogram",       CMD_TOGGLE_HISTOGRAM,       true,  MENU_GROUP_ANALYSIS,  "H"     },
-    {"Log Scale",       CMD_TOGGLE_HISTOGRAM_SCALE, true,  MENU_GROUP_ANALYSIS,  "Ctrl+H"},
-    {"Stats",           CMD_TOGGLE_STATS,           true,  MENU_GROUP_ANALYSIS,  "T"     },
+    CMD_STEP_BACKWARD,
+    CMD_TOGGLE_PAUSE,
+    CMD_STEP_FORWARD,
+    CMD_TOGGLE_RECORDING,
+    CMD_FLUSH_SAVER,
+    CMD_REQUEST_SCREENSHOT,
 
-    {"Line Profile",    CMD_TOGGLE_LINE_PROFILE,    true,  MENU_GROUP_ANALYSIS,  "L"     },
-    {"Vectorscope",     CMD_TOGGLE_VECTORSCOPE,     true,  MENU_GROUP_ANALYSIS,  "M"     },
-    {"Diff Ref",        CMD_SET_REFERENCE,          false, MENU_GROUP_DIFF,      "V"     },
-    {"Diff View",       CMD_TOGGLE_DIFF,            true,  MENU_GROUP_DIFF,      "B"     },
-    {"Diff Gain -",     CMD_DIFF_GAIN_DOWN,         false, MENU_GROUP_DIFF,      "-"     },
-    {"Diff Gain +",     CMD_DIFF_GAIN_UP,           false, MENU_GROUP_DIFF,      "="     },
-
-    {"Backward",        CMD_STEP_BACKWARD,          false, MENU_GROUP_PLAYBACK,  "Left"  },
-    {"Pause",           CMD_TOGGLE_PAUSE,           true,  MENU_GROUP_PLAYBACK,  "Space" },
-    {"Forward",         CMD_STEP_FORWARD,           false, MENU_GROUP_PLAYBACK,  "Right" },
-    {"Recording",       CMD_TOGGLE_RECORDING,       true,  MENU_GROUP_RECORDING, "R"     },
-    {"Flush Save",      CMD_FLUSH_SAVER,            false, MENU_GROUP_RECORDING, "W"     },
-    {"Screenshot",      CMD_REQUEST_SCREENSHOT,     false, MENU_GROUP_RECORDING, "S"     },
-
-    {"Auto-levels",     CMD_TOGGLE_AUTO_LEVELS,     true,  MENU_GROUP_DISPLAY,   "2"     },
-    {"Smoothing",       CMD_TOGGLE_SMOOTHING,       true,  MENU_GROUP_DISPLAY,   "1"     },
-    {"Clear Selection", CMD_CLEAR_SELECTION,        false, MENU_GROUP_UTILITY,   "Esc"   },
-    {"Reset Zoom",      CMD_ZOOM_RESET,             false, MENU_GROUP_UTILITY,   "0"     },
-    {"Full screen",     CMD_TOGGLE_FULLSCREEN,      true,  MENU_GROUP_UTILITY,   "F11"   },
-    {"Help",            CMD_SHOW_HELP,              false, MENU_GROUP_UTILITY,   "F1"    },
+    CMD_TOGGLE_AUTO_LEVELS,
+    CMD_TOGGLE_SMOOTHING,
+    CMD_CLEAR_SELECTION,
+    CMD_ZOOM_RESET,
+    CMD_TOGGLE_FULLSCREEN,
+    CMD_SHOW_HELP,
 };
-
-static const int g_item_count = (int)(sizeof(g_items) / sizeof(g_items[ 0 ]));
+#define MENU_ORDER_COUNT ((int)(sizeof(g_menu_order) / sizeof(g_menu_order[ 0 ])))
 
 static bool g_open     = false;
 static point_s g_pos   = {0};
@@ -103,8 +82,6 @@ void context_menu_set_hover(point_s mouse)
     g_hover = mouse;
 }
 
-//------------------------------------------------- Иконки (примитивы) -------------------------------------------------
-
 static fcolor_rgba_s group_bg_color(menu_group_e group)
 {
     switch (group)
@@ -123,20 +100,16 @@ static void draw_icon(point_s center, float scale)
 {
     int s           = (int)(ICON_SIZE * scale);
     fcolor_rgba_s c = UI_RGBA_WHITE;
-
     overlay_rect_outline_draw((rect_s) {center.x - s / 3, center.y - s / 3, center.x + s / 3, center.y + s / 3}, c, 1);
 }
 
-//----------------------------------------------- Отрисовка панели -----------------------------------------------------
-
-static void get_panel_rect(image_size_s win, float scale, rect_s * out_panel, int * out_visible_count)
+static void get_panel_rect(image_size_s win, float scale, rect_s * out_panel)
 {
+    int visible = MENU_ORDER_COUNT;
     int cols    = PANEL_COLS;
-    int visible = g_item_count;
-
-    int rows  = (visible + cols - 1) / cols;
-    int pad   = (int)(PANEL_PADDING * scale);
-    int tip_h = (int)(TOOLTIP_HEIGHT * scale);
+    int rows    = (visible + cols - 1) / cols;
+    int pad     = (int)(PANEL_PADDING * scale);
+    int tip_h   = (int)(TOOLTIP_HEIGHT * scale);
 
     int w = cols * (int)(CELL_SIZE * scale) + 2 * pad;
     int h = rows * (int)(CELL_SIZE * scale) + 2 * pad + tip_h;
@@ -148,10 +121,6 @@ static void get_panel_rect(image_size_s win, float scale, rect_s * out_panel, in
     out_panel->y0 = y;
     out_panel->x1 = x + w;
     out_panel->y1 = y + h;
-    if (out_visible_count)
-    {
-        *out_visible_count = visible;
-    }
 }
 
 void context_menu_draw(image_size_s win, float scale)
@@ -162,46 +131,42 @@ void context_menu_draw(image_size_s win, float scale)
     }
 
     rect_s panel;
-    int visible_count = 0;
-    get_panel_rect(win, scale, &panel, &visible_count);
+    get_panel_rect(win, scale, &panel);
 
-    // Фон панели
+    int cols = PANEL_COLS, cell_w = (int)(CELL_SIZE * scale), cell_h = (int)(CELL_SIZE * scale);
+    int outer_pad = (int)(CELL_OUTER_PAD * scale), inner_pad = (int)(CELL_INNER_PAD * scale);
+    int panel_pad = (int)(PANEL_PADDING * scale);
+    int start_x = panel.x0 + panel_pad, start_y = panel.y0 + panel_pad;
+    int idx = 0, hovered_cmd = -1;
+
+    // ----- ПРОХОД 1: Overlay (фон, кнопки, текст) -----
+    overlay_begin(win);
     overlay_rect_draw(panel, UI_MENU_BG);
 
-    int cols      = PANEL_COLS;
-    int cell_w    = (int)(CELL_SIZE * scale);
-    int cell_h    = (int)(CELL_SIZE * scale);
-    int outer_pad = (int)(CELL_OUTER_PAD * scale);
-    int inner_pad = (int)(CELL_INNER_PAD * scale);
-    int panel_pad = (int)(PANEL_PADDING * scale);
-
-    int start_x     = panel.x0 + panel_pad;
-    int start_y     = panel.y0 + panel_pad;
-    int idx         = 0;
-    int hovered_idx = -1;
-
-    for (int i = 0; i < g_item_count; i++)
+    for (int i = 0; i < MENU_ORDER_COUNT; i++)
     {
-        int row = idx / cols;
-        int col = idx % cols;
+        int row = idx / cols, col = idx % cols;
         idx++;
-
-        if (g_items[ i ].cmd == CMD_NONE)
+        commands_e cmd = g_menu_order[ i ];
+        if (cmd == CMD_GAP)
         {
             continue;
         }
 
-        int cx = start_x + col * cell_w;
-        int cy = start_y + row * cell_h;
+        const command_info_s * info = cmd_get_info(cmd);
+        if (!info || info->type == CMD_TYPE_NONE)
+        {
+            continue;
+        }
 
+        int cx = start_x + col * cell_w, cy = start_y + row * cell_h;
         rect_s cell = {cx + outer_pad, cy + outer_pad, cx + cell_w - outer_pad, cy + cell_h - outer_pad};
 
         bool hovered = (g_hover.x >= cell.x0 && g_hover.x < cell.x1 && g_hover.y >= cell.y0 && g_hover.y < cell.y1);
-        bool active  = g_items[ i ].is_toggle && cmd_is_active(g_items[ i ].cmd);
-
+        bool active  = (info->type == CMD_TYPE_TOGGLE) && cmd_is_active(cmd);
         if (hovered)
         {
-            hovered_idx = i;
+            hovered_cmd = (int)cmd;
         }
 
         if (active)
@@ -214,20 +179,17 @@ void context_menu_draw(image_size_s win, float scale)
         }
         else
         {
-            overlay_rect_draw(cell, group_bg_color(g_items[ i ].group));
+            overlay_rect_draw(cell, group_bg_color(info->group));
         }
-
         overlay_rect_outline_draw(cell, UI_CELL_BORDER, 1);
 
-        // Иконка (fallback)
-        if (!svg_icon_exists(g_items[ i ].cmd))
+        if (!svg_icon_exists(cmd))
         {
             point_s icon_center = {cx + cell_w / 2, cy + cell_h / 2 - 8};
             draw_icon(icon_center, scale);
         }
 
-        // Текст
-        const char * label = g_items[ i ].label;
+        const char * label = info->label;
         float fit_scale    = TEXT_SCALE * scale;
         int tw             = overlay_text_measure(label, fit_scale);
         int max_w          = (cell.x1 - cell.x0) - 2 * inner_pad;
@@ -237,38 +199,61 @@ void context_menu_draw(image_size_s win, float scale)
             tw = overlay_text_measure(label, fit_scale);
         }
 
-        int tx = cell.x0 + (cell.x1 - cell.x0 - tw) / 2;
-        int ty = cell.y1 - inner_pad - (int)(16 * fit_scale);
-        overlay_text_draw((point_s) {tx, ty}, label, UI_TEXT_PRIMARY, fit_scale);
+        overlay_text_draw(
+            (point_s) {cell.x0 + (cell.x1 - cell.x0 - tw) / 2, cell.y1 - inner_pad - (int)(16 * fit_scale)}, label,
+            UI_TEXT_PRIMARY, fit_scale);
     }
 
-    // --- Тултип (нижняя панель) ---
-    if (hovered_idx >= 0)
+    if (hovered_cmd >= 0)
     {
-        int tip_h         = (int)(TOOLTIP_HEIGHT * scale);
-        rect_s tooltip_bg = {panel.x0, panel.y1 - tip_h, panel.x1, panel.y1};
-
+        const command_info_s * info = cmd_get_info((commands_e)hovered_cmd);
+        int tip_h                   = (int)(TOOLTIP_HEIGHT * scale);
+        rect_s tooltip_area         = {panel.x0, panel.y1 - tip_h, panel.x1, panel.y1};
         char tip_buf[ 128 ];
-        const char * hotkey = g_items[ hovered_idx ].hotkey;
 
-        if (hotkey && hotkey[ 0 ] != '\0')
+        if (info->hotkey_str && info->hotkey_str[ 0 ] != '\0')
         {
-            snprintf(tip_buf, sizeof(tip_buf), "%s  [%s]", g_items[ hovered_idx ].label, hotkey);
+            snprintf(tip_buf, sizeof(tip_buf), "%s  [%s]", info->label, info->hotkey_str);
         }
         else
         {
-            snprintf(tip_buf, sizeof(tip_buf), "%s", g_items[ hovered_idx ].label);
+            snprintf(tip_buf, sizeof(tip_buf), "%s", info->label);
         }
 
         float tip_scale = 0.85f * scale;
         int tw          = overlay_text_measure(tip_buf, tip_scale);
-        int tx          = tooltip_bg.x0 + (tooltip_bg.x1 - tooltip_bg.x0 - tw) / 2;
-
-        // Центрируем по вертикали
-        int ty = tooltip_bg.y0 + (tooltip_bg.y1 - tooltip_bg.y0 - (int)(14 * tip_scale)) / 2;
-
+        int tx          = tooltip_area.x0 + (tooltip_area.x1 - tooltip_area.x0 - tw) / 2;
+        int ty          = tooltip_area.y0 + (tooltip_area.y1 - tooltip_area.y0 - (int)(14 * tip_scale)) / 2;
         overlay_text_draw((point_s) {tx, ty}, tip_buf, UI_TEXT_PRIMARY, tip_scale);
     }
+    overlay_end();
+
+    // ----- ПРОХОД 2: NanoVG (иконки) -----
+    svg_icons_begin(win, scale);
+    {
+        int i_idx = 0;
+        for (int i = 0; i < MENU_ORDER_COUNT; i++)
+        {
+            int row = i_idx / cols, col = i_idx % cols;
+            i_idx++;
+            commands_e cmd = g_menu_order[ i ];
+            if (cmd == CMD_GAP)
+            {
+                continue;
+            }
+
+            const command_info_s * info = cmd_get_info(cmd);
+            if (!info || info->type == CMD_TYPE_NONE)
+            {
+                continue;
+            }
+
+            int cx = start_x + col * cell_w, cy = start_y + row * cell_h;
+            int icon_s = (int)(ICON_SIZE * scale), icon_top = cy + (int)(CELL_OUTER_PAD * scale) + inner_pad;
+            svg_icons_draw(cmd, (point_s) {cx + cell_w / 2, icon_top + icon_s / 2}, (float)icon_s, UI_RGBA_WHITE);
+        }
+    }
+    svg_icons_end();
 }
 
 bool context_menu_handle_click(point_s mouse, image_size_s win, float scale)
@@ -279,7 +264,7 @@ bool context_menu_handle_click(point_s mouse, image_size_s win, float scale)
     }
 
     rect_s panel;
-    get_panel_rect(win, scale, &panel, nullptr);
+    get_panel_rect(win, scale, &panel);
 
     if (mouse.x < panel.x0 || mouse.x >= panel.x1 || mouse.y < panel.y0 || mouse.y >= panel.y1)
     {
@@ -288,7 +273,6 @@ bool context_menu_handle_click(point_s mouse, image_size_s win, float scale)
     }
 
     int tip_h = (int)(TOOLTIP_HEIGHT * scale);
-    // Клик по зоне тултипа просто поглощаем, чтобы меню не закрывалось случайно
     if (mouse.y >= panel.y1 - tip_h)
     {
         return true;
@@ -304,13 +288,13 @@ bool context_menu_handle_click(point_s mouse, image_size_s win, float scale)
     int start_y = panel.y0 + panel_pad;
     int idx     = 0;
 
-    for (int i = 0; i < g_item_count; i++)
+    for (int i = 0; i < MENU_ORDER_COUNT; i++)
     {
         int row = idx / cols;
         int col = idx % cols;
         idx++;
 
-        if (g_items[ i ].cmd == CMD_NONE)
+        if (g_menu_order[ i ] == CMD_GAP)
         {
             continue;
         }
@@ -322,7 +306,7 @@ bool context_menu_handle_click(point_s mouse, image_size_s win, float scale)
 
         if (mouse.x >= cell.x0 && mouse.x < cell.x1 && mouse.y >= cell.y0 && mouse.y < cell.y1)
         {
-            cmd_execute(g_items[ i ].cmd);
+            cmd_execute(g_menu_order[ i ]);
             context_menu_close();
             return true;
         }
@@ -330,45 +314,4 @@ bool context_menu_handle_click(point_s mouse, image_size_s win, float scale)
 
     context_menu_close();
     return true;
-}
-
-void context_menu_draw_icons(image_size_s win, float scale)
-{
-    if (!g_open)
-    {
-        return;
-    }
-
-    rect_s panel;
-    get_panel_rect(win, scale, &panel, nullptr);
-
-    int cols      = PANEL_COLS;
-    int cell_w    = (int)(CELL_SIZE * scale);
-    int cell_h    = (int)(CELL_SIZE * scale);
-    int inner_pad = (int)(CELL_INNER_PAD * scale);
-    int panel_pad = (int)(PANEL_PADDING * scale);
-
-    int start_x = panel.x0 + panel_pad;
-    int start_y = panel.y0 + panel_pad;
-    int idx     = 0;
-
-    for (int i = 0; i < g_item_count; i++)
-    {
-        int row = idx / cols;
-        int col = idx % cols;
-        idx++;
-
-        if (g_items[ i ].cmd == CMD_NONE)
-        {
-            continue;
-        }
-
-        int cx              = start_x + col * cell_w;
-        int cy              = start_y + row * cell_h;
-        int icon_s          = (int)(ICON_SIZE * scale);
-        int icon_top        = cy + (int)(CELL_OUTER_PAD * scale) + inner_pad;
-        point_s icon_center = {cx + cell_w / 2, icon_top + icon_s / 2};
-
-        svg_icons_draw(g_items[ i ].cmd, icon_center, (float)icon_s, UI_RGBA_WHITE);
-    }
 }

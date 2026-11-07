@@ -92,7 +92,7 @@ static const char * build_cli_text(const char * prog)
     return g_buf;
 }
 
-void help_dialog_show(void)
+void help_save_and_open(void)
 {
     FILE * f = fopen(HELP_FILE_NAME, "w");
     if (!f)
