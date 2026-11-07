@@ -2,8 +2,8 @@
 #include "log/logger.h"
 #include "render/format_pass.h"
 #include "render/gl_api.h"
-#include "render/png_writer.h"
-#include "save/saver.h"
+#include "png_writer.h"
+#include "saver.h"
 
 #include <stdio.h>
 #include <stdlib.h>

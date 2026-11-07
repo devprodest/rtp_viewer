@@ -14,57 +14,37 @@ RES_DIR      = $(SRC_DIR)/res
 OBJ_DIR      = obj
 PUBLISH_DIR  = publish
 
-# --- Подключаем версию из отдельного файла ---
-include version.mk
-
-# Строка версии собирается автоматически из мажорной, минорной и патч-версии
-VERSION_STR   = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)
 
 
 ARCHIVE  = $(PROJECT_NAME)_$(VERSION_STR).zip
 TARGET   = $(PROJECT_NAME).exe
 
-# --- Исходные файлы (сгруппированы) ---
+# --- Исходные файлы ---
 SRCS  = $(SRC_DIR)/main.c
-
-# App
 SRCS += $(SRC_DIR)/app/app.c
 SRCS += $(SRC_DIR)/app/config.c
 SRCS += $(SRC_DIR)/app/pipeline.c
-
-# Analysis
 SRCS += $(SRC_DIR)/analysis/analytics.c
 SRCS += $(SRC_DIR)/analysis/histogram.c
 SRCS += $(SRC_DIR)/analysis/selection.c
 SRCS += $(SRC_DIR)/analysis/sharpness.c
-
-# Control
 SRCS += $(SRC_DIR)/control/commands.c
 SRCS += $(SRC_DIR)/control/hotkeys.c
 SRCS += $(SRC_DIR)/control/mouse.c
-
-# Format & Help
 SRCS += $(SRC_DIR)/format/format_config.c
 SRCS += $(SRC_DIR)/help/help.c
-
-# Log
 SRCS += $(SRC_DIR)/log/logger.c
 SRCS += $(SRC_DIR)/log/stats.c
-
-# Render
 SRCS += $(SRC_DIR)/render/format_pass.c
 SRCS += $(SRC_DIR)/render/gl_api.c
 SRCS += $(SRC_DIR)/render/gl_utils.c
 SRCS += $(SRC_DIR)/render/histogram_view.c
-SRCS += $(SRC_DIR)/render/png_writer.c
 SRCS += $(SRC_DIR)/render/post_pass.c
 SRCS += $(SRC_DIR)/render/renderer.c
 SRCS += $(SRC_DIR)/render/selection_view.c
 SRCS += $(SRC_DIR)/render/overlay.c
 SRCS += $(SRC_DIR)/render/window.c
 SRCS += $(SRC_DIR)/render/viewport.c
-
-# Render UI
 SRCS += $(SRC_DIR)/render/ui/vectorscope_view.c
 SRCS += $(SRC_DIR)/render/ui/window_title.c
 SRCS += $(SRC_DIR)/render/ui/context_menu.c
@@ -73,18 +53,13 @@ SRCS += $(SRC_DIR)/render/ui/svg_icons.c
 SRCS += $(SRC_DIR)/render/ui/pixel_probe.c
 SRCS += $(SRC_DIR)/render/ui/line_profile_view.c
 SRCS += $(SRC_DIR)/render/ui/diff_view.c
-
-# Save
 SRCS += $(SRC_DIR)/save/saver.c
 SRCS += $(SRC_DIR)/save/screenshot.c
-
-# Source
+SRCS += $(SRC_DIR)/save/png_writer.c
 SRCS += $(SRC_DIR)/source/source_factory.c
 SRCS += $(SRC_DIR)/source/source_file.c
 SRCS += $(SRC_DIR)/source/source_rtp.c
 SRCS += $(SRC_DIR)/source/source.c
-
-# Util
 SRCS += $(SRC_DIR)/util/utils.c
 
 # Lib
@@ -107,6 +82,10 @@ FONT_FILE = $(RES_DIR)/RobotoMono-Regular.ttf
 # --- Объектные файлы ---
 OBJS = $(patsubst %.c,$(OBJ_DIR)/%.o,$(SRCS)) $(RES_OBJ)
 
+
+# --- Версия ---
+include version.mk
+VERSION_STR   = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)
 # Флаги версии для C-кода
 VER_DEFS = -DRTP_VIEWER_VERSION_MAJOR=$(VERSION_MAJOR) \
            -DRTP_VIEWER_VERSION_MINOR=$(VERSION_MINOR) \

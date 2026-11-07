@@ -27,8 +27,6 @@ void renderer_toggle_fullscreen(void);
 void renderer_toggle_smoothing(void);
 bool renderer_is_smoothing_active(void);
 
-void renderer_request_screenshot(void);
-
 void renderer_set_selection_from_mouse(point_s mouse, bool left_down, bool in_view);
 void renderer_clear_selection(void);
 bool renderer_screen_to_frame(point_s screen, point_s * frame);

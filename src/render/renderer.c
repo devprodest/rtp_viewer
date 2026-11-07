@@ -270,10 +270,6 @@ void renderer_toggle_fullscreen(void)
 {
     window_toggle_fullscreen();
 }
-void renderer_request_screenshot(void)
-{
-    screenshot_request();
-}
 void renderer_clear_selection(void)
 {
     selection_clear(&g_selection);

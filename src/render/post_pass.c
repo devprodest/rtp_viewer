@@ -82,6 +82,7 @@ void post_pass_toggle_saturation(void)
 {
     g_saturation_enabled = !g_saturation_enabled;
     log_info("Saturation markers %s", g_saturation_enabled ? "enabled" : "disabled");
+    window_title_refresh();
 }
 bool post_pass_is_saturation_active(void)
 {
@@ -96,6 +97,7 @@ void post_pass_toggle_gradient(void)
         window_title_set_sharpness(false, 0.0, 0.0);
     }
     log_info("Gradient %s", g_gradient_enabled ? "enabled" : "disabled");
+    window_title_refresh();
 }
 bool post_pass_is_gradient_active(void)
 {
