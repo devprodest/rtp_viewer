@@ -27,8 +27,11 @@
     #include <windows.h>
 #endif
 
+//------------------------------------------------------- Состояние ----------------------------------------------------
+
 static volatile bool g_running    = true;
 static const app_config_s * g_cfg = nullptr;
+static source_s * g_source        = nullptr;
 
 static uint8_t * g_main_buffer = nullptr;
 static size_t g_frame_bytes    = 0;
@@ -84,9 +87,9 @@ bool app_seek_fraction(float fraction)
     return pipeline_seek_fraction(fraction);
 }
 
-//------------------------------------------------------- Main ---------------------------------------------------------
+//------------------------------------------------------- Инициализация ------------------------------------------------
 
-int app_run(const app_config_s * cfg)
+static bool app_init(const app_config_s * cfg)
 {
     g_cfg = cfg;
 
@@ -103,7 +106,7 @@ int app_run(const app_config_s * cfg)
     {
         log_error("app: Failed to initialize OpenGL\n");
         stats_cleanup();
-        return EXIT_FAILURE;
+        return false;
     }
 
     if (!svg_icons_init())
@@ -133,14 +136,14 @@ int app_run(const app_config_s * cfg)
         .mock_fps = cfg->mock_fps,
     };
 
-    source_s * src = source_create(&src_params);
-    if (!source_open(src, &src_params))
+    g_source = source_create(&src_params);
+    if (!source_open(g_source, &src_params))
     {
         log_error("app: Failed to open data source\n");
         saver_cleanup();
         renderer_cleanup();
         stats_cleanup();
-        return EXIT_FAILURE;
+        return false;
     }
 
     signal(SIGINT, signal_handler);
@@ -150,21 +153,23 @@ int app_run(const app_config_s * cfg)
     if (!g_main_buffer)
     {
         log_error("app: Failed to allocate main buffer\n");
-        source_close(src);
+        source_close(g_source);
+        saver_cleanup();
         renderer_cleanup();
         stats_cleanup();
-        return EXIT_FAILURE;
+        return false;
     }
 
-    if (!pipeline_start(src, cfg->image, bpp, g_frame_bytes, cfg->use_file_source))
+    if (!pipeline_start(g_source, cfg->image, bpp, g_frame_bytes, cfg->use_file_source))
     {
         log_error("app: Failed to start pipeline\n");
         free(g_main_buffer);
         g_main_buffer = nullptr;
-        source_close(src);
+        source_close(g_source);
+        saver_cleanup();
         renderer_cleanup();
         stats_cleanup();
-        return EXIT_FAILURE;
+        return false;
     }
 
     int cur = 0;
@@ -179,69 +184,79 @@ int app_run(const app_config_s * cfg)
     mouse_state_init(window);
     hotkeys_init(window);
 
-    mouse_state_s mouse;
+    return true;
+}
 
-    while (g_running && !glfwWindowShouldClose(window))
+//------------------------------------------------------- Ввод / UI ----------------------------------------------------
+
+static void app_process_input(GLFWwindow * window, mouse_state_s * mouse)
+{
+    mouse_state_update(window, mouse);
+
+    double wheel        = mouse_state_take_wheel(mouse);
+    point_s mouse_point = {mouse->x, mouse->y};
+
+    if (wheel != 0.0)
     {
-        renderer_poll_events();
-        mouse_state_update(window, &mouse);
+        renderer_zoom_apply_wheel(wheel, mouse_point);
+    }
+    renderer_pan_apply_drag(mouse_point, mouse->middle);
 
-        double wheel        = mouse_state_take_wheel(&mouse);
-        point_s mouse_point = {mouse.x, mouse.y};
+    bool menu_consumed = renderer_handle_context_menu(mouse_point, mouse->right, mouse->left);
 
-        if (wheel != 0.0)
+    // Progress bar
+    bool progress_consumed = false;
+    if (!menu_consumed && g_cfg->use_file_source)
+    {
+        float frac  = 0.0f;
+        bool on_bar = progress_bar_hit_test(mouse_point, renderer_get_dpi_scale(), &frac);
+        if (mouse->left && (on_bar || g_scrubbing))
         {
-            renderer_zoom_apply_wheel(wheel, mouse_point);
+            app_seek_fraction(frac);
+            g_scrubbing       = true;
+            progress_consumed = true;
         }
-        renderer_pan_apply_drag(mouse_point, mouse.middle);
-
-        bool menu_consumed = renderer_handle_context_menu(mouse_point, mouse.right, mouse.left);
-
-        // Progress bar
-        bool progress_consumed = false;
-        if (!menu_consumed && cfg->use_file_source)
+        else if (!mouse->left)
         {
-            float frac  = 0.0f;
-            bool on_bar = progress_bar_hit_test(mouse_point, renderer_get_dpi_scale(), &frac);
-            if (mouse.left && (on_bar || g_scrubbing))
-            {
-                app_seek_fraction(frac);
-                g_scrubbing       = true;
-                progress_consumed = true;
-            }
-            else if (!mouse.left)
-            {
-                g_scrubbing = false;
-            }
+            g_scrubbing = false;
         }
-
-        bool input_consumed = menu_consumed || progress_consumed;
-        renderer_set_mouse_pos(mouse_point);
-
-        if (!input_consumed)
-        {
-            point_s frame = {0};
-            bool in_view  = renderer_screen_to_frame(mouse_point, &frame);
-            renderer_set_selection_from_mouse(frame, mouse.left, in_view);
-        }
-
-        // Забираем новый кадр из pipeline
-        if (pipeline_take_frame(g_main_buffer, g_frame_bytes))
-        {
-            renderer_set_frame(g_main_buffer);
-        }
-
-        // Обновляем позицию в заголовке и прогрессбаре
-        if (pipeline_get_position(&cur, &tot) && tot > 0)
-        {
-            window_title_set_frame(cur, tot);
-            progress_bar_set(cur, tot);
-        }
-
-        renderer_draw();
-        stats_update();
     }
 
+    bool input_consumed = menu_consumed || progress_consumed;
+    renderer_set_mouse_pos(mouse_point);
+
+    if (!input_consumed)
+    {
+        point_s frame = {0};
+        bool in_view  = renderer_screen_to_frame(mouse_point, &frame);
+        renderer_set_selection_from_mouse(frame, mouse->left, in_view);
+    }
+}
+
+//------------------------------------------------------- Обновление пайплайна -----------------------------------------
+
+static void app_update_pipeline_and_ui(void)
+{
+    // Забираем новый кадр из pipeline
+    if (pipeline_take_frame(g_main_buffer, g_frame_bytes))
+    {
+        renderer_set_frame(g_main_buffer);
+    }
+
+    // Обновляем позицию в заголовке и прогрессбаре
+    int cur = 0;
+    int tot = 0;
+    if (pipeline_get_position(&cur, &tot) && tot > 0)
+    {
+        window_title_set_frame(cur, tot);
+        progress_bar_set(cur, tot);
+    }
+}
+
+//------------------------------------------------------- Очистка -----------------------------------------------------
+
+static void app_cleanup(void)
+{
     pipeline_stop();
     free(g_main_buffer);
     g_main_buffer = nullptr;
@@ -250,10 +265,37 @@ int app_run(const app_config_s * cfg)
     stats_cleanup();
     svg_icons_cleanup();
     renderer_cleanup();
-    source_close(src);
+    source_close(g_source);
+    g_source = nullptr;
 
 #ifdef _WIN32
     timeEndPeriod(1);
 #endif
+}
+
+//------------------------------------------------------- Main ---------------------------------------------------------
+
+int app_run(const app_config_s * cfg)
+{
+    if (!app_init(cfg))
+    {
+        return EXIT_FAILURE;
+    }
+
+    GLFWwindow * window = renderer_get_window();
+    mouse_state_s mouse;
+
+    while (g_running && !glfwWindowShouldClose(window))
+    {
+        renderer_poll_events();
+
+        app_process_input(window, &mouse);
+        app_update_pipeline_and_ui();
+
+        renderer_draw();
+        stats_update();
+    }
+
+    app_cleanup();
     return EXIT_SUCCESS;
 }

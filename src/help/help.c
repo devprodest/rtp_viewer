@@ -39,7 +39,7 @@ static const char * build_hotkeys_text(void)
              "  Middle   Pan (drag)\n"
              "  0        Reset zoom / pan\n"
              "  LMB      Select ROI (stats, auto-levels, diff follow selection)\n"
-             "  Esc      Clear selection / close menu\n\n"
+             "  Esc      Reset all (analytics off, exit fullscreen, clear selection)\n"
              "Playback (file source):\n"
              "  Space    Pause / resume display and analysis\n"
              "  Left     Step prev frame\n"

@@ -44,7 +44,7 @@ static const command_info_s g_commands[] = {
     [CMD_RECORD_TOGGLE]          = {"Recording",       "R",      GLFW_KEY_R,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_RECORDING},
     [CMD_RECORD_FLUSH]           = {"Flush Save",      "W",      GLFW_KEY_W,        0,                CMD_TYPE_ACTION, MENU_GROUP_RECORDING},
     [CMD_RECORD_SCREENSHOT]      = {"Screenshot",      "S",      GLFW_KEY_S,        0,                CMD_TYPE_ACTION, MENU_GROUP_RECORDING},
-    [CMD_CLEAR_SELECTION]        = {"Clear Selection", "Esc",    GLFW_KEY_ESCAPE,   0,                CMD_TYPE_ACTION, MENU_GROUP_UTILITY  },
+    [CMD_RESET_ALL]              = {"Reset All",       "Esc",    GLFW_KEY_ESCAPE,   0,                CMD_TYPE_ACTION, MENU_GROUP_UTILITY},
     [CMD_ZOOM_RESET]             = {"Reset Zoom",      "0",      GLFW_KEY_0,        0,                CMD_TYPE_ACTION, MENU_GROUP_UTILITY  },
     [CMD_FULLSCREEN_TOGGLE]      = {"Full screen",     "F11",    GLFW_KEY_F11,      0,                CMD_TYPE_TOGGLE, MENU_GROUP_UTILITY  },
     [CMD_SHOW_HELP]              = {"Help",            "F1",     GLFW_KEY_F1,       0,                CMD_TYPE_ACTION, MENU_GROUP_UTILITY  },
@@ -80,6 +80,7 @@ void cmd_execute(commands_e cmd)
         case CMD_GRADIENT_TOGGLE: post_pass_toggle_gradient(); break;
         case CMD_INSPECTOR_TOGGLE: pixel_probe_toggle(); break;
         case CMD_SATURATION_TOGGLE: post_pass_toggle_saturation(); break;
+        case CMD_HISTOGRAM_TOGGLE: histogram_view_toggle_enabled(); break;
         case CMD_HISTOGRAM_SCALE_TOGGLE: histogram_view_toggle_log_scale(); break;
         case CMD_STATS_TOGGLE: analytics_toggle_stats_visible(); break;
         case CMD_VECTORSCOPE_TOGGLE: vectorscope_view_toggle_enabled(); break;
@@ -100,7 +101,57 @@ void cmd_execute(commands_e cmd)
         case CMD_PLAY_STEP_FORWARD: app_step_forward(); break;
         case CMD_PLAY_STEP_BACKWARD: app_step_backward(); break;
         case CMD_RECORD_SCREENSHOT: screenshot_request(); break;
-        case CMD_CLEAR_SELECTION: renderer_clear_selection(); break;
+        case CMD_RESET_ALL:
+        {
+            if (histogram_view_is_enabled())
+            {
+                histogram_view_toggle_enabled();
+            }
+            if (histogram_view_is_log_scale())
+            {
+                histogram_view_toggle_log_scale();
+            }
+            if (vectorscope_view_is_enabled())
+            {
+                vectorscope_view_toggle_enabled();
+            }
+            if (line_profile_view_is_enabled())
+            {
+                line_profile_view_toggle();
+            }
+            if (pixel_probe_is_enabled())
+            {
+                pixel_probe_toggle();
+            }
+            if (analytics_is_stats_visible())
+            {
+                analytics_toggle_stats_visible();
+            }
+            if (post_pass_is_gradient_active())
+            {
+                post_pass_toggle_gradient();
+            }
+            if (post_pass_is_saturation_active())
+            {
+                post_pass_toggle_saturation();
+            }
+            if (post_pass_is_auto_levels_active())
+            {
+                post_pass_toggle_auto_levels();
+            }
+            if (diff_view_is_enabled())
+            {
+                diff_view_toggle();
+            }
+
+            renderer_clear_selection();
+            if (window_is_fullscreen())
+            {
+                window_toggle_fullscreen();
+            }
+            window_title_refresh();
+        }
+        break;
         case CMD_ZOOM_RESET: renderer_zoom_reset(); break;
         case CMD_SHOW_HELP: help_save_and_open(); break;
         default: break;

@@ -25,7 +25,7 @@ typedef enum commands_e
     CMD_RECORD_TOGGLE,
     CMD_RECORD_SCREENSHOT,
     CMD_RECORD_FLUSH,
-    CMD_CLEAR_SELECTION,
+    CMD_RESET_ALL,
     CMD_ZOOM_RESET,
     CMD_SHOW_HELP,
 } commands_e;

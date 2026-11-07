@@ -53,9 +53,9 @@ static const commands_e g_menu_order[] = {
 
     CMD_AUTO_LEVELS_TOGGLE,
     CMD_SMOOTHING_TOGGLE,
-    CMD_CLEAR_SELECTION,
     CMD_ZOOM_RESET,
     CMD_FULLSCREEN_TOGGLE,
+    CMD_RESET_ALL,
     CMD_SHOW_HELP,
 };
 #define MENU_ORDER_COUNT ((int)(sizeof(g_menu_order) / sizeof(g_menu_order[ 0 ])))

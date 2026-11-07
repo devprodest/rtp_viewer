@@ -90,8 +90,8 @@ static const char svg_screenshot[] = {
 static const char svg_flush_save[] = {
 #embed "../../res/icons/flush_save.svg" suffix(, 0)
 };
-static const char svg_clear_selection[] = {
-#embed "../../res/icons/clear_selection.svg" suffix(, 0)
+static const char svg_reset_all[] = {
+#embed "../../res/icons/reset_all.svg" suffix(, 0)
 };
 static const char svg_reset_zoom[] = {
 #embed "../../res/icons/reset_zoom.svg" suffix(, 0)
@@ -112,30 +112,30 @@ typedef struct
 } icon_entry_t;
 
 static const icon_entry_t g_icon_table[] = {
-    {CMD_STATS_TOGGLE,           svg_stats          },
-    {CMD_SHOW_HELP,              svg_help           },
-    {CMD_SMOOTHING_TOGGLE,       svg_smoothing      },
-    {CMD_AUTO_LEVELS_TOGGLE,     svg_auto_levels    },
-    {CMD_SATURATION_TOGGLE,      svg_saturation     },
-    {CMD_HISTOGRAM_TOGGLE,       svg_histogram      },
-    {CMD_HISTOGRAM_SCALE_TOGGLE, svg_log_scale      },
-    {CMD_LINE_PROFILE_TOGGLE,    svg_line_profile   },
-    {CMD_GRADIENT_TOGGLE,        svg_gradient       },
-    {CMD_INSPECTOR_TOGGLE,       svg_inspector      },
-    {CMD_DIFF_TOGGLE,            svg_diff_view      },
-    {CMD_VECTORSCOPE_TOGGLE,     svg_vectorscope    },
-    {CMD_DIFF_SET_REFERENCE,          svg_set_reference  },
-    {CMD_DIFF_GAIN_DOWN,         svg_diff_gain_down },
-    {CMD_DIFF_GAIN_UP,           svg_diff_gain_up   },
-    {CMD_PLAY_PAUSE_TOGGLE,      svg_pause          },
-    {CMD_PLAY_STEP_FORWARD,      svg_forward        },
-    {CMD_PLAY_STEP_BACKWARD,     svg_backward       },
-    {CMD_RECORD_TOGGLE,          svg_recording      },
-    {CMD_RECORD_SCREENSHOT,     svg_screenshot     },
-    {CMD_RECORD_FLUSH,            svg_flush_save     },
-    {CMD_CLEAR_SELECTION,        svg_clear_selection},
-    {CMD_ZOOM_RESET,             svg_reset_zoom     },
-    {CMD_FULLSCREEN_TOGGLE,      svg_fullscreen     },
+    {CMD_STATS_TOGGLE,           svg_stats         },
+    {CMD_SHOW_HELP,              svg_help          },
+    {CMD_SMOOTHING_TOGGLE,       svg_smoothing     },
+    {CMD_AUTO_LEVELS_TOGGLE,     svg_auto_levels   },
+    {CMD_SATURATION_TOGGLE,      svg_saturation    },
+    {CMD_HISTOGRAM_TOGGLE,       svg_histogram     },
+    {CMD_HISTOGRAM_SCALE_TOGGLE, svg_log_scale     },
+    {CMD_LINE_PROFILE_TOGGLE,    svg_line_profile  },
+    {CMD_GRADIENT_TOGGLE,        svg_gradient      },
+    {CMD_INSPECTOR_TOGGLE,       svg_inspector     },
+    {CMD_DIFF_TOGGLE,            svg_diff_view     },
+    {CMD_VECTORSCOPE_TOGGLE,     svg_vectorscope   },
+    {CMD_DIFF_SET_REFERENCE,     svg_set_reference },
+    {CMD_DIFF_GAIN_DOWN,         svg_diff_gain_down},
+    {CMD_DIFF_GAIN_UP,           svg_diff_gain_up  },
+    {CMD_PLAY_PAUSE_TOGGLE,      svg_pause         },
+    {CMD_PLAY_STEP_FORWARD,      svg_forward       },
+    {CMD_PLAY_STEP_BACKWARD,     svg_backward      },
+    {CMD_RECORD_TOGGLE,          svg_recording     },
+    {CMD_RECORD_SCREENSHOT,      svg_screenshot    },
+    {CMD_RECORD_FLUSH,           svg_flush_save    },
+    {CMD_RESET_ALL,              svg_reset_all     },
+    {CMD_ZOOM_RESET,             svg_reset_zoom    },
+    {CMD_FULLSCREEN_TOGGLE,      svg_fullscreen    },
 };
 
 #define ICON_COUNT ((int)(sizeof(g_icon_table) / sizeof(g_icon_table[ 0 ])))
@@ -199,23 +199,23 @@ static int ensure_icon_loaded(int idx)
         return -1;
     }
 
-        for (NSVGshape * shape = image->shapes; shape != nullptr; shape = shape->next)
+    for (NSVGshape * shape = image->shapes; shape != nullptr; shape = shape->next)
+    {
+        // Если фигура заливная — делаем её белой
+        if (shape->fill.type != NSVG_PAINT_NONE)
         {
-            // Если фигура заливная — делаем её белой
-            if (shape->fill.type != NSVG_PAINT_NONE)
+            shape->fill.color = 0xFFFFFFFF;
+        }
+        // Если фигура контурная — делаем контур белым и задаём толщину
+        if (shape->stroke.type != NSVG_PAINT_NONE)
+        {
+            shape->stroke.color = 0xFFFFFFFF;
+            if (shape->strokeWidth <= 0.0f)
             {
-                shape->fill.color = 0xFFFFFFFF;
-            }
-            // Если фигура контурная — делаем контур белым и задаём толщину
-            if (shape->stroke.type != NSVG_PAINT_NONE)
-            {
-                shape->stroke.color = 0xFFFFFFFF;
-                if (shape->strokeWidth <= 0.0f)
-                {
-                    shape->strokeWidth = 1.f;
-                }
+                shape->strokeWidth = 1.f;
             }
         }
+    }
 
     memset(g_raster_buf, 0, ICON_RASTER_SIZE * ICON_RASTER_SIZE * 4);
 
