@@ -96,25 +96,6 @@
 /// хотя бы одного буфера «in-flight» и одного «в очереди».
 #define SAVER_POOL_MIN             4
 
-/// \brief Длина строки timestamp для имени файла (с NUL).
-///
-/// \details Формат: YYYYMMDD_HHMMSS — 15 символов + NUL. 32 — с запасом.
-///
-/// Допустимый диапазон: >= 16. По умолчанию: 32.
-#define SAVER_STAMP_MAX            32
-
-/// \brief Формат timestamp в имени файла.
-///
-/// \details Год-месяц-день_час-минута-секунда, локальное время.
-///          Не менять без синхронизации с разбором имени где-либо ещё.
-#define SAVER_STAMP_FMT            "%Y%m%d_%H%M%S"
-
-/// \brief Формат счётчика файлов в имени.
-///
-/// \details %04d — ровно 4 цифры с ведущими нулями.
-///          Диапазон счётчика: 0..UINT32_MAX, но до 9999 длина выровнена.
-#define SAVER_FILENAME_COUNTER_FMT "%04d"
-
 /// \brief Префикс имени файла по умолчанию.
 ///
 /// \details Используется, если -s не задан.
@@ -286,44 +267,22 @@ static bool has_outdir(void)
     return g_saver.outdir[ 0 ] != '\0' && strcmp(g_saver.outdir, ".") != 0;
 }
 
-/// \brief Форматирует локальное время в формате SAVER_STAMP_FMT.
-///
-/// \param t     Время
-/// \param out   Буфер для результата (не nullptr)
-/// \param outsz Размер буфера (>= SAVER_STAMP_MAX)
-static void format_time_iso(time_t t, char * out, size_t outsz)
-{
-    struct tm tm_buf;
-#ifdef _WIN32
-    localtime_s(&tm_buf, &t);
-#else
-    localtime_r(&t, &tm_buf);
-#endif
-    strftime(out, outsz, SAVER_STAMP_FMT, &tm_buf);
-}
-
-/// \brief Формирует полный путь к новому файлу.
-///
-/// \details Использует batch_start_time (момент открытия батча), а не текущее
-///          время. Если batch_start_time == 0 — текущее время. Счётчик файлов
-///          берётся из g_saver.file_counter.
-///
-/// \warning Вызывать только из saver-потока.
-///
-/// \param out   Буфер для результата
-/// \param outsz Размер буфера (>= SAVER_NAME_MAX)
 static void build_filename(char * out, size_t outsz)
 {
     time_t t = g_saver.batch_start_time ? g_saver.batch_start_time : time(nullptr);
 
-    char stamp[ SAVER_STAMP_MAX ];
-    format_time_iso(t, stamp, sizeof(stamp));
+    char counter[ 16 ];
+    snprintf(counter, sizeof(counter), "%04u", (unsigned)g_saver.file_counter);
 
-    const char * dir = has_outdir() ? g_saver.outdir : ".";
-    const char * fmt = g_saver.format_name[ 0 ] ? g_saver.format_name : "unknown";
-
-    snprintf(out, outsz, "%s/%s_%s_%dx%d_%s_" SAVER_FILENAME_COUNTER_FMT ".raw", //
-             dir, g_saver.prefix, stamp, g_saver.image.x, g_saver.image.y, fmt, g_saver.file_counter);
+    utils_build_filename(out,                 //
+                         outsz,               //
+                         saver_get_outdir(),  //
+                         g_saver.prefix,      //
+                         t,                   //
+                         g_saver.image,       //
+                         g_saver.format_name, //
+                         counter,             //
+                         "raw");
 }
 
 /// \brief Закрывает текущий файл, если он открыт.
@@ -760,6 +719,16 @@ bool saver_is_recording(void)
 const char * saver_get_outdir(void)
 {
     return g_saver.outdir[ 0 ] ? g_saver.outdir : ".";
+}
+
+const char * saver_get_prefix(void)
+{
+    return g_saver.prefix[ 0 ] ? g_saver.prefix : SAVER_DEFAULT_PREFIX;
+}
+
+const char * saver_get_format_name(void)
+{
+    return g_saver.format_name[ 0 ] ? g_saver.format_name : "unknown";
 }
 
 //--------------------------------------------------- End Of File ------------------------------------------------------

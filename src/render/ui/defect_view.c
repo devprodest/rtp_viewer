@@ -5,11 +5,14 @@
 #include "render/ui/pixel_probe.h"
 #include "render/ui/ui_color_scheme.h"
 #include "render/viewport.h"
+#include "save/saver.h"
 #include "util/utils.h"
+#include <time.h>
 
 #include <stdio.h>
 
 #define MAX_DEFECTS 4096
+
 
 static bool g_enabled = false;
 static defect_s g_defects[ MAX_DEFECTS ];
@@ -17,6 +20,9 @@ static int g_count     = 0;
 static int g_dead_cnt  = 0;
 static int g_stuck_cnt = 0;
 static int g_hot_cnt   = 0;
+
+
+static void defect_view_export(const char * filename);
 
 void defect_view_cleanup(void)
 {
@@ -126,6 +132,18 @@ void defect_view_rescan(void)
     }
 
     log_info("Defect scan: %d found (dead %d, stuck %d, hot %d)", g_count, g_dead_cnt, g_stuck_cnt, g_hot_cnt);
+
+    char csv_path[ 1024 ];
+    utils_build_filename(csv_path, sizeof(csv_path), //
+                         saver_get_outdir(),         //
+                         saver_get_prefix(),         //
+                         time(nullptr),              //
+                         size,                       //
+                         saver_get_format_name(),    //
+                         "defects",                  //
+                         "csv");
+
+    defect_view_export(csv_path);
 }
 
 void defect_view_toggle(void)
@@ -194,4 +212,36 @@ void defect_view_draw(image_size_s win, float dpi_scale)
     rect_s panel = {tx - pad, ty - pad, tx + tw + pad, ty + line_h + pad};
     overlay_rect_draw(panel, UI_PANEL_BG_STRONG);
     overlay_text_draw((point_s) {tx, ty}, line, UI_TEXT_PRIMARY, text_scale);
+}
+
+static void defect_view_export(const char * filename)
+{
+    if (g_count == 0)
+    {
+        return;
+    }
+
+    FILE * f = fopen(filename, "w");
+    if (!f)
+    {
+        log_error("defect_view: failed to create %s", filename);
+        return;
+    }
+
+    fprintf(f, "x,y,type,value,delta\n");
+    for (int i = 0; i < g_count; i++)
+    {
+        const char * type_str = "unknown";
+        switch (g_defects[ i ].type)
+        {
+            case DEFECT_DEAD: type_str = "dead"; break;
+            case DEFECT_STUCK: type_str = "stuck"; break;
+            case DEFECT_HOT: type_str = "hot"; break;
+            default: break;
+        }
+        fprintf(f, "%d,%d,%s,%u,%d\n", g_defects[ i ].pos.x, g_defects[ i ].pos.y, type_str, g_defects[ i ].value,
+                g_defects[ i ].delta);
+    }
+    fclose(f);
+    log_info("Defect list saved to %s", filename);
 }

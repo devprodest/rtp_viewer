@@ -23,3 +23,5 @@ void saver_cleanup(void);
 
 bool saver_is_recording(void);
 const char * saver_get_outdir(void);
+const char * saver_get_prefix(void);
+const char * saver_get_format_name(void);

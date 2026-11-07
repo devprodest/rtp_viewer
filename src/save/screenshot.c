@@ -1,9 +1,10 @@
 #include "screenshot.h"
 #include "log/logger.h"
+#include "png_writer.h"
 #include "render/format_pass.h"
 #include "render/gl/gl_api.h"
-#include "png_writer.h"
 #include "saver.h"
+#include "util/utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -119,15 +120,15 @@ void screenshot_process_if_requested(void)
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    time_t t           = time(nullptr);
-    struct tm * tm_now = localtime(&t);
-
-    char stamp[ 32 ];
-    strftime(stamp, sizeof(stamp), "%Y%m%d_%H%M%S", tm_now);
-
-    const char * outdir = saver_get_outdir();
     char path[ 1024 ];
-    snprintf(path, sizeof(path), "%s/screenshot_%s.png", outdir, stamp);
+    utils_build_filename(path, sizeof(path),                 //
+                         saver_get_outdir(),                 //
+                         saver_get_prefix(),                 //
+                         time(nullptr),                      //
+                         (image_size_s) {g_width, g_height}, //
+                         saver_get_format_name(),            //
+                         "screenshot",                       //
+                         "png");
 
     if (png_write_rgba(path, pixels, g_width, g_height))
     {
