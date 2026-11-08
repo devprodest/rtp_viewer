@@ -308,6 +308,8 @@ void overlay_begin(image_size_s win)
     g_win.x      = win.x > 0 ? win.x : 1;
     g_win.y      = win.y > 0 ? win.y : 1;
     g_vert_count = 0;
+    
+    glViewport(0, 0, win.x, win.y);
 }
 
 void overlay_text_draw(point_s s, const char * text, fcolor_rgb_s color, float scale)

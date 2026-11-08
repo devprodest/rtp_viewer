@@ -9,7 +9,7 @@
 #include <time.h>
 
 #define MAX_PANELS       8
-#define SAVE_THROTTLE_US 1000000ULL // 1 секунда
+#define SAVE_THROTTLE_US 1000000ULL
 
 typedef struct
 {
@@ -18,6 +18,8 @@ typedef struct
     bool has_pos;
     bool enabled;
     bool has_enabled;
+    int anchor_h;
+    int anchor_v;
 } panel_setting_t;
 
 static panel_setting_t g_panels[ MAX_PANELS ];
@@ -61,10 +63,9 @@ static void build_ini_path(void)
     }
 }
 
-/// \brief Парсит строку "panel.histogram.x=470" в id/key/value.
-static bool parse_line(const char * line, char * id, char * key, long * val)
+/// \brief Парсит "panel.<id>.<key>=<value>" (value как строка).
+static bool parse_line(const char * line, char * id, char * key, const char ** val_str)
 {
-    // Пропускаем пробелы и комментарии
     while (*line == ' ' || *line == '\t')
     {
         line++;
@@ -74,7 +75,6 @@ static bool parse_line(const char * line, char * id, char * key, long * val)
         return false;
     }
 
-    // Ищем "panel.<id>.<key>=<val>"
     if (strncmp(line, "panel.", 6) != 0)
     {
         return false;
@@ -110,8 +110,33 @@ static bool parse_line(const char * line, char * id, char * key, long * val)
     memcpy(key, line, key_len);
     key[ key_len ] = '\0';
 
-    *val = strtol(eq + 1, nullptr, 10);
+    const char * v = eq + 1;
+    while (*v == ' ' || *v == '\t')
+    {
+        v++;
+    }
+    *val_str = v;
     return true;
+}
+
+static int parse_anchor_h(const char * s)
+{
+    return (strncmp(s, "right", 5) == 0) ? 1 : 0;
+}
+
+static int parse_anchor_v(const char * s)
+{
+    return (strncmp(s, "bottom", 6) == 0) ? 1 : 0;
+}
+
+static const char * anchor_h_str(int v)
+{
+    return v ? "right" : "left";
+}
+
+static const char * anchor_v_str(int v)
+{
+    return v ? "bottom" : "top";
 }
 
 //------------------------------------------------------- API ---------------------------------------------------------
@@ -133,8 +158,8 @@ void settings_load(void)
     while (fgets(line, sizeof(line), f))
     {
         char id[ 32 ], key[ 16 ];
-        long val;
-        if (!parse_line(line, id, key, &val))
+        const char * val_str;
+        if (!parse_line(line, id, key, &val_str))
         {
             continue;
         }
@@ -147,18 +172,26 @@ void settings_load(void)
 
         if (strcmp(key, "x") == 0)
         {
-            p->pos.x   = (int)val;
+            p->pos.x   = atoi(val_str);
             p->has_pos = true;
         }
         else if (strcmp(key, "y") == 0)
         {
-            p->pos.y   = (int)val;
+            p->pos.y   = atoi(val_str);
             p->has_pos = true;
         }
         else if (strcmp(key, "enabled") == 0)
         {
-            p->enabled     = (val != 0);
+            p->enabled     = (atoi(val_str) != 0);
             p->has_enabled = true;
+        }
+        else if (strcmp(key, "anchor_h") == 0)
+        {
+            p->anchor_h = parse_anchor_h(val_str);
+        }
+        else if (strcmp(key, "anchor_v") == 0)
+        {
+            p->anchor_v = parse_anchor_v(val_str);
         }
     }
     fclose(f);
@@ -194,12 +227,13 @@ void settings_save(void)
         {
             fprintf(f, "panel.%s.enabled=%d\n", p->id, p->enabled ? 1 : 0);
         }
+        fprintf(f, "panel.%s.anchor_h=%s\n", p->id, anchor_h_str(p->anchor_h));
+        fprintf(f, "panel.%s.anchor_v=%s\n", p->id, anchor_v_str(p->anchor_v));
     }
 
     fclose(f);
     g_dirty     = false;
     g_last_save = get_time_us();
-    log_info("settings: saved to %s", g_ini_path);
 }
 
 void settings_mark_dirty(void)
@@ -213,7 +247,6 @@ void settings_tick(void)
     {
         return;
     }
-
     uint64_t now = get_time_us();
     if (now - g_last_save >= SAVE_THROTTLE_US)
     {
@@ -247,6 +280,20 @@ bool settings_get_panel_enabled(const char * id, bool * out_enabled)
     return false;
 }
 
+bool settings_get_panel_anchor(const char * id, int * out_h, int * out_v)
+{
+    for (int i = 0; i < g_panel_count; i++)
+    {
+        if (strcmp(g_panels[ i ].id, id) == 0)
+        {
+            *out_h = g_panels[ i ].anchor_h;
+            *out_v = g_panels[ i ].anchor_v;
+            return true;
+        }
+    }
+    return false;
+}
+
 void settings_set_panel_pos(const char * id, point_s pos)
 {
     panel_setting_t * p = find_or_create(id);
@@ -268,5 +315,17 @@ void settings_set_panel_enabled(const char * id, bool enabled)
     }
     p->enabled     = enabled;
     p->has_enabled = true;
+    settings_mark_dirty();
+}
+
+void settings_set_panel_anchor(const char * id, int h, int v)
+{
+    panel_setting_t * p = find_or_create(id);
+    if (!p)
+    {
+        return;
+    }
+    p->anchor_h = h;
+    p->anchor_v = v;
     settings_mark_dirty();
 }

@@ -30,3 +30,5 @@ bool settings_get_panel_enabled(const char * id, bool * out_enabled);
 
 void settings_set_panel_pos(const char * id, point_s pos);
 void settings_set_panel_enabled(const char * id, bool enabled);
+bool settings_get_panel_anchor(const char * id, int * out_h, int * out_v);
+void settings_set_panel_anchor(const char * id, int h, int v);

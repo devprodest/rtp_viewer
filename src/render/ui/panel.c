@@ -1,22 +1,46 @@
 #include "panel.h"
 
 #include "app/settings.h"
-#include "log/logger.h"
 #include "render/overlay.h"
 #include "render/ui/ui_color_scheme.h"
 #include "util/utils.h"
 
-#include <stdio.h>
+#include <string.h>
 
 #define MAX_PANELS   8
 #define SNAP_PX_BASE 16
 
-static const panel_s * g_panels[ MAX_PANELS ];
-static int g_count = 0;
+//----------------------------------------------------------------------------------------------------------------------
 
-static int g_drag_idx        = -1;
-static point_s g_drag_offset = {0, 0};
-static bool g_was_left       = false;
+typedef enum
+{
+    PANEL_ANCHOR_LEFT  = 0,
+    PANEL_ANCHOR_RIGHT = 1,
+} panel_anchor_h_e;
+
+typedef enum
+{
+    PANEL_ANCHOR_TOP    = 0,
+    PANEL_ANCHOR_BOTTOM = 1,
+} panel_anchor_v_e;
+
+typedef struct
+{
+    panel_anchor_h_e h;
+    panel_anchor_v_e v;
+} panel_anchor_t;
+
+
+//----------------------------------------------------------------------------------------------------------------------
+
+static int g_drag_idx          = -1;
+static image_size_s g_last_win = {0, 0};
+static point_s g_drag_offset   = {0, 0};
+static bool g_was_left         = false;
+
+static int g_count = 0;
+static const panel_s * g_panels[ MAX_PANELS ];
+static panel_anchor_t g_anchors[ MAX_PANELS ];
 
 //------------------------------------------------------- API ---------------------------------------------------------
 
@@ -38,6 +62,8 @@ void panel_unregister_all(void)
 {
     g_count    = 0;
     g_drag_idx = -1;
+    memset(g_anchors, 0, sizeof(g_anchors));
+    g_last_win = (image_size_s) {0, 0};
 }
 
 //------------------------------------------------------- Геометрия ----------------------------------------------------
@@ -200,6 +226,27 @@ bool panel_handle_mouse(point_s mouse, bool left_down, bool menu_open, image_siz
 
         apply_snap(&new_pos, full, g_drag_idx, win, dpi_scale);
 
+        // Обновляем anchor в реальном времени: как только панель после snap
+        // прилипла к краю окна — переключаем anchor туда, чтобы подсветка
+        // в panel_draw_chrome перемещалась вместе с панелью.
+        if (new_pos.x <= 0)
+        {
+            g_anchors[ g_drag_idx ].h = PANEL_ANCHOR_LEFT;
+        }
+        else if (new_pos.x + full.x >= win.x)
+        {
+            g_anchors[ g_drag_idx ].h = PANEL_ANCHOR_RIGHT;
+        }
+
+        if (new_pos.y <= 0)
+        {
+            g_anchors[ g_drag_idx ].v = PANEL_ANCHOR_TOP;
+        }
+        else if (new_pos.y + full.y >= win.y)
+        {
+            g_anchors[ g_drag_idx ].v = PANEL_ANCHOR_BOTTOM;
+        }
+
         p->set_pos(new_pos);
         settings_set_panel_pos(p->id, new_pos);
         consumed = true;
@@ -208,7 +255,38 @@ bool panel_handle_mouse(point_s mouse, bool left_down, bool menu_open, image_siz
     else if (!left_down && g_was_left && g_drag_idx >= 0)
     {
         const panel_s * p = g_panels[ g_drag_idx ];
-        settings_set_panel_pos(p->id, p->get_pos());
+        image_size_s full = panel_full_size(p, dpi_scale);
+        point_s pos       = p->get_pos();
+
+        const int snap = (int)(SNAP_PX_BASE * dpi_scale);
+
+        // Обновляем anchor только если панель реально у края
+        int anchor_h = g_anchors[ g_drag_idx ].h;
+        int anchor_v = g_anchors[ g_drag_idx ].v;
+
+        if (pos.x <= snap)
+        {
+            anchor_h = PANEL_ANCHOR_LEFT;
+        }
+        else if (pos.x + full.x >= win.x - snap)
+        {
+            anchor_h = PANEL_ANCHOR_RIGHT;
+        }
+
+        if (pos.y <= snap)
+        {
+            anchor_v = PANEL_ANCHOR_TOP;
+        }
+        else if (pos.y + full.y >= win.y - snap)
+        {
+            anchor_v = PANEL_ANCHOR_BOTTOM;
+        }
+
+        g_anchors[ g_drag_idx ].h = (panel_anchor_h_e)anchor_h;
+        g_anchors[ g_drag_idx ].v = (panel_anchor_v_e)anchor_v;
+
+        settings_set_panel_pos(p->id, pos);
+        settings_set_panel_anchor(p->id, anchor_h, anchor_v);
         g_drag_idx = -1;
         consumed   = true;
     }
@@ -235,9 +313,77 @@ static void draw_close_icon(rect_s r, fcolor_rgb_s color, float dpi_scale)
     }
 }
 
-void panel_draw_chrome(image_size_s win, float dpi_scale)
+/// \brief Рисует L-образный маркер якоря в углу панели.
+/// \details Угол выбирается по anchor_h/anchor_v; размер в пикселях
+///          масштабируется dpi. Тёмная окантовка — чтобы маркер был
+///          заметен на любом контенте панели.
+static void draw_anchor_corner(rect_s panel, int i, float dpi_scale)
 {
-    (void)win;
+    if (i != g_drag_idx)
+    {
+        return;
+    }
+
+    panel_anchor_h_e h = g_anchors[ i ].h;
+    panel_anchor_v_e v = g_anchors[ i ].v;
+
+
+    const int size = utils_max(12, (int)(18 * dpi_scale));
+    const int th   = utils_max(3, (int)(4 * dpi_scale));
+
+    const fcolor_rgba_s accent = UI_COLOR_ACCENT_ACTIVE_HOVER;
+
+    // Координаты угла, к которому привязана панель
+    const int protrude = (int)(2 * dpi_scale);
+    const int cx       = (h == PANEL_ANCHOR_LEFT) ? panel.x0 - protrude : panel.x1 + protrude;
+    const int cy       = (v == PANEL_ANCHOR_TOP) ? panel.y0 - protrude : panel.y1 + protrude;
+
+    // Направление «внутрь панели» от угла
+    const int sx = (h == PANEL_ANCHOR_LEFT) ? 1 : -1;
+    const int sy = (v == PANEL_ANCHOR_TOP) ? 1 : -1;
+
+    // Горизонтальный сегмент L
+    int hx0 = cx;
+    int hx1 = cx + sx * size;
+    int hy0 = cy;
+    int hy1 = cy + sy * th;
+    if (hx0 > hx1)
+    {
+        int t = hx0;
+        hx0   = hx1;
+        hx1   = t;
+    }
+    if (hy0 > hy1)
+    {
+        int t = hy0;
+        hy0   = hy1;
+        hy1   = t;
+    }
+
+    // Вертикальный сегмент L
+    int vx0 = cx;
+    int vx1 = cx + sx * th;
+    int vy0 = cy;
+    int vy1 = cy + sy * size;
+    if (vx0 > vx1)
+    {
+        int t = vx0;
+        vx0   = vx1;
+        vx1   = t;
+    }
+    if (vy0 > vy1)
+    {
+        int t = vy0;
+        vy0   = vy1;
+        vy1   = t;
+    }
+    // Акцентный L
+    overlay_rect_draw((rect_s) {hx0, hy0, hx1, hy1}, accent);
+    overlay_rect_draw((rect_s) {vx0, vy0, vx1, vy1}, accent);
+}
+
+void panel_draw_chrome(image_size_s, float dpi_scale)
+{
     int title_h = panel_title_height(dpi_scale);
 
     for (int i = 0; i < g_count; i++)
@@ -269,6 +415,9 @@ void panel_draw_chrome(image_size_s win, float dpi_scale)
         rect_s close_r = panel_close_rect(p, dpi_scale);
         overlay_rect_draw(close_r, UI_PANEL_BG_STRONG);
         draw_close_icon(close_r, UI_TEXT_PRIMARY, dpi_scale);
+
+        // Подсветка якоря во время перетаскивания
+        draw_anchor_corner(outer, i, dpi_scale);
     }
 }
 
@@ -276,6 +425,8 @@ void panel_draw_chrome(image_size_s win, float dpi_scale)
 
 void panel_clamp_to_window(image_size_s win, float dpi_scale)
 {
+    const bool resized = (win.x != g_last_win.x || win.y != g_last_win.y);
+
     for (int i = 0; i < g_count; i++)
     {
         const panel_s * p = g_panels[ i ];
@@ -283,18 +434,47 @@ void panel_clamp_to_window(image_size_s win, float dpi_scale)
         {
             continue;
         }
+        if (i == g_drag_idx)
+        {
+            continue; // не трогать панель во время drag
+        }
 
         point_s pos       = p->get_pos();
         image_size_s full = panel_full_size(p, dpi_scale);
 
-        int new_x = utils_clamp(pos.x, 0, utils_max(0, win.x - full.x));
-        int new_y = utils_clamp(pos.y, 0, utils_max(0, win.y - full.y));
+        int new_x = pos.x;
+        int new_y = pos.y;
+
+        if (resized)
+        {
+            // Для LEFT/TOP: абсолютная координата и так отсчитывается от
+            // левого/верхнего края, поэтому расстояние до края сохраняется
+            // автоматически. Ничего не делаем.
+            //
+            // Для RIGHT/BOTTOM: панель привязана к правому/нижнему краю,
+            // сдвигаем на дельту размера окна, чтобы расстояние до края
+            // осталось тем же.
+            if (g_anchors[ i ].h == PANEL_ANCHOR_RIGHT)
+            {
+                new_x = pos.x + (win.x - g_last_win.x);
+            }
+            if (g_anchors[ i ].v == PANEL_ANCHOR_BOTTOM)
+            {
+                new_y = pos.y + (win.y - g_last_win.y);
+            }
+        }
+
+        // Clamp на случай, если окно уменьшилось и панель вылезла
+        new_x = utils_clamp(new_x, 0, utils_max(0, win.x - full.x));
+        new_y = utils_clamp(new_y, 0, utils_max(0, win.y - full.y));
 
         if (new_x != pos.x || new_y != pos.y)
         {
             p->set_pos((point_s) {new_x, new_y});
         }
     }
+
+    g_last_win = win;
 }
 
 void panel_apply_settings(void)
@@ -308,6 +488,11 @@ void panel_apply_settings(void)
         {
             p->set_pos(pos);
         }
+
+        int h = 0, v = 0;
+        settings_get_panel_anchor(p->id, &h, &v);
+        g_anchors[ i ].h = (panel_anchor_h_e)h;
+        g_anchors[ i ].v = (panel_anchor_v_e)v;
 
         bool en;
         if (settings_get_panel_enabled(p->id, &en))
