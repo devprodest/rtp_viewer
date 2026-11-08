@@ -1,18 +1,17 @@
 #include "defect_view.h"
 
+#include "analysis/frame_context.h"
 #include "log/logger.h"
 #include "render/overlay.h"
-#include "render/ui/pixel_probe.h"
 #include "render/ui/ui_color_scheme.h"
 #include "render/viewport.h"
 #include "save/saver.h"
 #include "util/utils.h"
-#include <time.h>
 
 #include <stdio.h>
+#include <time.h>
 
 #define MAX_DEFECTS 4096
-
 
 static bool g_enabled = false;
 static defect_s g_defects[ MAX_DEFECTS ];
@@ -21,7 +20,7 @@ static int g_dead_cnt  = 0;
 static int g_stuck_cnt = 0;
 static int g_hot_cnt   = 0;
 
-
+// Forward declaration
 static void defect_view_export(const char * filename);
 
 void defect_view_cleanup(void)
@@ -39,10 +38,7 @@ static void add_defect(int x, int y, defect_type_e t, uint32_t v, int32_t d)
     {
         return;
     }
-    g_defects[ g_count++ ] = (defect_s) {
-        {x, y},
-        t, v, d
-    };
+    g_defects[ g_count++ ] = (defect_s) {{x, y}, t, v, d};
     switch (t)
     {
         case DEFECT_DEAD: g_dead_cnt++; break;
@@ -51,14 +47,10 @@ static void add_defect(int x, int y, defect_type_e t, uint32_t v, int32_t d)
     }
 }
 
-static uint32_t sample_luma(point_s p, int bpp)
+static uint32_t sample_value(point_s p, int bpp)
 {
-    pixel_sample_s s = pixel_probe_read_pixel(p);
-    if (bpp <= 2)
-    {
-        return s.raw;
-    }
-    return (uint32_t)(0.299f * s.rgb.r + 0.587f * s.rgb.g + 0.114f * s.rgb.b);
+    frame_pixel_t px = frame_context_read(p.x, p.y);
+    return (bpp <= 2) ? px.raw : (uint32_t)px.luma;
 }
 
 void defect_view_rescan(void)
@@ -68,14 +60,13 @@ void defect_view_rescan(void)
     g_stuck_cnt = 0;
     g_hot_cnt   = 0;
 
-    const uint8_t * frame = pixel_probe_get_frame();
-    if (!frame)
+    if (!frame_context_is_valid())
     {
         return;
     }
 
-    image_size_s size = pixel_probe_get_frame_size();
-    int bpp           = pixel_probe_get_bpp();
+    image_size_s size = frame_context_size();
+    int bpp           = frame_context_bpp();
     if (size.x < 3 || size.y < 3 || bpp == 0)
     {
         return;
@@ -95,7 +86,7 @@ void defect_view_rescan(void)
     {
         for (int x = 1; x < size.x - 1; x++)
         {
-            uint32_t cv = sample_luma((point_s) {x, y}, bpp);
+            uint32_t cv = sample_value((point_s) {x, y}, bpp);
 
             if (cv <= dead_thr)
             {
@@ -117,7 +108,7 @@ void defect_view_rescan(void)
                     {
                         continue;
                     }
-                    sum += sample_luma((point_s) {x + dx, y + dy}, bpp);
+                    sum += sample_value((point_s) {x + dx, y + dy}, bpp);
                 }
             }
             int32_t avg    = (int32_t)(sum / 8);
@@ -134,14 +125,8 @@ void defect_view_rescan(void)
     log_info("Defect scan: %d found (dead %d, stuck %d, hot %d)", g_count, g_dead_cnt, g_stuck_cnt, g_hot_cnt);
 
     char csv_path[ 1024 ];
-    utils_build_filename(csv_path, sizeof(csv_path), //
-                         saver_get_outdir(),         //
-                         saver_get_prefix(),         //
-                         time(nullptr),              //
-                         size,                       //
-                         saver_get_format_name(),    //
-                         "defects",                  //
-                         "csv");
+    utils_build_filename(csv_path, sizeof(csv_path), saver_get_outdir(), saver_get_prefix(), time(nullptr), size,
+                         saver_get_format_name(), "defects", "csv");
 
     defect_view_export(csv_path);
 }
@@ -195,7 +180,7 @@ void defect_view_draw(image_size_s win, float dpi_scale)
         overlay_rect_outline_draw(cell, color, utils_max(1, (int)dpi_scale));
     }
 
-    // Итоговая панель
+    // Панель-сводка
     const float text_scale = dpi_scale * 1.0f;
     const int pad          = (int)(6 * dpi_scale);
     const int margin       = (int)(10 * dpi_scale);
@@ -214,6 +199,8 @@ void defect_view_draw(image_size_s win, float dpi_scale)
     overlay_text_draw((point_s) {tx, ty}, line, UI_TEXT_PRIMARY, text_scale);
 }
 
+//------------------------------------------------------- Экспорт в CSV ------------------------------------------------
+
 static void defect_view_export(const char * filename)
 {
     if (g_count == 0)
@@ -229,6 +216,7 @@ static void defect_view_export(const char * filename)
     }
 
     fprintf(f, "x,y,type,value,delta\n");
+
     for (int i = 0; i < g_count; i++)
     {
         const char * type_str = "unknown";
@@ -242,6 +230,7 @@ static void defect_view_export(const char * filename)
         fprintf(f, "%d,%d,%s,%u,%d\n", g_defects[ i ].pos.x, g_defects[ i ].pos.y, type_str, g_defects[ i ].value,
                 g_defects[ i ].delta);
     }
+
     fclose(f);
     log_info("Defect list saved to %s", filename);
 }

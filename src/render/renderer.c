@@ -1,6 +1,7 @@
 #include "renderer.h"
 
 #include "analysis/analytics.h"
+#include "analysis/frame_context.h"
 #include "analysis/selection.h"
 #include "analysis/sharpness.h"
 #include "format/format_config.h"
@@ -174,6 +175,7 @@ fail_window:
 
 void renderer_cleanup(void)
 {
+    frame_context_clear();
     screenshot_cleanup();
     histogram_view_cleanup();
     vectorscope_view_cleanup();
@@ -203,7 +205,7 @@ void renderer_set_frame(const uint8_t * data)
     format_pass_upload(frame_to_upload);
 
     analytics_update(data, g_win, &g_format, &g_selection, g_eff_bits);
-    pixel_probe_set_frame(data, g_win, g_format.bytes_per_pixel);
+    frame_context_set(data, g_win, &g_format, g_eff_bits);
 
     if (post_pass_is_gradient_active())
     {
@@ -302,7 +304,7 @@ void renderer_refresh_analytics(void)
     }
 
     analytics_update(g_last_frame, g_win, &g_format, &g_selection, g_eff_bits);
-    pixel_probe_set_frame(g_last_frame, g_win, g_format.bytes_per_pixel);
+    frame_context_set(g_last_frame, g_win, &g_format, g_eff_bits);
 
     if (histogram_view_is_enabled())
     {

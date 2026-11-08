@@ -1,7 +1,7 @@
 #include "diff_view.h"
 
+#include "analysis/frame_context.h"
 #include "log/logger.h"
-#include "render/ui/pixel_probe.h"
 #include "util/utils.h"
 
 #include <stdlib.h>
@@ -31,15 +31,15 @@ void diff_view_cleanup(void)
 
 void diff_view_set_reference(void)
 {
-    const uint8_t * data = pixel_probe_get_frame();
+    const uint8_t * data = frame_context_data();
     if (!data)
     {
         log_info("Reference: no frame available yet");
         return;
     }
 
-    image_size_s size = pixel_probe_get_frame_size();
-    int bpp           = pixel_probe_get_bpp();
+    image_size_s size = frame_context_size();
+    int bpp           = frame_context_bpp();
     size_t bytes      = (size_t)size.x * (size_t)size.y * (size_t)bpp;
 
     if (bytes == 0)
