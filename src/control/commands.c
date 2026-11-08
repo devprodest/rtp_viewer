@@ -104,57 +104,26 @@ void cmd_execute(commands_e cmd)
         case CMD_PLAY_STEP_FORWARD: app_step_forward(); break;
         case CMD_PLAY_STEP_BACKWARD: app_step_backward(); break;
         case CMD_RECORD_SCREENSHOT: screenshot_request(); break;
+        
         case CMD_RESET_ALL:
         {
-            if (histogram_view_is_enabled())
-            {
-                histogram_view_toggle_enabled();
-            }
-            if (histogram_view_is_log_scale())
-            {
-                histogram_view_toggle_log_scale();
-            }
-            if (vectorscope_view_is_enabled())
-            {
-                vectorscope_view_toggle_enabled();
-            }
-            if (line_profile_view_is_enabled())
-            {
-                line_profile_view_toggle();
-            }
-            if (pixel_probe_is_enabled())
-            {
-                pixel_probe_toggle();
-            }
-            if (analytics_is_stats_visible())
-            {
-                analytics_toggle_stats_visible();
-            }
-            if (post_pass_is_gradient_active())
-            {
-                post_pass_toggle_gradient();
-            }
-            if (post_pass_is_saturation_active())
-            {
-                post_pass_toggle_saturation();
-            }
-            if (post_pass_is_auto_levels_active())
-            {
-                post_pass_toggle_auto_levels();
-            }
-            if (diff_view_is_enabled())
-            {
-                diff_view_toggle();
-            }
+            post_pass_disable_gradient();
+            post_pass_disable_saturation();
+            post_pass_disable_auto_levels();
+
+            histogram_view_disable();
+            vectorscope_view_disable();
+            line_profile_view_disable();
+            pixel_probe_disable();
+            analytics_disable_stats();
+            diff_view_disable();
 
             renderer_clear_selection();
-            if (window_is_fullscreen())
-            {
-                window_toggle_fullscreen();
-            }
+            window_set_normal();
             window_title_refresh();
         }
         break;
+
         case CMD_ZOOM_RESET: renderer_zoom_reset(); break;
         case CMD_SHOW_HELP: help_save_and_open(); break;
         default: break;

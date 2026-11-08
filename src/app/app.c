@@ -1,12 +1,14 @@
 #include "app.h"
 #include "pipeline.h"
 
+#include "app/settings.h"
 #include "config.h"
 #include "control/hotkeys.h"
 #include "control/mouse.h"
 #include "log/logger.h"
 #include "log/stats.h"
 #include "render/renderer.h"
+#include "render/ui/panel.h"
 #include "render/ui/progress_bar.h"
 #include "render/ui/svg_icons.h"
 #include "render/ui/window_title.h"
@@ -98,17 +100,25 @@ static bool app_init(const app_config_s * cfg)
     log_info("%s v%s", RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR);
 
     stats_init();
+
+    char dir[ 512 ];
+    utils_get_exe_dir(dir, sizeof(dir));
+    log_info("app: exe dir = %s", dir);
     window_title_init(cfg->format, cfg->image);
 
 #ifdef _WIN32
     timeBeginPeriod(1);
 #endif
 
+    settings_load();
+
     if (!renderer_init(cfg->image, cfg->format, cfg->effective_bits, cfg->smooth_start))
     {
         log_error("app: Failed to initialize OpenGL");
         goto fail_renderer;
     }
+
+    panel_apply_settings();
 
     if (!svg_icons_init())
     {
@@ -212,9 +222,17 @@ static void app_process_input(GLFWwindow * window, mouse_state_s * mouse)
 
     bool menu_consumed = renderer_handle_context_menu(mouse_point, mouse->right, mouse->left);
 
+    // Панели перехватывают клик по title bar / крестику
+    image_size_s win    = window_get_framebuffer_size();
+    bool panel_consumed = false;
+    if (!menu_consumed)
+    {
+        panel_consumed = panel_handle_mouse(mouse_point, mouse->left, menu_consumed, win, renderer_get_dpi_scale());
+    }
+
     // Progress bar
     bool progress_consumed = false;
-    if (!menu_consumed && g_cfg->use_file_source)
+    if (!menu_consumed && !panel_consumed && g_cfg->use_file_source)
     {
         float frac  = 0.0f;
         bool on_bar = progress_bar_hit_test(mouse_point, renderer_get_dpi_scale(), &frac);
@@ -230,7 +248,7 @@ static void app_process_input(GLFWwindow * window, mouse_state_s * mouse)
         }
     }
 
-    bool input_consumed = menu_consumed || progress_consumed;
+    bool input_consumed = menu_consumed || panel_consumed || progress_consumed;
     renderer_set_mouse_pos(mouse_point);
 
     if (!input_consumed)
@@ -265,6 +283,9 @@ static void app_update_pipeline_and_ui(void)
 
 static void app_cleanup(void)
 {
+    panel_save_settings();
+    settings_save();
+
     pipeline_stop();
     free(g_main_buffer);
     g_main_buffer = nullptr;
@@ -299,6 +320,8 @@ int app_run(const app_config_s * cfg)
 
         app_process_input(window, &mouse);
         app_update_pipeline_and_ui();
+
+        settings_tick();
 
         renderer_draw();
         stats_update();

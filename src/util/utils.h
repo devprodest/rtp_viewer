@@ -10,9 +10,11 @@ char * read_file(const char * path);
 
 int parse_int(const char * s, long min, long max, long * out);
 
+bool utils_get_exe_dir(char * out, size_t outsz);
 
 bool utils_build_filename(char * out, size_t outsz, const char * dir, const char * prefix, time_t timestamp,
                           image_size_s image, const char * format, const char * suffix, const char * ext);
+
 
 #define utils_min(val, min)           \
     ({                                \

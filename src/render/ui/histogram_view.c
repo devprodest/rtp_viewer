@@ -1,6 +1,7 @@
 #include "histogram_view.h"
 #include "analysis/analytics.h"
 #include "log/logger.h"
+#include "panel.h"
 #include "render/gl/gl_utils.h"
 #include "ui_color_scheme.h"
 #include "util/utils.h"
@@ -13,6 +14,7 @@ static GLuint g_hist_tex        = 0;
 static GLuint g_hist_program    = 0;
 static GLint g_hist_uniform_tex = -1;
 
+static point_s g_pos    = {-1, -1}; // -1 = ещё не инициализировано
 static bool g_enabled   = false;
 static bool g_log_scale = false;
 static int g_eff_bits   = 8;
@@ -21,6 +23,7 @@ static int g_eff_bits   = 8;
 #define HIST_TEX_H              (HIST_BAND_ROWS * 3)
 #define HIST_BACKGROUND_OPACITY (20)
 #define HIST_BIN_OPACITY        (200)
+
 
 _Static_assert(HIST_TEX_H % 3 == 0, "HIST_TEX_H must be divisible by 3");
 
@@ -405,7 +408,7 @@ void histogram_view_update(int effective_bits)
     build_histogram_image();
 }
 
-void histogram_view_render(image_size_s win)
+void histogram_view_render(point_s pos, image_size_s win, float dpi_scale)
 {
     const histogram_s * hist = analytics_get_histogram();
 
@@ -414,14 +417,21 @@ void histogram_view_render(image_size_s win)
         return;
     }
 
-    const image_size_s hist_view_size = {320, 240};
+    const image_size_s sz = histogram_view_get_size();
 
-    const int margin = 10;
-    const point_s ov = {.x = utils_max(win.x - hist_view_size.x - margin, 0),
-                        .y = utils_max(win.y - hist_view_size.y - margin, 0)};
+    // Дефолт
+    if (pos.x < 0 || pos.y < 0)
+    {
+        pos   = (point_s) {utils_max(win.x - sz.x - 10, 0), 10};
+        g_pos = pos;
+    }
 
-    glViewport(ov.x, ov.y, hist_view_size.x, hist_view_size.y);
+    // Контент сдвинут вниз на TITLE_H
+    int title_h   = panel_title_height(dpi_scale);
+    int content_y = pos.y + title_h;
+    int gl_y      = win.y - content_y - sz.y;
 
+    glViewport(pos.x, gl_y, sz.x, sz.y);
     glUseProgram(g_hist_program);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, g_hist_tex);
@@ -433,6 +443,17 @@ void histogram_view_render(image_size_s win)
     glBindVertexArray(g_quad_vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
+}
+
+void histogram_view_disable(void)
+{
+    if (!g_enabled)
+    {
+        return;
+    }
+    g_enabled   = false;
+    g_log_scale = false;
+    log_info("Histogram disabled");
 }
 
 void histogram_view_toggle_enabled(void)
@@ -460,4 +481,19 @@ int histogram_view_get_active_channels(void)
 bool histogram_view_is_log_scale(void)
 {
     return g_log_scale;
+}
+
+point_s histogram_view_get_pos(void)
+{
+    return g_pos;
+}
+
+void histogram_view_set_pos(point_s pos)
+{
+    g_pos = pos;
+}
+
+image_size_s histogram_view_get_size(void)
+{
+    return (image_size_s) {320, 240};
 }

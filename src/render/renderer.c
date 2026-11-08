@@ -12,16 +12,17 @@
 #include "log/stats.h"
 #include "overlay.h"
 #include "post_pass.h"
-#include "save/saver.h"
 #include "save/screenshot.h"
 #include "ui/context_menu.h"
 #include "ui/defect_view.h"
 #include "ui/diff_view.h"
 #include "ui/histogram_view.h"
 #include "ui/line_profile_view.h"
+#include "ui/panel.h"
 #include "ui/pixel_probe.h"
 #include "ui/progress_bar.h"
 #include "ui/selection_view.h"
+#include "ui/stats_overlay.h"
 #include "ui/svg_icons.h"
 #include "ui/ui_color_scheme.h"
 #include "ui/vectorscope_view.h"
@@ -32,10 +33,6 @@
 
 #include <stdio.h>
 #include <string.h>
-
-//----------------------------------------------------------------------------------------------------------------------
-
-static void render_stats_overlay(void);
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -55,7 +52,22 @@ static bool g_left_was_down = false;
 static const uint8_t * g_last_frame = nullptr;
 static sharpness_s g_sharpness;
 
-//----------------------------------------------------------------------------------------------------------------------
+//------------------------------------------------------- Обёртки для panel
+//---------------------------------------------
+
+static image_size_s histogram_get_size_wrap(float d)
+{
+    (void)d;
+    return histogram_view_get_size();
+}
+
+static image_size_s vectorscope_get_size_wrap(float d)
+{
+    (void)d;
+    return vectorscope_view_get_size();
+}
+
+//------------------------------------------------------- Smoothing ----------------------------------------------------
 
 static void apply_smoothing(void)
 {
@@ -70,6 +82,8 @@ static void apply_smoothing(void)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, f);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, f);
 }
+
+//------------------------------------------------------- Init --------------------------------------------------------
 
 bool renderer_init(image_size_s win, const char * format_name, int effective_bits, bool smooth_start)
 {
@@ -88,13 +102,15 @@ bool renderer_init(image_size_s win, const char * format_name, int effective_bit
 
     if (gl_api_load() != 0)
     {
-        log_error("renderer: Failed to load OpenGL functions");
-        goto fail_window;
+        log_error("Failed to load OpenGL functions\n");
+        window_cleanup();
+        return false;
     }
 
     if (!format_config_load(format_name, &g_format))
     {
-        goto fail_window;
+        window_cleanup();
+        return false;
     }
 
     selection_init(&g_selection);
@@ -103,27 +119,32 @@ bool renderer_init(image_size_s win, const char * format_name, int effective_bit
     overlay_init();
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-    g_win = win;
-    viewport_init(win);
+    g_win      = win;
     g_eff_bits = effective_bits;
+    viewport_init(win);
 
     g_quad_vao = gl_utils_create_fullscreen_quad();
     if (g_quad_vao == 0)
     {
-        log_error("renderer: failed to create fullscreen quad VAO");
-        goto fail_overlay;
+        log_error("renderer: failed to create fullscreen quad VAO\n");
+        overlay_cleanup();
+        window_cleanup();
+        return false;
     }
 
     if (!format_pass_init(win.x, win.y, g_quad_vao, effective_bits, &g_format))
     {
-        log_error("renderer: failed to initialize format pass");
-        goto fail_quad;
+        overlay_cleanup();
+        window_cleanup();
+        return false;
     }
 
     if (!post_pass_init(g_quad_vao))
     {
-        log_error("renderer: failed to initialize post pass");
-        goto fail_format;
+        format_pass_cleanup();
+        overlay_cleanup();
+        window_cleanup();
+        return false;
     }
 
     post_pass_set_format(g_format.bytes_per_pixel, effective_bits);
@@ -131,14 +152,21 @@ bool renderer_init(image_size_s win, const char * format_name, int effective_bit
 
     if (!histogram_view_init(g_quad_vao))
     {
-        log_error("renderer: failed to initialize histogram view");
-        goto fail_post;
+        post_pass_cleanup();
+        format_pass_cleanup();
+        overlay_cleanup();
+        window_cleanup();
+        return false;
     }
 
     if (!vectorscope_view_init(g_quad_vao))
     {
-        log_error("renderer: failed to initialize vectorscope view");
-        goto fail_hist;
+        histogram_view_cleanup();
+        post_pass_cleanup();
+        format_pass_cleanup();
+        overlay_cleanup();
+        window_cleanup();
+        return false;
     }
 
     screenshot_init();
@@ -150,39 +178,54 @@ bool renderer_init(image_size_s win, const char * format_name, int effective_bit
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+    // --- Регистрация перетаскиваемых панелей ---
+    static const panel_s s_hist_panel = {
+        .id         = "histogram",
+        .title      = "Histogram",
+        .get_pos    = histogram_view_get_pos,
+        .set_pos    = histogram_view_set_pos,
+        .get_size   = histogram_get_size_wrap,
+        .is_visible = histogram_view_is_enabled,
+        .on_toggle  = histogram_view_toggle_enabled,
+    };
+    static const panel_s s_vec_panel = {
+        .id         = "vectorscope",
+        .title      = "Vectorscope",
+        .get_pos    = vectorscope_view_get_pos,
+        .set_pos    = vectorscope_view_set_pos,
+        .get_size   = vectorscope_get_size_wrap,
+        .is_visible = vectorscope_view_is_enabled,
+        .on_toggle  = vectorscope_view_toggle_enabled,
+    };
+    static const panel_s s_stats_panel = {
+        .id         = "stats",
+        .title      = "Stats",
+        .get_pos    = stats_overlay_get_pos,
+        .set_pos    = stats_overlay_set_pos,
+        .get_size   = stats_overlay_get_size,
+        .is_visible = analytics_is_stats_visible,
+        .on_toggle  = analytics_toggle_stats_visible,
+    };
+    panel_register(&s_hist_panel);
+    panel_register(&s_vec_panel);
+    panel_register(&s_stats_panel);
+
     return true;
-
-    // --- Cleanup on failure (reverse order of init) ---
-
-fail_hist:
-    histogram_view_cleanup();
-fail_post:
-    post_pass_cleanup();
-fail_format:
-    format_pass_cleanup();
-fail_quad:
-    if (g_quad_vao)
-    {
-        glDeleteVertexArrays(1, &g_quad_vao);
-        g_quad_vao = 0;
-    }
-fail_overlay:
-    overlay_cleanup();
-fail_window:
-    window_cleanup();
-    return false;
 }
+
+//------------------------------------------------------- Cleanup -----------------------------------------------------
 
 void renderer_cleanup(void)
 {
-    frame_context_clear();
+    panel_unregister_all();
+
     screenshot_cleanup();
-    histogram_view_cleanup();
     vectorscope_view_cleanup();
+    histogram_view_cleanup();
     post_pass_cleanup();
     format_pass_cleanup();
     diff_view_cleanup();
-    defect_view_cleanup();
+    frame_context_clear();
 
     if (g_quad_vao)
     {
@@ -197,6 +240,20 @@ void renderer_cleanup(void)
     g_win.y = 0;
 }
 
+//------------------------------------------------------- Window / Polling ---------------------------------------------
+
+GLFWwindow * renderer_get_window(void)
+{
+    return window_get();
+}
+
+void renderer_poll_events(void)
+{
+    window_poll_events();
+}
+
+//------------------------------------------------------- Frame --------------------------------------------------------
+
 void renderer_set_frame(const uint8_t * data)
 {
     g_last_frame = data;
@@ -204,18 +261,10 @@ void renderer_set_frame(const uint8_t * data)
     const uint8_t * frame_to_upload = diff_view_process(data, g_win, g_format.bytes_per_pixel, g_eff_bits);
     format_pass_upload(frame_to_upload);
 
-    analytics_update(data, g_win, &g_format, &g_selection, g_eff_bits);
-    frame_context_set(data, g_win, &g_format, g_eff_bits);
-
-    if (post_pass_is_gradient_active())
-    {
-        g_sharpness = sharpness_compute(data, g_win, &g_format, &g_selection);
-        window_title_set_sharpness(g_sharpness.valid, g_sharpness.lap_var, g_sharpness.tenengrad);
-    }
-
-    histogram_view_update(g_eff_bits);
-    vectorscope_view_update(data, g_win, &g_format, &g_selection, g_format.bytes_per_pixel);
+    renderer_refresh_analytics();
 }
+
+//------------------------------------------------------- Draw ---------------------------------------------------------
 
 void renderer_draw(void)
 {
@@ -235,58 +284,61 @@ void renderer_draw(void)
 
     post_pass_render(format_pass_get_output_tex(), viewport_get_point(), viewport_get_size(), win);
 
-    histogram_view_render(win);
-    vectorscope_view_render(win, g_dpi_scale);
+    // GL-контент панелей (до overlay)
+    panel_clamp_to_window(win, g_dpi_scale);
+    histogram_view_render(histogram_view_get_pos(), win, g_dpi_scale);
+    vectorscope_view_render(vectorscope_view_get_pos(), win, g_dpi_scale);
 
+    // Overlay
     overlay_begin(win);
+    panel_draw_chrome(win, g_dpi_scale);
     selection_view_draw(&g_selection, viewport_get_point(), viewport_get_size(), g_win);
     pixel_probe_draw(win, g_dpi_scale);
     defect_view_draw(win, g_dpi_scale);
-    render_stats_overlay();
+    stats_overlay_draw(stats_overlay_get_pos(), g_dpi_scale);
     line_profile_view_draw(win, g_dpi_scale);
     progress_bar_draw(win, g_dpi_scale);
     overlay_end();
 
-    // Меню полностью автономно (внутри себя управляет оверлеями и NanoVG)
+    // Контекстное меню — автономно (свой overlay + NanoVG)
     context_menu_draw(win, g_dpi_scale);
 
     screenshot_process_if_requested();
     window_swap_buffers();
 }
 
+//------------------------------------------------------- Simple accessors ---------------------------------------------
+
 int renderer_get_bytes_per_pixel(void)
 {
     return format_pass_get_bytes_per_pixel();
 }
 
-void renderer_clear_selection(void)
-{
-    selection_clear(&g_selection);
-}
-bool renderer_screen_to_frame(point_s screen, point_s * frame)
-{
-    return viewport_screen_to_frame(screen, frame);
-}
-void renderer_zoom_reset(void)
-{
-    viewport_reset();
-}
-void renderer_zoom_apply_wheel(double wheel, point_s point)
-{
-    viewport_apply_wheel(wheel, point);
-}
-void renderer_pan_apply_drag(point_s point, bool middle_down)
-{
-    viewport_apply_pan_drag(point, middle_down);
-}
 float renderer_get_dpi_scale(void)
 {
     return g_dpi_scale;
 }
-bool renderer_is_smoothing_active(void)
+
+void renderer_set_demosaic_mode(int /*unused*/)
 {
-    return g_smoothing;
 }
+
+void renderer_set_paused(bool paused)
+{
+    window_title_set_paused(paused);
+}
+
+void renderer_toggle_fullscreen(void)
+{
+    window_toggle_fullscreen();
+}
+
+void renderer_request_screenshot(void)
+{
+    screenshot_request();
+}
+
+//------------------------------------------------------- Smoothing (управление) --------------------------------------
 
 void renderer_toggle_smoothing(void)
 {
@@ -296,6 +348,13 @@ void renderer_toggle_smoothing(void)
     log_info("Smoothing %s", g_smoothing ? "enabled" : "disabled");
 }
 
+bool renderer_is_smoothing_active(void)
+{
+    return g_smoothing;
+}
+
+//------------------------------------------------------- Analytics refresh --------------------------------------------
+
 void renderer_refresh_analytics(void)
 {
     if (!g_last_frame)
@@ -303,15 +362,20 @@ void renderer_refresh_analytics(void)
         return;
     }
 
-    analytics_update(g_last_frame, g_win, &g_format, &g_selection, g_eff_bits);
     frame_context_set(g_last_frame, g_win, &g_format, g_eff_bits);
 
-    if (histogram_view_is_enabled())
+    analytics_update(g_last_frame, g_win, &g_format, &g_selection, g_eff_bits);
+    histogram_view_update(g_eff_bits);
+    vectorscope_view_update();
+
+    if (post_pass_is_gradient_active())
     {
-        histogram_view_update(g_eff_bits);
+        g_sharpness = sharpness_compute(g_last_frame, g_win, &g_format, &g_selection);
+        window_title_set_sharpness(g_sharpness.valid, g_sharpness.lap_var, g_sharpness.tenengrad);
     }
-    vectorscope_view_update(g_last_frame, g_win, &g_format, &g_selection, g_format.bytes_per_pixel);
 }
+
+//------------------------------------------------------- Selection ----------------------------------------------------
 
 void renderer_set_selection_from_mouse(point_s mouse, bool left_down, bool in_view)
 {
@@ -338,49 +402,34 @@ void renderer_set_selection_from_mouse(point_s mouse, bool left_down, bool in_vi
     }
 }
 
-static void render_stats_overlay(void)
+void renderer_clear_selection(void)
 {
-    if (!analytics_is_stats_visible())
-    {
-        return;
-    }
-
-    const analytics_stats_s * st = analytics_get_stats();
-    if (!st || !st->valid)
-    {
-        return;
-    }
-
-    const float text_scale = g_dpi_scale * 1.f;
-    const int margin       = (int)(10 * g_dpi_scale);
-    const int line_h       = (int)(14 * text_scale);
-    const int x            = margin;
-    int y                  = margin;
-
-    char line[ 192 ];
-
-    const int panel_h = (st->channels == 1 ? 1 : 3) * line_h;
-    const int panel_w = 380;
-    rect_s panel      = {.x0 = x - 4, .y0 = y - 4, .x1 = x + panel_w, .y1 = y + panel_h + 4};
-    overlay_rect_draw(panel, UI_PANEL_BG);
-
-    if (st->channels == 1)
-    {
-        snprintf(line, sizeof(line), "RAW min=%.0f max=%.0f mean=%.1f std=%.1f", st->min[ 0 ], st->max[ 0 ],
-                 st->mean[ 0 ], st->std[ 0 ]);
-        overlay_text_draw((point_s) {x, y}, line, UI_TEXT_PRIMARY, text_scale);
-    }
-    else
-    {
-        static const char * names[ 3 ] = {"R", "G", "B"};
-        for (int c = 0; c < 3; c++)
-        {
-            snprintf(line, sizeof(line), "%s min=%.0f max=%.0f mean=%.1f std=%.1f", names[ c ], st->min[ c ],
-                     st->max[ c ], st->mean[ c ], st->std[ c ]);
-            overlay_text_draw((point_s) {x, y + c * line_h}, line, UI_TEXT_PRIMARY, text_scale);
-        }
-    }
+    selection_clear(&g_selection);
 }
+
+bool renderer_screen_to_frame(point_s screen, point_s * frame)
+{
+    return viewport_screen_to_frame(screen, frame);
+}
+
+//------------------------------------------------------- Zoom / Pan ---------------------------------------------------
+
+void renderer_zoom_reset(void)
+{
+    viewport_reset();
+}
+
+void renderer_zoom_apply_wheel(double wheel, point_s point)
+{
+    viewport_apply_wheel(wheel, point);
+}
+
+void renderer_pan_apply_drag(point_s point, bool middle_down)
+{
+    viewport_apply_pan_drag(point, middle_down);
+}
+
+//------------------------------------------------------- Mouse / Menu ------------------------------------------------
 
 void renderer_set_mouse_pos(point_s mouse)
 {
@@ -392,7 +441,8 @@ bool renderer_handle_context_menu(point_s mouse, bool right_down, bool left_down
 {
     static bool prev_right = false;
     static bool prev_left  = false;
-    bool consumed          = false;
+
+    bool consumed = false;
 
     if (context_menu_is_open())
     {

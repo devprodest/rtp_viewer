@@ -79,6 +79,16 @@ bool diff_view_is_enabled(void)
 {
     return g_diff_enabled;
 }
+void diff_view_disable(void)
+{
+    if (!g_diff_enabled)
+    {
+        return;
+    }
+    g_diff_enabled = false;
+    log_info("Diff disabled");
+}
+
 
 void diff_view_gain_up(void)
 {

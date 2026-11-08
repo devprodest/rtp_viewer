@@ -14,10 +14,13 @@ void post_pass_set_texel_size(fimage_size_s size);
 // --- Состояние ---
 void post_pass_toggle_saturation(void);
 bool post_pass_is_saturation_active(void);
+void post_pass_disable_saturation(void);
 void post_pass_toggle_gradient(void);
+void post_pass_disable_gradient(void);
 bool post_pass_is_gradient_active(void);
 void post_pass_toggle_auto_levels(void);
 bool post_pass_is_auto_levels_active(void);
+void post_pass_disable_auto_levels(void);
 
 // --- Рендер ---
 void post_pass_render(GLuint source_tex, point_s dst, image_size_s size, image_size_s win);

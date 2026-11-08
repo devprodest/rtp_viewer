@@ -6,3 +6,4 @@ publish/**/*
 *.log
 *-mock.bat
 *_help.txt
+*.ini

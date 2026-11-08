@@ -22,5 +22,6 @@ void window_set_title(const char * title);
 
 bool window_is_fullscreen(void);
 void window_toggle_fullscreen(void);
+void window_set_normal(void);
 void window_size_fullscreen(void);
 void window_size_normal(void);

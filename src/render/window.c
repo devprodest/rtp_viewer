@@ -112,6 +112,15 @@ void window_toggle_fullscreen(void)
     }
 }
 
+void window_set_normal(void)
+{
+    if (!g_is_fullscreen)
+    {
+        return;
+    }
+    window_size_normal();
+}
+
 void window_size_fullscreen(void)
 {
     if (!g_window || g_is_fullscreen)

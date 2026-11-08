@@ -1,9 +1,9 @@
 #include "post_pass.h"
 #include "analysis/analytics.h"
+#include "gl/gl_utils.h"
 #include "log/logger.h"
 #include "render/ui/window_title.h"
 #include "util/utils.h"
-#include "gl/gl_utils.h"
 
 #include <stddef.h>
 #include <stdio.h>
@@ -78,6 +78,8 @@ void post_pass_set_texel_size(fimage_size_s size)
     g_texel = size;
 }
 
+//----------------------------------------------------------------------------------------------------------------------
+
 void post_pass_toggle_saturation(void)
 {
     g_saturation_enabled = !g_saturation_enabled;
@@ -113,6 +115,38 @@ bool post_pass_is_auto_levels_active(void)
 {
     return g_auto_levels_enabled;
 }
+void post_pass_disable_gradient(void)
+{
+    if (!g_gradient_enabled)
+    {
+        return;
+    }
+    g_gradient_enabled = false;
+    window_title_set_sharpness(false, 0.0, 0.0);
+    log_info("Gradient disabled");
+}
+
+void post_pass_disable_saturation(void)
+{
+    if (!g_saturation_enabled)
+    {
+        return;
+    }
+    g_saturation_enabled = false;
+    log_info("Saturation disabled");
+}
+
+void post_pass_disable_auto_levels(void)
+{
+    if (!g_auto_levels_enabled)
+    {
+        return;
+    }
+    g_auto_levels_enabled = false;
+    log_info("Auto-levels disabled");
+}
+
+//----------------------------------------------------------------------------------------------------------------------
 
 static void update_levels_from_stats(void)
 {

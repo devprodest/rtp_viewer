@@ -1,6 +1,7 @@
 #include "pixel_probe.h"
 
 #include "analysis/frame_context.h"
+#include "log/logger.h"
 #include "render/overlay.h"
 #include "render/ui/ui_color_scheme.h"
 #include "render/viewport.h"
@@ -15,14 +16,27 @@ void pixel_probe_toggle(void)
 {
     g_enabled = !g_enabled;
 }
+
 bool pixel_probe_is_enabled(void)
 {
     return g_enabled;
 }
+
+void pixel_probe_disable(void)
+{
+    if (!g_enabled)
+    {
+        return;
+    }
+    g_enabled = false;
+    log_info("Pixel probe disabled");
+}
+
 void pixel_probe_set_mouse(point_s screen)
 {
     g_mouse = screen;
 }
+
 point_s pixel_probe_get_mouse(void)
 {
     return g_mouse;

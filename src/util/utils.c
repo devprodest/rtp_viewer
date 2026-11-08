@@ -3,6 +3,14 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <time.h>
+#include <string.h>
+
+#ifdef _WIN32
+    #include <windows.h>
+#else
+    #include <limits.h>
+    #include <unistd.h>
+#endif
 
 uint64_t get_time_us(void)
 {
@@ -156,4 +164,59 @@ bool utils_build_filename(char * out, size_t outsz, const char * dir, const char
     }
 
     return n > 0 && (size_t)n < outsz;
+}
+
+/// \brief Возвращает директорию исполняемого файла (без завершающего слэша).
+///        На Windows — через GetModuleFileNameA, на Linux — через /proc/self/exe.
+///        Если определить не удалось — возвращает "." (текущую директорию).
+///
+/// \return true при успехе, false если out слишком мал или путь не определён
+bool utils_get_exe_dir(char * out, size_t outsz)
+{
+    if (!out || outsz < 2)
+    {
+        return false;
+    }
+
+#ifdef _WIN32
+    char path[ MAX_PATH ];
+    DWORD len = GetModuleFileNameA(NULL, path, sizeof(path));
+    if (len == 0 || len >= sizeof(path))
+    {
+        snprintf(out, outsz, ".");
+        return false;
+    }
+    // Обрезаем имя файла: ищем последний слэш или обратный слэш
+    char * last_sep = strrchr(path, '\\');
+    if (!last_sep)
+    {
+        last_sep = strrchr(path, '/');
+    }
+    if (!last_sep)
+    {
+        snprintf(out, outsz, ".");
+        return false;
+    }
+    *last_sep = '\0';
+    snprintf(out, outsz, "%s", path);
+    return true;
+#else
+    char path[ PATH_MAX ];
+    ssize_t len = readlink("/proc/self/exe", path, sizeof(path) - 1);
+    if (len <= 0 || len >= (ssize_t)sizeof(path))
+    {
+        snprintf(out, outsz, ".");
+        return false;
+    }
+    path[ len ]     = '\0';
+    char * last_sep = strrchr(path, '/');
+    if (!last_sep)
+    {
+        snprintf(out, outsz, ".");
+        return false;
+    }
+    *last_sep = '\0';
+    snprintf(out, outsz, "%s", path);
+    return true;
+#endif
 }

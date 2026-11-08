@@ -6,6 +6,7 @@
 #include "render/ui/ui_color_scheme.h"
 #include "render/viewport.h"
 #include "util/utils.h"
+#include "log/logger.h"
 
 //------------------------------------------------------- Параметры ----------------------------------------------------
 
@@ -27,6 +28,16 @@ void line_profile_view_toggle(void)
 bool line_profile_view_is_enabled(void)
 {
     return g_enabled;
+}
+
+void line_profile_view_disable(void)
+{
+    if (!g_enabled)
+    {
+        return;
+    }
+    g_enabled = false;
+    log_info("Line profile disabled");
 }
 
 //------------------------------------------------------- Помощники ---------------------------------------------------
