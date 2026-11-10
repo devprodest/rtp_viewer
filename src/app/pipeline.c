@@ -116,14 +116,26 @@ static void * worker_thread(void * arg)
 
         if (frame_ready)
         {
-            pthread_mutex_lock(&g_frame_mutex);
-            memcpy(g_render_buffer, g_worker_buffer, g_frame_bytes);
-            g_has_new_frame = true;
-            pthread_mutex_unlock(&g_frame_mutex);
+            // Обновляем отображаемый буфер только если не на паузе.
+            //
+            // Для файлового на паузе frame_ready всегда false (skip_receive = true),
+            // так что эта проверка не влияет на его поведение.
+            //
+            // Для RTP на паузе: пакеты всё равно читаются (чтобы не забивать
+            // буфер сокета), но на экран не попадают — застывает последний кадр.
+            // Так же делают видеоплееры: при Play увидишь текущий момент потока,
+            // а не отставание.
+            if (!paused)
+            {
+                pthread_mutex_lock(&g_frame_mutex);
+                memcpy(g_render_buffer, g_worker_buffer, g_frame_bytes);
+                g_has_new_frame = true;
+                pthread_mutex_unlock(&g_frame_mutex);
+            }
 
-            saver_add_frame(g_worker_buffer);
-            stats_frame_rendered();
-            frame_state_reset(&state);
+            saver_add_frame(g_worker_buffer); // запись продолжается
+            stats_frame_rendered();           // FPS в заголовке тоже считается
+            frame_state_reset(&state);        // сбрасываем сборку кадра
 
             int cur = 0;
             int tot = 0;
