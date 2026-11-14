@@ -1,5 +1,5 @@
 #include "frame_context.h"
-
+#include "util/color.h"
 #include "util/utils.h"
 
 static const uint8_t * g_data = nullptr;
@@ -91,7 +91,7 @@ frame_pixel_t frame_context_read(int x, int y)
         }
         else
         {
-            px.luma = (uint8_t)(0.299f * px.r + 0.587f * px.g + 0.114f * px.b);
+            px.luma = color_rgb_to_luma601(px.r, px.g, px.b);
         }
     }
 

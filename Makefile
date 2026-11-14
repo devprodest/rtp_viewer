@@ -68,6 +68,7 @@ SRCS += $(SRC_DIR)/source/source_file.c
 SRCS += $(SRC_DIR)/source/source_rtp.c
 SRCS += $(SRC_DIR)/source/source.c
 SRCS += $(SRC_DIR)/util/utils.c
+SRCS += $(SRC_DIR)/util/color.c
 
 # Lib
 SRCS += $(LIB_DIR)/nanovg/src/nanovg.c

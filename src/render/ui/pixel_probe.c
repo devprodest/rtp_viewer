@@ -6,6 +6,7 @@
 #include "render/overlay.h"
 #include "render/ui/ui_color_scheme.h"
 #include "render/viewport.h"
+#include "util/color.h"
 #include "util/utils.h"
 
 #include <stdio.h>
@@ -97,18 +98,31 @@ void pixel_probe_draw(image_size_s win, float dpi_scale)
     // Пиксель
     frame_pixel_t px = frame_context_read(frame.x, frame.y);
 
+    const bool is_ycbcr = frame_context_format()->is_ycbcr;
+    const int bpp       = frame_context_bpp();
+
     char line1[ 64 ];
-    char line2[ 64 ];
+    char line2[ 96 ];
     snprintf(line1, sizeof(line1), "x;y=(%d;%d)", frame.x, frame.y);
 
-    int bpp = frame_context_bpp();
+    fcolor_rgba_s swatch_color;
+
     if (bpp <= 2)
     {
         snprintf(line2, sizeof(line2), "val=%u", px.raw);
+        const float v = (float)px.luma / 255.0f;
+        swatch_color  = (fcolor_rgba_s) {v, v, v, 1.0f};
+    }
+    else if (is_ycbcr)
+    {
+        const u8color_rgb_s rgb = color_ycbcr_to_rgb(px.r, px.g, px.b);
+        snprintf(line2, sizeof(line2), "YCbCr=(%u;%u;%u)", px.r, px.g, px.b);
+        swatch_color = (fcolor_rgba_s) {(float)rgb.r / 255.0f, (float)rgb.g / 255.0f, (float)rgb.b / 255.0f, 1.0f};
     }
     else
     {
         snprintf(line2, sizeof(line2), "RGB=(%u;%u;%u)", px.r, px.g, px.b);
+        swatch_color = (fcolor_rgba_s) {(float)px.r / 255.0f, (float)px.g / 255.0f, (float)px.b / 255.0f, 1.0f};
     }
 
     // Геометрия панели
@@ -148,7 +162,7 @@ void pixel_probe_draw(image_size_s win, float dpi_scale)
     // Квадрат цвета
     int box_y        = py_pos + pad + (content_h - box_size) / 2;
     rect_s pix_color = {px_pos + pad, box_y, px_pos + pad + box_size, box_y + box_size};
-    overlay_rect_draw(pix_color, (fcolor_rgba_s) {px.r / 255.0f, px.g / 255.0f, px.b / 255.0f, 1.0f});
+    overlay_rect_draw(pix_color, swatch_color);
     overlay_rect_outline_draw(pix_color, UI_PANEL_BORDER, 1);
 
     // Текст

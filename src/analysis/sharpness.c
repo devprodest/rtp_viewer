@@ -1,8 +1,7 @@
 #include "sharpness.h"
+#include "util/color.h"
 #include "util/utils.h"
 
-#include <math.h>
-#include <string.h>
 
 /// \brief Возвращает яркость пикселя (0..255).
 static int pixel_luma(const uint8_t * data, int width, const format_config_s * fmt, int x, int y)
@@ -22,17 +21,13 @@ static int pixel_luma(const uint8_t * data, int width, const format_config_s * f
     {
         size_t idx = (y * width + x) * fmt->bytes_per_pixel;
 
-        // YCbCr: яркость — это Y (первый канал), а не смесь Y/Cb/Cr.
-        // BT.601-веса (77,150,29) подходят только для RGB.
+        // YCbCr: яркость — это Y (первый канал). BT.601 — только для RGB.
         if (fmt->is_ycbcr)
         {
             return data[ idx + 0 ];
         }
 
-        int r = data[ idx + 0 ];
-        int g = data[ idx + 1 ];
-        int b = data[ idx + 2 ];
-        return (r * 77 + g * 150 + b * 29) >> 8;
+        return color_rgb_to_luma601(data[ idx + 0 ], data[ idx + 1 ], data[ idx + 2 ]);
     }
 
     return 0;
