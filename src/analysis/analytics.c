@@ -2,6 +2,7 @@
 
 #include "app/settings.h"
 #include "log/logger.h"
+#include "util/color.h"
 #include "util/utils.h"
 
 #include <math.h>
@@ -177,8 +178,10 @@ void analytics_update(const uint8_t * data, image_size_s win, const format_confi
                 }
                 else
                 {
-                    cb = (int)(-0.169f * px[ 0 ] - 0.331f * px[ 1 ] + 0.500f * px[ 2 ] + 128.0f);
-                    cr = (int)(0.500f * px[ 0 ] - 0.419f * px[ 1 ] - 0.081f * px[ 2 ] + 128.0f);
+                    const u8color_rgb_s ycc = color_rgb_to_ycbcr(px[ 0 ], px[ 1 ], px[ 2 ]);
+
+                    cb = ycc.g; // Cb
+                    cr = ycc.b; // Cr
                 }
 
                 cb = utils_clamp(cb, 0, ANALYTICS_VS_BINS - 1);
