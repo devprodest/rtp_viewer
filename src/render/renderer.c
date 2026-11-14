@@ -320,6 +320,7 @@ void renderer_draw(void)
     pixel_probe_draw(win, g_dpi_scale);
     defect_view_draw(win, g_dpi_scale);
     stats_overlay_draw(stats_overlay_get_pos(), g_dpi_scale);
+    flicker_view_draw_text(flicker_view_get_pos(), g_dpi_scale);
     line_profile_view_draw(win, g_dpi_scale);
     progress_bar_draw(win, g_dpi_scale);
     overlay_end();

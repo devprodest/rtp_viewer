@@ -3,13 +3,16 @@
 #include "analysis/flicker.h"
 #include "log/logger.h"
 #include "render/gl/gl_utils.h"
+#include "render/overlay.h"
 #include "render/ui/panel.h"
+#include "ui_color_scheme.h"
 #include "util/utils.h"
 
-#include <string.h>
+#include <stdio.h>
 
-#define FLICKER_TEX_W 320
-#define FLICKER_TEX_H 160
+#define FLICKER_TEX_W  320 // ширина панели (и графика)
+#define FLICKER_TEX_H  160 // высота самого графика
+#define FLICKER_TEXT_H 24  // высота текстовой зоны под графиком
 
 static GLuint g_quad_vao   = 0;
 static GLuint g_tex        = 0;
@@ -91,8 +94,6 @@ void flicker_view_render(point_s pos, image_size_s win, float dpi_scale)
         return;
     }
 
-    const image_size_s view = flicker_view_get_size();
-
     if (pos.x < 0 || pos.y < 0)
     {
         const int mx = (int)(10 * dpi_scale);
@@ -103,9 +104,9 @@ void flicker_view_render(point_s pos, image_size_s win, float dpi_scale)
 
     const int title_h   = panel_title_height(dpi_scale);
     const int content_y = pos.y + title_h;
-    const int gl_y      = win.y - content_y - view.y;
+    const int gl_y      = win.y - content_y - FLICKER_TEX_H;
 
-    glViewport(pos.x, gl_y, view.x, view.y);
+    glViewport(pos.x, gl_y, FLICKER_TEX_W, FLICKER_TEX_H);
     glUseProgram(g_program);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, g_tex);
@@ -117,6 +118,56 @@ void flicker_view_render(point_s pos, image_size_s win, float dpi_scale)
     glBindVertexArray(g_quad_vao);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
+}
+
+void flicker_view_draw_text(point_s pos, float dpi_scale)
+{
+    if (!g_enabled)
+    {
+        return;
+    }
+    if (pos.x < 0 || pos.y < 0)
+    {
+        return; // ещё не было первого рендера — позиция неизвестна
+    }
+
+    const int title_h = panel_title_height(dpi_scale);
+    const int text_y0 = pos.y + title_h + FLICKER_TEX_H;
+    const int text_y1 = text_y0 + FLICKER_TEXT_H;
+
+    // Фон текстовой зоны — в GL её нет (там только 320×160)
+    rect_s bg = {pos.x + 1, text_y0, pos.x + FLICKER_TEX_W - 1, text_y1};
+    overlay_rect_draw(bg, UI_FLICKER_BG);
+
+    const flicker_metrics_s m = flicker_get_metrics();
+
+    char line[ 128 ];
+    if (m.valid)
+    {
+        snprintf(line, sizeof(line), "cur %5.1f  std %4.2f  p2p %4.2f  n %3d", m.cur, m.std, m.peak_to_peak, m.count);
+    }
+    else
+    {
+        snprintf(line, sizeof(line), "waiting for samples...");
+    }
+
+    const int margin = (int)(8 * dpi_scale);
+    const int avail  = FLICKER_TEX_W - 2 * margin;
+
+    // Auto-shrink: если строка не влезает — уменьшаем масштаб по шагам.
+    // Начальная ширина полей фиксированная, поэтому размер стабилен от кадра к кадру.
+    float s = 0.75f * dpi_scale;
+    int tw  = overlay_text_measure(line, s);
+    while (tw > avail && s > 0.50f)
+    {
+        s -= 0.05f;
+        tw = overlay_text_measure(line, s);
+    }
+
+    const int tx = pos.x + margin;
+    const int ty = text_y0 + (FLICKER_TEXT_H - (int)(14 * s)) / 2;
+
+    overlay_text_draw((point_s) {tx, ty}, line, UI_TEXT_PRIMARY, s);
 }
 
 void flicker_view_toggle_enabled(void)
@@ -152,5 +203,5 @@ void flicker_view_set_pos(point_s pos)
 
 image_size_s flicker_view_get_size(void)
 {
-    return (image_size_s) {FLICKER_TEX_W, FLICKER_TEX_H};
+    return (image_size_s) {FLICKER_TEX_W, FLICKER_TEX_H + FLICKER_TEXT_H};
 }

@@ -10,6 +10,9 @@ void flicker_view_cleanup(void);
 void flicker_view_update(void);
 void flicker_view_render(point_s pos, image_size_s win, float dpi_scale);
 
+/// \brief Рисует текст аналитики под графиком. Вызывать внутри overlay_begin/overlay_end.
+void flicker_view_draw_text(point_s pos, float dpi_scale);
+
 void flicker_view_toggle_enabled(void);
 bool flicker_view_is_enabled(void);
 void flicker_view_disable(void);
