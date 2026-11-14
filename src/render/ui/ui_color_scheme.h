@@ -149,3 +149,9 @@
 #define UI_DEFECT_DEAD               ((fcolor_rgba_s) {0.3f, 0.6f, 1.0f, 0.9f}) // Синий (всегда 0)
 #define UI_DEFECT_STUCK              ((fcolor_rgba_s) {1.0f, 0.3f, 0.3f, 0.9f}) // Красный (всегда max)
 #define UI_DEFECT_HOT                ((fcolor_rgba_s) {1.0f, 1.0f, 0.2f, 0.9f}) // Жёлтый (выброс)
+
+//---- Flicker ----
+
+#define UI_FLICKER_BG                UI_COLOR_BG_PANEL          // фон графика — как у vectorscope/line-profile
+#define UI_FLICKER_LINE              UI_RGBA_ORANGE             // основной график mean-luma
+#define UI_FLICKER_MEAN              UI_COLOR_ACCENT_PRIMARY    // средняя линия окна

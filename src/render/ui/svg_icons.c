@@ -105,6 +105,9 @@ static const char svg_vectorscope[] = {
 static const char svg_defect_view[] = {
 #embed "../../res/icons/defect_view.svg" suffix(, 0)
 };
+static const char svg_flicker[] = {
+#embed "../../res/icons/flicker.svg" suffix(, 0)
+};
 
 //------------------------------------------------------- Таблица -----------------------------------------------------
 
@@ -128,6 +131,7 @@ static const icon_entry_t g_icon_table[] = {
     {CMD_DIFF_TOGGLE,            svg_diff_view     },
     {CMD_DEFECT_VIEW_TOGGLE,     svg_defect_view   },
     {CMD_VECTORSCOPE_TOGGLE,     svg_vectorscope   },
+    {CMD_FLICKER_TOGGLE,         svg_flicker       },
     {CMD_DIFF_SET_REFERENCE,     svg_set_reference },
     {CMD_DIFF_GAIN_DOWN,         svg_diff_gain_down},
     {CMD_DIFF_GAIN_UP,           svg_diff_gain_up  },

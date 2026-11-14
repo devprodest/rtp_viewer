@@ -7,6 +7,7 @@
 #include "render/renderer.h"
 #include "render/ui/defect_view.h"
 #include "render/ui/diff_view.h"
+#include "render/ui/flicker_view.h"
 #include "render/ui/histogram_view.h"
 #include "render/ui/line_profile_view.h"
 #include "render/ui/pixel_probe.h"
@@ -36,6 +37,7 @@ static const command_info_s g_commands[] = {
     [CMD_LINE_PROFILE_TOGGLE]    = {"Line Profile",    "L",      GLFW_KEY_L,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_ANALYSIS },
     [CMD_VECTORSCOPE_TOGGLE]     = {"Vectorscope",     "M",      GLFW_KEY_M,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_ANALYSIS },
     [CMD_DEFECT_VIEW_TOGGLE]     = {"Find Defects",    "D",      GLFW_KEY_D,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_ANALYSIS},
+    [CMD_FLICKER_TOGGLE]         = {"Flicker View",    "K",      GLFW_KEY_K,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_ANALYSIS},
     [CMD_DIFF_SET_REFERENCE]     = {"Diff Ref",        "V",      GLFW_KEY_V,        0,                CMD_TYPE_ACTION, MENU_GROUP_DIFF     },
     [CMD_DIFF_TOGGLE]            = {"Diff View",       "B",      GLFW_KEY_B,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_DIFF     },
     [CMD_DIFF_GAIN_DOWN]         = {"Diff Gain -",     "-",      GLFW_KEY_MINUS,    0,                CMD_TYPE_ACTION, MENU_GROUP_DIFF     },
@@ -86,6 +88,7 @@ void cmd_execute(commands_e cmd)
         case CMD_HISTOGRAM_SCALE_TOGGLE: histogram_view_toggle_log_scale(); break;
         case CMD_STATS_TOGGLE: analytics_toggle_stats_visible(); break;
         case CMD_VECTORSCOPE_TOGGLE: vectorscope_view_toggle_enabled(); break;
+        case CMD_FLICKER_TOGGLE: flicker_view_toggle_enabled(); break;
         case CMD_LINE_PROFILE_TOGGLE: line_profile_view_toggle(); break;
         case CMD_DEFECT_VIEW_TOGGLE: defect_view_toggle(); break;
 
@@ -104,7 +107,7 @@ void cmd_execute(commands_e cmd)
         case CMD_PLAY_STEP_FORWARD: app_step_forward(); break;
         case CMD_PLAY_STEP_BACKWARD: app_step_backward(); break;
         case CMD_RECORD_SCREENSHOT: screenshot_request(); break;
-        
+
         case CMD_RESET_ALL:
         {
             post_pass_disable_gradient();
@@ -113,6 +116,7 @@ void cmd_execute(commands_e cmd)
 
             histogram_view_disable();
             vectorscope_view_disable();
+            flicker_view_disable();
             line_profile_view_disable();
             pixel_probe_disable();
             analytics_disable_stats();
@@ -143,6 +147,7 @@ bool cmd_is_active(commands_e cmd)
         case CMD_HISTOGRAM_SCALE_TOGGLE: return histogram_view_is_log_scale();
         case CMD_STATS_TOGGLE: return analytics_is_stats_visible();
         case CMD_VECTORSCOPE_TOGGLE: return vectorscope_view_is_enabled();
+        case CMD_FLICKER_TOGGLE: return flicker_view_is_enabled();
         case CMD_LINE_PROFILE_TOGGLE: return line_profile_view_is_enabled();
         case CMD_AUTO_LEVELS_TOGGLE: return post_pass_is_auto_levels_active();
         case CMD_DIFF_TOGGLE: return diff_view_is_enabled();

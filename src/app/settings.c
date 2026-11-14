@@ -8,8 +8,9 @@
 #include <string.h>
 #include <time.h>
 
-#define MAX_PANELS       8
-#define SAVE_THROTTLE_US 1000000ULL
+#define MAX_PANELS         8
+#define MAX_FEATURE_PARAMS 64
+#define SAVE_THROTTLE_US   1000000ULL
 
 typedef struct
 {
@@ -22,8 +23,18 @@ typedef struct
     int anchor_v;
 } panel_setting_t;
 
+typedef struct
+{
+    char feature[ 32 ];
+    char key[ 32 ];
+    char value[ 32 ];
+} feature_param_t;
+
 static panel_setting_t g_panels[ MAX_PANELS ];
 static int g_panel_count = 0;
+
+static feature_param_t g_features[ MAX_FEATURE_PARAMS ];
+static int g_feature_count = 0;
 
 static bool g_dirty         = false;
 static uint64_t g_last_save = 0;
@@ -47,6 +58,36 @@ static panel_setting_t * find_or_create(const char * id)
     panel_setting_t * p = &g_panels[ g_panel_count++ ];
     memset(p, 0, sizeof(*p));
     snprintf(p->id, sizeof(p->id), "%s", id);
+    return p;
+}
+
+static feature_param_t * find_feature(const char * feature, const char * key)
+{
+    for (int i = 0; i < g_feature_count; i++)
+    {
+        if (strcmp(g_features[ i ].feature, feature) == 0 && strcmp(g_features[ i ].key, key) == 0)
+        {
+            return &g_features[ i ];
+        }
+    }
+    return nullptr;
+}
+
+static feature_param_t * find_or_create_feature(const char * feature, const char * key)
+{
+    feature_param_t * p = find_feature(feature, key);
+    if (p)
+    {
+        return p;
+    }
+    if (g_feature_count >= MAX_FEATURE_PARAMS)
+    {
+        return nullptr;
+    }
+    p = &g_features[ g_feature_count++ ];
+    memset(p, 0, sizeof(*p));
+    snprintf(p->feature, sizeof(p->feature), "%s", feature);
+    snprintf(p->key, sizeof(p->key), "%s", key);
     return p;
 }
 
@@ -119,6 +160,62 @@ static bool parse_line(const char * line, char * id, char * key, const char ** v
     return true;
 }
 
+/// \brief Парсит "feature.<feature>.<key>=<value>".
+static bool parse_feature_line(const char * line, char * feature, char * key, const char ** val_str)
+{
+    while (*line == ' ' || *line == '\t')
+    {
+        line++;
+    }
+    if (*line == '\0' || *line == '#' || *line == ';')
+    {
+        return false;
+    }
+
+    if (strncmp(line, "feature.", 8) != 0)
+    {
+        return false;
+    }
+    line += 8;
+
+    const char * dot = strchr(line, '.');
+    if (!dot)
+    {
+        return false;
+    }
+
+    size_t f_len = (size_t)(dot - line);
+    if (f_len == 0 || f_len >= 32)
+    {
+        return false;
+    }
+    memcpy(feature, line, f_len);
+    feature[ f_len ] = '\0';
+
+    line            = dot + 1;
+    const char * eq = strchr(line, '=');
+    if (!eq)
+    {
+        return false;
+    }
+
+    size_t key_len = (size_t)(eq - line);
+    if (key_len == 0 || key_len >= 32)
+    {
+        return false;
+    }
+    memcpy(key, line, key_len);
+    key[ key_len ] = '\0';
+
+    const char * v = eq + 1;
+    while (*v == ' ' || *v == '\t')
+    {
+        v++;
+    }
+    *val_str = v;
+    return true;
+}
+
 static int parse_anchor_h(const char * s)
 {
     return (strncmp(s, "right", 5) == 0) ? 1 : 0;
@@ -144,8 +241,9 @@ static const char * anchor_v_str(int v)
 void settings_load(void)
 {
     build_ini_path();
-    g_panel_count = 0;
-    g_dirty       = false;
+    g_panel_count   = 0;
+    g_feature_count = 0;
+    g_dirty         = false;
 
     FILE * f = fopen(g_ini_path, "r");
     if (!f)
@@ -157,8 +255,30 @@ void settings_load(void)
     char line[ 256 ];
     while (fgets(line, sizeof(line), f))
     {
-        char id[ 32 ], key[ 16 ];
+        char id[ 32 ], key[ 32 ];
         const char * val_str;
+
+        if (parse_feature_line(line, id, key, &val_str))
+        {
+            feature_param_t * fp = find_or_create_feature(id, key);
+            if (fp)
+            {
+                size_t len = strlen(val_str);
+                while (len > 0 && (val_str[ len - 1 ] == '\n' || val_str[ len - 1 ] == '\r' ||
+                                   val_str[ len - 1 ] == ' ' || val_str[ len - 1 ] == '\t'))
+                {
+                    len--;
+                }
+                if (len >= sizeof(fp->value))
+                {
+                    len = sizeof(fp->value) - 1;
+                }
+                memcpy(fp->value, val_str, len);
+                fp->value[ len ] = '\0';
+            }
+            continue;
+        }
+
         if (!parse_line(line, id, key, &val_str))
         {
             continue;
@@ -195,7 +315,8 @@ void settings_load(void)
         }
     }
     fclose(f);
-    log_info("settings: loaded %d panel entries from %s", g_panel_count, g_ini_path);
+    log_info("settings: loaded %d panel entries, %d feature params from %s", g_panel_count, g_feature_count,
+             g_ini_path);
 }
 
 void settings_save(void)
@@ -229,6 +350,15 @@ void settings_save(void)
         }
         fprintf(f, "panel.%s.anchor_h=%s\n", p->id, anchor_h_str(p->anchor_h));
         fprintf(f, "panel.%s.anchor_v=%s\n", p->id, anchor_v_str(p->anchor_v));
+    }
+
+    if (g_feature_count > 0)
+    {
+        fprintf(f, "\n");
+        for (int i = 0; i < g_feature_count; i++)
+        {
+            fprintf(f, "feature.%s.%s=%s\n", g_features[ i ].feature, g_features[ i ].key, g_features[ i ].value);
+        }
     }
 
     fclose(f);
@@ -327,5 +457,82 @@ void settings_set_panel_anchor(const char * id, int h, int v)
     }
     p->anchor_h = h;
     p->anchor_v = v;
+    settings_mark_dirty();
+}
+
+//------------------------------------------------------- Feature params -----------------------------------------------
+
+bool settings_get_feature_int(const char * feature, const char * key, int * out)
+{
+    feature_param_t * p = find_feature(feature, key);
+    if (!p || p->value[ 0 ] == '\0')
+    {
+        return false;
+    }
+    if (out)
+    {
+        *out = atoi(p->value);
+    }
+    return true;
+}
+
+void settings_set_feature_int(const char * feature, const char * key, int val)
+{
+    feature_param_t * p = find_or_create_feature(feature, key);
+    if (!p)
+    {
+        return;
+    }
+    snprintf(p->value, sizeof(p->value), "%d", val);
+    settings_mark_dirty();
+}
+
+bool settings_get_feature_double(const char * feature, const char * key, double * out)
+{
+    feature_param_t * p = find_feature(feature, key);
+    if (!p || p->value[ 0 ] == '\0')
+    {
+        return false;
+    }
+    if (out)
+    {
+        *out = strtod(p->value, nullptr);
+    }
+    return true;
+}
+
+void settings_set_feature_double(const char * feature, const char * key, double val)
+{
+    feature_param_t * p = find_or_create_feature(feature, key);
+    if (!p)
+    {
+        return;
+    }
+    snprintf(p->value, sizeof(p->value), "%.10g", val);
+    settings_mark_dirty();
+}
+
+bool settings_get_feature_bool(const char * feature, const char * key, bool * out)
+{
+    feature_param_t * p = find_feature(feature, key);
+    if (!p || p->value[ 0 ] == '\0')
+    {
+        return false;
+    }
+    if (out)
+    {
+        *out = (atoi(p->value) != 0);
+    }
+    return true;
+}
+
+void settings_set_feature_bool(const char * feature, const char * key, bool val)
+{
+    feature_param_t * p = find_or_create_feature(feature, key);
+    if (!p)
+    {
+        return;
+    }
+    snprintf(p->value, sizeof(p->value), "%d", val ? 1 : 0);
     settings_mark_dirty();
 }

@@ -1,6 +1,7 @@
 #include "renderer.h"
 
 #include "analysis/analytics.h"
+#include "analysis/flicker.h"
 #include "analysis/frame_context.h"
 #include "analysis/selection.h"
 #include "analysis/sharpness.h"
@@ -16,6 +17,7 @@
 #include "ui/context_menu.h"
 #include "ui/defect_view.h"
 #include "ui/diff_view.h"
+#include "ui/flicker_view.h"
 #include "ui/histogram_view.h"
 #include "ui/line_profile_view.h"
 #include "ui/panel.h"
@@ -55,16 +57,19 @@ static sharpness_s g_sharpness;
 //------------------------------------------------------- Обёртки для panel
 //---------------------------------------------
 
-static image_size_s histogram_get_size_wrap(float d)
+static image_size_s histogram_get_size_wrap(float)
 {
-    (void)d;
     return histogram_view_get_size();
 }
 
-static image_size_s vectorscope_get_size_wrap(float d)
+static image_size_s vectorscope_get_size_wrap(float)
 {
-    (void)d;
     return vectorscope_view_get_size();
+}
+
+static image_size_s flicker_get_size_wrap(float)
+{
+    return flicker_view_get_size();
 }
 
 //------------------------------------------------------- Smoothing ----------------------------------------------------
@@ -150,6 +155,8 @@ bool renderer_init(image_size_s win, const char * format_name, int effective_bit
     post_pass_set_format(g_format.bytes_per_pixel, effective_bits);
     post_pass_set_texel_size((fimage_size_s) {1.0f / (float)g_win.x, 1.0f / (float)g_win.y});
 
+    flicker_init();
+
     if (!histogram_view_init(g_quad_vao))
     {
         post_pass_cleanup();
@@ -168,6 +175,16 @@ bool renderer_init(image_size_s win, const char * format_name, int effective_bit
         window_cleanup();
         return false;
     }
+    if (!flicker_view_init(g_quad_vao))
+    {
+        vectorscope_view_cleanup();
+        histogram_view_cleanup();
+        post_pass_cleanup();
+        format_pass_cleanup();
+        overlay_cleanup();
+        window_cleanup();
+        return false;
+    }
 
     screenshot_init();
     screenshot_set_size(win.x, win.y);
@@ -179,36 +196,40 @@ bool renderer_init(image_size_s win, const char * format_name, int effective_bit
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // --- Регистрация перетаскиваемых панелей ---
-    static const panel_s s_hist_panel = {
-        .id         = "histogram",
-        .title      = "Histogram",
-        .get_pos    = histogram_view_get_pos,
-        .set_pos    = histogram_view_set_pos,
-        .get_size   = histogram_get_size_wrap,
-        .is_visible = histogram_view_is_enabled,
-        .on_toggle  = histogram_view_toggle_enabled,
+    static const panel_s panels[] = {
+        [0] = {.id         = "histogram",
+               .title      = "Histogram",
+               .get_pos    = histogram_view_get_pos,
+               .set_pos    = histogram_view_set_pos,
+               .get_size   = histogram_get_size_wrap,
+               .is_visible = histogram_view_is_enabled,
+               .on_toggle  = histogram_view_toggle_enabled  },
+        [1] = {.id         = "vectorscope",
+               .title      = "Vectorscope",
+               .get_pos    = vectorscope_view_get_pos,
+               .set_pos    = vectorscope_view_set_pos,
+               .get_size   = vectorscope_get_size_wrap,
+               .is_visible = vectorscope_view_is_enabled,
+               .on_toggle  = vectorscope_view_toggle_enabled},
+        [2] = {.id         = "stats",
+               .title      = "Stats",
+               .get_pos    = stats_overlay_get_pos,
+               .set_pos    = stats_overlay_set_pos,
+               .get_size   = stats_overlay_get_size,
+               .is_visible = analytics_is_stats_visible,
+               .on_toggle  = analytics_toggle_stats_visible },
+        [3] = {.id         = "flicker",
+               .title      = "Flicker",
+               .get_pos    = flicker_view_get_pos,
+               .set_pos    = flicker_view_set_pos,
+               .get_size   = flicker_get_size_wrap,
+               .is_visible = flicker_view_is_enabled,
+               .on_toggle  = flicker_view_toggle_enabled    },
     };
-    static const panel_s s_vec_panel = {
-        .id         = "vectorscope",
-        .title      = "Vectorscope",
-        .get_pos    = vectorscope_view_get_pos,
-        .set_pos    = vectorscope_view_set_pos,
-        .get_size   = vectorscope_get_size_wrap,
-        .is_visible = vectorscope_view_is_enabled,
-        .on_toggle  = vectorscope_view_toggle_enabled,
-    };
-    static const panel_s s_stats_panel = {
-        .id         = "stats",
-        .title      = "Stats",
-        .get_pos    = stats_overlay_get_pos,
-        .set_pos    = stats_overlay_set_pos,
-        .get_size   = stats_overlay_get_size,
-        .is_visible = analytics_is_stats_visible,
-        .on_toggle  = analytics_toggle_stats_visible,
-    };
-    panel_register(&s_hist_panel);
-    panel_register(&s_vec_panel);
-    panel_register(&s_stats_panel);
+    for (size_t i = 0; i < sizeof(panels) / sizeof(panels[ 0 ]); i++)
+    {
+        panel_register(&panels[ i ]);
+    }
 
     return true;
 }
@@ -220,11 +241,13 @@ void renderer_cleanup(void)
     panel_unregister_all();
 
     screenshot_cleanup();
+    flicker_view_cleanup();
     vectorscope_view_cleanup();
     histogram_view_cleanup();
     post_pass_cleanup();
     format_pass_cleanup();
     diff_view_cleanup();
+    flicker_reset();
     frame_context_clear();
 
     if (g_quad_vao)
@@ -288,6 +311,7 @@ void renderer_draw(void)
     panel_clamp_to_window(win, g_dpi_scale);
     histogram_view_render(histogram_view_get_pos(), win, g_dpi_scale);
     vectorscope_view_render(vectorscope_view_get_pos(), win, g_dpi_scale);
+    flicker_view_render(flicker_view_get_pos(), win, g_dpi_scale);
 
     // Overlay
     overlay_begin(win);
@@ -365,8 +389,11 @@ void renderer_refresh_analytics(void)
     frame_context_set(g_last_frame, g_win, &g_format, g_eff_bits);
 
     analytics_update(g_last_frame, g_win, &g_format, &g_selection, g_eff_bits);
+    flicker_update(&g_selection);
+
     histogram_view_update(g_eff_bits);
     vectorscope_view_update();
+    flicker_view_update();
 
     if (post_pass_is_gradient_active())
     {

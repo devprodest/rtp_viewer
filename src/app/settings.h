@@ -32,3 +32,14 @@ void settings_set_panel_pos(const char * id, point_s pos);
 void settings_set_panel_enabled(const char * id, bool enabled);
 bool settings_get_panel_anchor(const char * id, int * out_h, int * out_v);
 void settings_set_panel_anchor(const char * id, int h, int v);
+
+// --- Generic feature params: feature.<feature>.<key>=<value> ---
+
+bool settings_get_feature_int(const char * feature, const char * key, int * out);
+void settings_set_feature_int(const char * feature, const char * key, int val);
+
+bool settings_get_feature_double(const char * feature, const char * key, double * out);
+void settings_set_feature_double(const char * feature, const char * key, double val);
+
+bool settings_get_feature_bool(const char * feature, const char * key, bool * out);
+void settings_set_feature_bool(const char * feature, const char * key, bool val);

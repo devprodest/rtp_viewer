@@ -29,6 +29,7 @@ static const char * build_hotkeys_text(void)
              "  T        Toggle statistics overlay (min/max/mean/std)\n"
              "  L        Toggle line profile (cross-section under cursor)\n"
              "  M        Toggle vectorscope (Cb/Cr 2D histogram)\n"
+             "  K        Toggle flicker view\n"
              "  I        Toggle pixel probe (crosshair + pixel value at cursor)\n\n"
              "  D        Find dead/stuck/hot pixels\n"
              "Reference / Diff:\n"
