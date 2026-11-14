@@ -20,9 +20,11 @@ typedef struct defect_s
     int32_t delta;
 } defect_s;
 
+void defect_view_init(void);
+void defect_view_cleanup(void);
+
 void defect_view_toggle(void);
 bool defect_view_is_enabled(void);
-void defect_view_cleanup(void);
 
 /// \brief Пересчитать результаты по текущему кадру (берёт из pixel_probe).
 void defect_view_rescan(void);

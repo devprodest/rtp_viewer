@@ -5,6 +5,7 @@
 #include "analysis/frame_context.h"
 #include "analysis/selection.h"
 #include "analysis/sharpness.h"
+#include "app/settings.h"
 #include "format/format_config.h"
 #include "format_pass.h"
 #include "gl/gl_api.h"
@@ -186,11 +187,24 @@ bool renderer_init(image_size_s win, const char * format_name, int effective_bit
         return false;
     }
 
+    diff_view_init();
+
     screenshot_init();
     screenshot_set_size(win.x, win.y);
 
-    g_smoothing = !smooth_start;
-    renderer_toggle_smoothing();
+    { // ini — база; CLI-флаг переопределяет, если ключ есть.
+        bool want_smoothing;
+        if (settings_get_feature_bool("smoothing", "enabled", &want_smoothing))
+        {
+            g_smoothing = want_smoothing;
+        }
+        else
+        {
+            g_smoothing = smooth_start;
+        }
+        apply_smoothing();
+        log_info("Smoothing %s (init)", g_smoothing ? "enabled" : "disabled");
+    }
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -370,6 +384,7 @@ void renderer_toggle_smoothing(void)
     g_smoothing = !g_smoothing;
     apply_smoothing();
     window_title_refresh();
+    settings_set_feature_bool("smoothing", "enabled", g_smoothing);
     log_info("Smoothing %s", g_smoothing ? "enabled" : "disabled");
 }
 

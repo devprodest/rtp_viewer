@@ -1,12 +1,13 @@
 #include "line_profile_view.h"
 
 #include "analysis/frame_context.h"
-#include "render/overlay.h"
-#include "render/ui/pixel_probe.h"
-#include "render/ui/ui_color_scheme.h"
-#include "render/viewport.h"
-#include "util/utils.h"
+#include "app/settings.h"
 #include "log/logger.h"
+#include "pixel_probe.h"
+#include "render/overlay.h"
+#include "render/viewport.h"
+#include "ui_color_scheme.h"
+#include "util/utils.h"
 
 //------------------------------------------------------- Параметры ----------------------------------------------------
 
@@ -20,9 +21,20 @@ static bool g_enabled = false;
 
 //------------------------------------------------------- API ---------------------------------------------------------
 
+void line_profile_view_init(void)
+{
+    bool on;
+    if (settings_get_feature_bool("line_profile", "enabled", &on))
+    {
+        g_enabled = on;
+    }
+    log_info("line_profile: %s", g_enabled ? "enabled" : "disabled");
+}
+
 void line_profile_view_toggle(void)
 {
     g_enabled = !g_enabled;
+    settings_set_feature_bool("line_profile", "enabled", g_enabled);
 }
 
 bool line_profile_view_is_enabled(void)
@@ -37,6 +49,7 @@ void line_profile_view_disable(void)
         return;
     }
     g_enabled = false;
+    settings_set_feature_bool("line_profile", "enabled", false);
     log_info("Line profile disabled");
 }
 

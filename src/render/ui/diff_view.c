@@ -1,6 +1,7 @@
 #include "diff_view.h"
 
 #include "analysis/frame_context.h"
+#include "app/settings.h"
 #include "log/logger.h"
 #include "util/utils.h"
 
@@ -15,6 +16,16 @@ static size_t g_diff_bytes     = 0;
 
 static bool g_diff_enabled = false;
 static float g_diff_gain   = 4.0f;
+
+void diff_view_init(void)
+{
+    double g;
+    if (settings_get_feature_double("diff", "gain", &g))
+    {
+        g_diff_gain = utils_clamp((float)g, 1.0f, 64.0f);
+    }
+    log_info("diff_view: gain = %.0fx", (double)g_diff_gain);
+}
 
 void diff_view_cleanup(void)
 {
@@ -79,6 +90,7 @@ bool diff_view_is_enabled(void)
 {
     return g_diff_enabled;
 }
+
 void diff_view_disable(void)
 {
     if (!g_diff_enabled)
@@ -89,16 +101,17 @@ void diff_view_disable(void)
     log_info("Diff disabled");
 }
 
-
 void diff_view_gain_up(void)
 {
     g_diff_gain = utils_min(g_diff_gain * 2.0f, 64.0f);
+    settings_set_feature_double("diff", "gain", g_diff_gain);
     log_info("Diff gain = %.0fx", (double)g_diff_gain);
 }
 
 void diff_view_gain_down(void)
 {
     g_diff_gain = utils_max(g_diff_gain / 2.0f, 1.0f);
+    settings_set_feature_double("diff", "gain", g_diff_gain);
     log_info("Diff gain = %.0fx", (double)g_diff_gain);
 }
 

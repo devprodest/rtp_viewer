@@ -1,6 +1,7 @@
 #include "pixel_probe.h"
 
 #include "analysis/frame_context.h"
+#include "app/settings.h"
 #include "log/logger.h"
 #include "render/overlay.h"
 #include "render/ui/ui_color_scheme.h"
@@ -12,9 +13,20 @@
 static bool g_enabled  = false;
 static point_s g_mouse = {-1, -1};
 
+void pixel_probe_init(void)
+{
+    bool on;
+    if (settings_get_feature_bool("inspector", "enabled", &on))
+    {
+        g_enabled = on;
+    }
+    log_info("pixel_probe: %s", g_enabled ? "enabled" : "disabled");
+}
+
 void pixel_probe_toggle(void)
 {
     g_enabled = !g_enabled;
+    settings_set_feature_bool("inspector", "enabled", g_enabled);
 }
 
 bool pixel_probe_is_enabled(void)
@@ -29,6 +41,7 @@ void pixel_probe_disable(void)
         return;
     }
     g_enabled = false;
+    settings_set_feature_bool("inspector", "enabled", false);
     log_info("Pixel probe disabled");
 }
 

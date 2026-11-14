@@ -4,6 +4,8 @@
 
 #include "util/types.h"
 
+void pixel_probe_init(void);
+
 // --- Управление ---
 void pixel_probe_toggle(void);
 bool pixel_probe_is_enabled(void);

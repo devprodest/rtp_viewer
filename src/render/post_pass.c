@@ -1,12 +1,10 @@
 #include "post_pass.h"
 #include "analysis/analytics.h"
+#include "app/settings.h"
 #include "gl/gl_utils.h"
 #include "log/logger.h"
 #include "render/ui/window_title.h"
 #include "util/utils.h"
-
-#include <stddef.h>
-#include <stdio.h>
 
 static char POST_SHADER_FRAGMENT[] = {
 #embed "../res/post.glsl" suffix(, 0)
@@ -55,6 +53,23 @@ bool post_pass_init(GLuint quad_vao)
     g_uniform_level_min   = glGetUniformLocation(g_program, "level_min");
     g_uniform_level_max   = glGetUniformLocation(g_program, "level_max");
 
+    bool on;
+    if (settings_get_feature_bool("gradient", "enabled", &on))
+    {
+        g_gradient_enabled = on;
+    }
+    if (settings_get_feature_bool("saturation", "enabled", &on))
+    {
+        g_saturation_enabled = on;
+    }
+    if (settings_get_feature_bool("auto_levels", "enabled", &on))
+    {
+        g_auto_levels_enabled = on;
+    }
+
+    log_info("post_pass: gradient=%d saturation=%d auto_levels=%d", g_gradient_enabled, g_saturation_enabled,
+             g_auto_levels_enabled);
+
     return true;
 }
 
@@ -83,8 +98,19 @@ void post_pass_set_texel_size(fimage_size_s size)
 void post_pass_toggle_saturation(void)
 {
     g_saturation_enabled = !g_saturation_enabled;
+    settings_set_feature_bool("saturation", "enabled", g_saturation_enabled);
     log_info("Saturation markers %s", g_saturation_enabled ? "enabled" : "disabled");
     window_title_refresh();
+}
+void post_pass_disable_saturation(void)
+{
+    if (!g_saturation_enabled)
+    {
+        return;
+    }
+    g_saturation_enabled = false;
+    settings_set_feature_bool("saturation", "enabled", false);
+    log_info("Saturation disabled");
 }
 bool post_pass_is_saturation_active(void)
 {
@@ -98,22 +124,9 @@ void post_pass_toggle_gradient(void)
     {
         window_title_set_sharpness(false, 0.0, 0.0);
     }
+    settings_set_feature_bool("gradient", "enabled", g_gradient_enabled);
     log_info("Gradient %s", g_gradient_enabled ? "enabled" : "disabled");
     window_title_refresh();
-}
-bool post_pass_is_gradient_active(void)
-{
-    return g_gradient_enabled;
-}
-
-void post_pass_toggle_auto_levels(void)
-{
-    g_auto_levels_enabled = !g_auto_levels_enabled;
-    log_info("Auto-levels %s", g_auto_levels_enabled ? "enabled" : "disabled");
-}
-bool post_pass_is_auto_levels_active(void)
-{
-    return g_auto_levels_enabled;
 }
 void post_pass_disable_gradient(void)
 {
@@ -123,17 +136,19 @@ void post_pass_disable_gradient(void)
     }
     g_gradient_enabled = false;
     window_title_set_sharpness(false, 0.0, 0.0);
+    settings_set_feature_bool("gradient", "enabled", false);
     log_info("Gradient disabled");
 }
-
-void post_pass_disable_saturation(void)
+bool post_pass_is_gradient_active(void)
 {
-    if (!g_saturation_enabled)
-    {
-        return;
-    }
-    g_saturation_enabled = false;
-    log_info("Saturation disabled");
+    return g_gradient_enabled;
+}
+
+void post_pass_toggle_auto_levels(void)
+{
+    g_auto_levels_enabled = !g_auto_levels_enabled;
+    settings_set_feature_bool("auto_levels", "enabled", g_auto_levels_enabled);
+    log_info("Auto-levels %s", g_auto_levels_enabled ? "enabled" : "disabled");
 }
 
 void post_pass_disable_auto_levels(void)
@@ -143,7 +158,12 @@ void post_pass_disable_auto_levels(void)
         return;
     }
     g_auto_levels_enabled = false;
+    settings_set_feature_bool("auto_levels", "enabled", false);
     log_info("Auto-levels disabled");
+}
+bool post_pass_is_auto_levels_active(void)
+{
+    return g_auto_levels_enabled;
 }
 
 //----------------------------------------------------------------------------------------------------------------------

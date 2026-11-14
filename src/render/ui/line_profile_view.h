@@ -4,6 +4,8 @@
 
 #include "util/types.h"
 
+void line_profile_view_init(void);
+
 /// \brief Включает / выключает режим line profile.
 void line_profile_view_toggle(void);
 bool line_profile_view_is_enabled(void);

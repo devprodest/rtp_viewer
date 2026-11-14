@@ -1,6 +1,7 @@
 #include "defect_view.h"
 
 #include "analysis/frame_context.h"
+#include "app/settings.h"
 #include "log/logger.h"
 #include "render/overlay.h"
 #include "render/ui/ui_color_scheme.h"
@@ -13,7 +14,8 @@
 
 #define MAX_DEFECTS 4096
 
-static bool g_enabled = false;
+static bool g_needs_rescan = false;
+static bool g_enabled      = false;
 static defect_s g_defects[ MAX_DEFECTS ];
 static int g_count     = 0;
 static int g_dead_cnt  = 0;
@@ -25,11 +27,23 @@ static void defect_view_export(const char * filename);
 
 void defect_view_cleanup(void)
 {
-    g_enabled   = false;
-    g_count     = 0;
-    g_dead_cnt  = 0;
-    g_stuck_cnt = 0;
-    g_hot_cnt   = 0;
+    g_enabled      = false;
+    g_needs_rescan = false;
+    g_count        = 0;
+    g_dead_cnt     = 0;
+    g_stuck_cnt    = 0;
+    g_hot_cnt      = 0;
+}
+
+void defect_view_init(void)
+{
+    bool on;
+    if (settings_get_feature_bool("defect_view", "enabled", &on))
+    {
+        g_enabled      = on;
+        g_needs_rescan = on; // rescan отложим до первого валидного кадра
+    }
+    log_info("defect_view: %s", g_enabled ? "enabled (rescan pending)" : "disabled");
 }
 
 static void add_defect(int x, int y, defect_type_e t, uint32_t v, int32_t d)
@@ -38,7 +52,10 @@ static void add_defect(int x, int y, defect_type_e t, uint32_t v, int32_t d)
     {
         return;
     }
-    g_defects[ g_count++ ] = (defect_s) {{x, y}, t, v, d};
+    g_defects[ g_count++ ] = (defect_s) {
+        {x, y},
+        t, v, d
+    };
     switch (t)
     {
         case DEFECT_DEAD: g_dead_cnt++; break;
@@ -55,10 +72,11 @@ static uint32_t sample_value(point_s p, int bpp)
 
 void defect_view_rescan(void)
 {
-    g_count     = 0;
-    g_dead_cnt  = 0;
-    g_stuck_cnt = 0;
-    g_hot_cnt   = 0;
+    g_count        = 0;
+    g_dead_cnt     = 0;
+    g_stuck_cnt    = 0;
+    g_hot_cnt      = 0;
+    g_needs_rescan = false;
 
     if (!frame_context_is_valid())
     {
@@ -129,6 +147,7 @@ void defect_view_rescan(void)
                          saver_get_format_name(), "defects", "csv");
 
     defect_view_export(csv_path);
+    g_needs_rescan = false;
 }
 
 void defect_view_toggle(void)
@@ -136,12 +155,14 @@ void defect_view_toggle(void)
     if (!g_enabled)
     {
         defect_view_rescan();
-        g_enabled = true;
+        g_enabled      = true;
+        g_needs_rescan = false;
     }
     else
     {
         g_enabled = false;
     }
+    settings_set_feature_bool("defect_view", "enabled", g_enabled);
     log_info("Defect overlay %s", g_enabled ? "enabled" : "disabled");
 }
 
@@ -152,6 +173,11 @@ bool defect_view_is_enabled(void)
 
 void defect_view_draw(image_size_s win, float dpi_scale)
 {
+    if (g_needs_rescan && frame_context_is_valid())
+    {
+        defect_view_rescan();
+    }
+
     if (!g_enabled || g_count == 0)
     {
         return;

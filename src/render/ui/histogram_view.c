@@ -1,5 +1,6 @@
 #include "histogram_view.h"
 #include "analysis/analytics.h"
+#include "app/settings.h"
 #include "log/logger.h"
 #include "panel.h"
 #include "render/gl/gl_utils.h"
@@ -381,6 +382,13 @@ bool histogram_view_init(GLuint quad_vao)
     glUseProgram(g_hist_program);
     g_hist_uniform_tex = glGetUniformLocation(g_hist_program, "tex");
 
+    bool ls;
+    if (settings_get_feature_bool("histogram", "log_scale", &ls))
+    {
+        g_log_scale = ls;
+    }
+    log_info("histogram: log_scale = %d", g_log_scale ? 1 : 0);
+
     return true;
 }
 
@@ -453,18 +461,22 @@ void histogram_view_disable(void)
     }
     g_enabled   = false;
     g_log_scale = false;
+    settings_set_panel_enabled("histogram", false);
+    settings_set_feature_bool("histogram", "log_scale", false);
     log_info("Histogram disabled");
 }
 
 void histogram_view_toggle_enabled(void)
 {
     g_enabled = !g_enabled;
+    settings_set_panel_enabled("histogram", g_enabled);
     log_info("Histogram %s", g_enabled ? "enabled" : "disabled");
 }
 
 void histogram_view_toggle_log_scale(void)
 {
     g_log_scale = !g_log_scale;
+    settings_set_feature_bool("histogram", "log_scale", g_log_scale);
     log_info("Histogram scale: %s", g_log_scale ? "log" : "linear");
 }
 

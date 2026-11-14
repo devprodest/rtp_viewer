@@ -1,5 +1,6 @@
 #include "analytics.h"
 
+#include "app/settings.h"
 #include "log/logger.h"
 #include "util/utils.h"
 
@@ -232,6 +233,7 @@ bool analytics_format_is_ycbcr(void)
 void analytics_toggle_stats_visible(void)
 {
     g_stats_visible = !g_stats_visible;
+    settings_set_panel_enabled("stats", g_stats_visible);
     log_info("Stats %s", g_stats_visible ? "enabled" : "disabled");
 }
 
@@ -247,5 +249,6 @@ void analytics_disable_stats(void)
         return;
     }
     g_stats_visible = false;
+    settings_set_panel_enabled("stats", false);
     log_info("Stats disabled");
 }

@@ -1,10 +1,11 @@
 #include "flicker_view.h"
 
 #include "analysis/flicker.h"
+#include "app/settings.h"
 #include "log/logger.h"
+#include "panel.h"
 #include "render/gl/gl_utils.h"
 #include "render/overlay.h"
-#include "render/ui/panel.h"
 #include "ui_color_scheme.h"
 #include "util/utils.h"
 
@@ -173,6 +174,7 @@ void flicker_view_draw_text(point_s pos, float dpi_scale)
 void flicker_view_toggle_enabled(void)
 {
     g_enabled = !g_enabled;
+    settings_set_panel_enabled("flicker", g_enabled);
     log_info("Flicker %s", g_enabled ? "enabled" : "disabled");
 }
 
@@ -188,6 +190,7 @@ void flicker_view_disable(void)
         return;
     }
     g_enabled = false;
+    settings_set_panel_enabled("flicker", false);
     log_info("Flicker disabled");
 }
 

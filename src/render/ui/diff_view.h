@@ -5,6 +5,7 @@
 
 #include "util/types.h"
 
+void diff_view_init(void);
 void diff_view_cleanup(void);
 
 // --- Управление ---

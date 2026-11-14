@@ -1,6 +1,7 @@
 #include "vectorscope_view.h"
 
 #include "analysis/analytics.h"
+#include "app/settings.h"
 #include "log/logger.h"
 #include "render/gl/gl_utils.h"
 #include "render/ui/panel.h"
@@ -205,6 +206,7 @@ void vectorscope_view_render(point_s pos, image_size_s win, float dpi_scale)
 void vectorscope_view_toggle_enabled(void)
 {
     g_enabled = !g_enabled;
+    settings_set_panel_enabled("vectorscope", g_enabled);
     log_info("Vectorscope %s", g_enabled ? "enabled" : "disabled");
 }
 
@@ -220,6 +222,7 @@ void vectorscope_view_disable(void)
         return;
     }
     g_enabled = false;
+    settings_set_panel_enabled("vectorscope", false);
     log_info("Vectorscope disabled");
 }
 
