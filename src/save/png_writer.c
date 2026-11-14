@@ -83,7 +83,7 @@ static void write_chunk(FILE * f, const char * type, const uint8_t * data, uint3
 
 // ---- Public ----
 
-bool png_write_rgba(const char * path, const uint8_t * rgba, int width, int height)
+bool png_write(const char * path, const uint8_t * rgba, int width, int height)
 {
     if (!path || !rgba || width <= 0 || height <= 0)
     {

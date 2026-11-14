@@ -50,7 +50,8 @@ static const char * build_hotkeys_text(void)
              "Recording / Saving:\n"
              "  S        Save screenshot (PNG)\n"
              "  R        Toggle recording (on / off)\n"
-             "  W        Force save accumulated frames\n\n"
+             "  W        Force save accumulated frames\n"
+             "  O        Open output folder in file manager\n\n"
              "  F1       Save this help to file and open it\n"
              "  F11      Toggle fullscreen\n",
              RTP_VIEWER_PRODUCT_NAME, RTP_VIEWER_VERSION_STR);
@@ -109,19 +110,15 @@ void help_save_and_open(void)
     fclose(f);
     log_info("help: saved to %s", HELP_FILE_NAME);
 
-#ifdef _WIN32
     char cmd[ 512 ];
+#ifdef _WIN32
     snprintf(cmd, sizeof(cmd), "start \"\" \"%s\"", HELP_FILE_NAME);
-    system(cmd);
 #elif defined(__APPLE__)
-    char cmd[ 256 ];
     snprintf(cmd, sizeof(cmd), "open %s", HELP_FILE_NAME);
-    system(cmd);
 #else
-    char cmd[ 256 ];
     snprintf(cmd, sizeof(cmd), "xdg-open %s", HELP_FILE_NAME);
-    system(cmd);
 #endif
+    system(cmd);
 }
 
 void help_print(const char * prog)

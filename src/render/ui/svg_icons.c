@@ -108,6 +108,9 @@ static const char svg_defect_view[] = {
 static const char svg_flicker[] = {
 #embed "../../res/icons/flicker.svg" suffix(, 0)
 };
+static const char svg_open_folder[] = {
+#embed "../../res/icons/open_folder.svg" suffix(, 0)
+};
 
 //------------------------------------------------------- Таблица -----------------------------------------------------
 
@@ -141,6 +144,7 @@ static const icon_entry_t g_icon_table[] = {
     {CMD_RECORD_TOGGLE,          svg_recording     },
     {CMD_RECORD_SCREENSHOT,      svg_screenshot    },
     {CMD_RECORD_FLUSH,           svg_flush_save    },
+    {CMD_OPEN_OUTPUT_DIR,        svg_open_folder   },
     {CMD_RESET_ALL,              svg_reset_all     },
     {CMD_ZOOM_RESET,             svg_reset_zoom    },
     {CMD_FULLSCREEN_TOGGLE,      svg_fullscreen    },

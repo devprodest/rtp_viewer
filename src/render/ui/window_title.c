@@ -78,7 +78,7 @@ void window_title_refresh(void)
              frame_str,                                                      //
              stats_get_fps(),                                                //
              g_paused ? " [PAUSE]" : "",                                     //
-             saver_is_recording() ? " [REC]" : "",                           //
+             saver_recording_is_run() ? " [REC]" : "",                           //
              extra);
 
     window_set_title(title);

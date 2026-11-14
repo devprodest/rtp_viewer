@@ -84,13 +84,13 @@ void screenshot_request(void)
     g_requested = true;
 }
 
-void screenshot_set_size(int width, int height)
+void screenshot_size_set(int width, int height)
 {
     g_width  = width;
     g_height = height;
 }
 
-void screenshot_process_if_requested(void)
+void screenshot_process(void)
 {
     if (!g_requested)
     {
@@ -122,15 +122,15 @@ void screenshot_process_if_requested(void)
 
     char path[ 1024 ];
     utils_build_filename(path, sizeof(path),                 //
-                         saver_get_outdir(),                 //
-                         saver_get_prefix(),                 //
+                         saver_outdir_get(),                 //
+                         saver_prefix_get(),                 //
                          time(nullptr),                      //
                          (image_size_s) {g_width, g_height}, //
-                         saver_get_format_name(),            //
+                         saver_format_name_get(),            //
                          "screenshot",                       //
                          "png");
 
-    if (png_write_rgba(path, pixels, g_width, g_height))
+    if (png_write(path, pixels, g_width, g_height))
     {
         log_info("Screenshot saved: %s (%dx%d)\n", path, g_width, g_height);
     }

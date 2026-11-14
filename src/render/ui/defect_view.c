@@ -143,8 +143,8 @@ void defect_view_rescan(void)
     log_info("Defect scan: %d found (dead %d, stuck %d, hot %d)", g_count, g_dead_cnt, g_stuck_cnt, g_hot_cnt);
 
     char csv_path[ 1024 ];
-    utils_build_filename(csv_path, sizeof(csv_path), saver_get_outdir(), saver_get_prefix(), time(nullptr), size,
-                         saver_get_format_name(), "defects", "csv");
+    utils_build_filename(csv_path, sizeof(csv_path), saver_outdir_get(), saver_prefix_get(), time(nullptr), size,
+                         saver_format_name_get(), "defects", "csv");
 
     defect_view_export(csv_path);
     g_needs_rescan = false;

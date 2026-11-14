@@ -39,7 +39,7 @@
 ///          не объявит SleepConditionVariableCS / InitializeConditionVariable.
 ///
 /// Значение: 0x0600 (Vista). Менять не нужно.
-#define SAVER_WIN32_WINNT          0x0600
+#define SAVER_WIN32_WINNT    0x0600
 
 /// \brief Максимальная длина префикса имени файла (с NUL).
 ///
@@ -47,7 +47,7 @@
 ///          обрезаются через strncpy.
 ///
 /// Допустимый диапазон: 2..256. По умолчанию: 256.
-#define SAVER_PREFIX_MAX           256
+#define SAVER_PREFIX_MAX     256
 
 /// \brief Максимальная длина выходной директории (с NUL).
 ///
@@ -55,14 +55,14 @@
 ///          обрезаются.
 ///
 /// Допустимый диапазон: 2..256. По умолчанию: 256.
-#define SAVER_OUTDIR_MAX           256
+#define SAVER_OUTDIR_MAX     256
 
 /// \brief Максимальная длина имени формата (с NUL).
 ///
 /// \details Берётся из -f. Формат — часть имени файла.
 ///
 /// Допустимый диапазон: 2..64. По умолчанию: 64.
-#define SAVER_FORMAT_MAX           64
+#define SAVER_FORMAT_MAX     64
 
 /// \brief Максимальный размер полного пути файла кадра (с NUL).
 ///
@@ -71,7 +71,7 @@
 ///
 /// Допустимый диапазон: >= SAVER_OUTDIR_MAX + SAVER_PREFIX_MAX + 64.
 /// По умолчанию: 1024.
-#define SAVER_NAME_MAX             1024
+#define SAVER_NAME_MAX       1024
 
 /// \brief Максимальное число буферов в пуле.
 ///
@@ -84,7 +84,7 @@
 /// дропы при медленном диске; слишком большое — много памяти.
 ///
 /// Допустимый диапазон: 4..255. По умолчанию: 64.
-#define SAVER_POOL_MAX             64
+#define SAVER_POOL_MAX       64
 
 /// \brief Минимальное число буферов в пуле.
 ///
@@ -94,17 +94,17 @@
 /// Допустимый диапазон: 2..SAVER_POOL_MAX. По умолчанию: 4.
 /// Нельзя ставить меньше 2: очередь и пул рассчитаны на разделение
 /// хотя бы одного буфера «in-flight» и одного «в очереди».
-#define SAVER_POOL_MIN             4
+#define SAVER_POOL_MIN       4
 
 /// \brief Префикс имени файла по умолчанию.
 ///
 /// \details Используется, если -s не задан.
-#define SAVER_DEFAULT_PREFIX       "rtp"
+#define SAVER_DEFAULT_PREFIX "rtp"
 
 /// \brief Права доступа к создаваемой выходной директории (POSIX).
 ///
 /// \details 0755 = rwxr-xr-x. На Windows mkdir(path) без режима.
-#define SAVER_DIR_MODE_POSIX       0755
+#define SAVER_DIR_MODE_POSIX 0755
 
 // Проверки на этапе компиляции: сужение до uint8_t корректно только
 // при этих условиях.
@@ -198,7 +198,7 @@ typedef struct saver_queue_s
 /// \brief Контекст сохранятеля (один глобальный экземпляр).
 ///
 /// \details Порядок полей выбран так, чтобы:
-///          1. Всё, что трогает saver_add_frame / saver_thread_proc,
+///          1. Всё, что трогает saver_recording_frame_add / saver_thread_proc,
 ///             лежало в первых ~64 байтах (одна кэш-линия).
 ///          2. Между полями не появлялось автоматических паддингов.
 ///          3. Большие массивы (pool, queue) — в конце, вне горячей зоны.
@@ -206,7 +206,7 @@ typedef struct saver_queue_s
 /// Секции помечены hot/warm/cold по частоте доступа.
 typedef struct saver_context_s
 {
-    // ---- HOT: синхронизация. Трогается в каждом saver_add_frame ----
+    // ---- HOT: синхронизация. Трогается в каждом saver_recording_frame_add ----
     saver_mutex_t mutex; ///< Защищает pool, queue, recording, flags
     saver_cond_t cond;   ///< Сигнал saver-потоку о новой работе
 
@@ -276,7 +276,7 @@ static void build_filename(char * out, size_t outsz)
 
     utils_build_filename(out,                 //
                          outsz,               //
-                         saver_get_outdir(),  //
+                         saver_outdir_get(),  //
                          g_saver.prefix,      //
                          t,                   //
                          g_saver.image,       //
@@ -554,7 +554,7 @@ void saver_init(saver_config_s * config)
 ///
 /// \note Если saver выключен (не хватило памяти) — no-op.
 /// \note Если запись выключена (recording == false) — no-op.
-void saver_add_frame(const uint8_t * frame_data)
+void saver_recording_frame_add(const uint8_t * frame_data)
 {
     if (!g_saver.enabled)
     {
@@ -612,7 +612,7 @@ void saver_add_frame(const uint8_t * frame_data)
 /// \details Асинхронная операция: saver-поток дольёт очередь и закроет файл.
 ///          Возвращается сразу, не ждёт завершения. Следующий кадр откроет
 ///          новый файл.
-void saver_flush(void)
+void saver_recording_flush(void)
 {
     if (!g_saver.enabled)
     {
@@ -629,7 +629,7 @@ void saver_flush(void)
 ///
 /// \details При выключении ставит flush_requested — saver-поток закроет файл.
 ///          При включении новые кадры начнут писаться с нового файла.
-void saver_toggle_recording(void)
+void saver_recording_toggle(void)
 {
     if (!g_saver.enabled)
     {
@@ -700,7 +700,7 @@ void saver_cleanup(void)
 /// \brief Возвращает текущее состояние записи.
 ///
 /// \return true, если запись активна
-bool saver_is_recording(void)
+bool saver_recording_is_run(void)
 {
     if (!g_saver.enabled)
     {
@@ -713,20 +713,41 @@ bool saver_is_recording(void)
     return r;
 }
 
+void saver_outdir_open(void)
+{
+    const char * dir = saver_outdir_get();
+    if (!dir || !*dir)
+    {
+        dir = ".";
+    }
+
+    char cmd[ 1024 ];
+#ifdef _WIN32
+    snprintf(cmd, sizeof(cmd), "explorer \"%s\"", dir);
+#elif defined(__APPLE__)
+    snprintf(cmd, sizeof(cmd), "open \"%s\"", dir);
+#else
+    snprintf(cmd, sizeof(cmd), "xdg-open \"%s\" >/dev/null 2>&1 &", dir);
+#endif
+    system(cmd);
+
+    log_info("Open output dir: %s", dir);
+}
+
 /// \brief Возвращает выходную директорию.
 ///
 /// \return Строка пути; никогда не nullptr; по умолчанию "."
-const char * saver_get_outdir(void)
+const char * saver_outdir_get(void)
 {
     return g_saver.outdir[ 0 ] ? g_saver.outdir : ".";
 }
 
-const char * saver_get_prefix(void)
+const char * saver_prefix_get(void)
 {
     return g_saver.prefix[ 0 ] ? g_saver.prefix : SAVER_DEFAULT_PREFIX;
 }
 
-const char * saver_get_format_name(void)
+const char * saver_format_name_get(void)
 {
     return g_saver.format_name[ 0 ] ? g_saver.format_name : "unknown";
 }

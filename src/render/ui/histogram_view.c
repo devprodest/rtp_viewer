@@ -10,35 +10,33 @@
 #include <math.h>
 #include <string.h>
 
-static GLuint g_quad_vao        = 0;
-static GLuint g_hist_tex        = 0;
-static GLuint g_hist_program    = 0;
-static GLint g_hist_uniform_tex = -1;
+static GLuint g_quad_vao               = 0;
+static GLuint g_hist_tex               = 0;
+static GLuint g_hist_program           = 0;
+static GLint g_hist_uniform_tex        = -1;
+static GLint g_hist_uniform_uv_scale_y = -1;
 
-static point_s g_pos    = {-1, -1}; // -1 = ещё не инициализировано
+static point_s g_pos    = {-1, -1};
 static bool g_enabled   = false;
 static bool g_log_scale = false;
 static int g_eff_bits   = 8;
 
 #define HIST_BAND_ROWS          (64)
-#define HIST_TEX_H              (HIST_BAND_ROWS * 3)
+#define HIST_TEX_H              (HIST_BAND_ROWS * HIST_CHANNELS)
 #define HIST_BACKGROUND_OPACITY (20)
 #define HIST_BIN_OPACITY        (200)
 
-
-_Static_assert(HIST_TEX_H % 3 == 0, "HIST_TEX_H must be divisible by 3");
+static_assert(HIST_TEX_H % HIST_CHANNELS == 0, "HIST_TEX_H must be divisible by HIST_CHANNELS");
 
 typedef uint8_t hist_pixel_t[ 4 ];
 
-static union
-{
-    hist_pixel_t by_channel[ HIST_CHANNELS ][ HIST_BAND_ROWS ][ HIST_BINS ];
-    hist_pixel_t by_row[ HIST_TEX_H ][ HIST_BINS ];
-} g_hist_pixels;
+/// \brief Прямоугольная текстура HIST_BINS × HIST_TEX_H в памяти как
+///        [channel][row][bin][rgba]. Для grayscale заполняется только [0],
+///        для RGB/YCbCr — все три канала.
+static hist_pixel_t g_hist_pixels[ HIST_CHANNELS ][ HIST_BAND_ROWS ][ HIST_BINS ];
 
 //------------------------------------------------------- CDF (сглаживание) --------------------------------------------
 
-/// \brief Простое скользящее среднее для сглаживания линии CDF.
 static void apply_smoothing(float * data, int size)
 {
     if (size < 3)
@@ -56,7 +54,7 @@ static void apply_smoothing(float * data, int size)
     memcpy(data, temp, size * sizeof(float));
 }
 
-static void draw_cdf_line_gray(const float * cdf_in, uint8_t r, uint8_t g, uint8_t b)
+static void draw_cdf_line_gray(const float * cdf_in)
 {
     float cdf[ HIST_BINS ];
     memcpy(cdf, cdf_in, sizeof(cdf));
@@ -66,8 +64,8 @@ static void draw_cdf_line_gray(const float * cdf_in, uint8_t r, uint8_t g, uint8
 
     for (int x = 0; x < HIST_BINS; x++)
     {
-        int y_local = (int)(cdf[ x ] * (float)(HIST_TEX_H - 1) + 0.5f);
-        int y_pix   = HIST_TEX_H - 1 - y_local;
+        int y_local = (int)(cdf[ x ] * (float)(HIST_BAND_ROWS - 1) + 0.5f);
+        int y_pix   = HIST_BAND_ROWS - 1 - y_local;
 
         if (prev_y >= 0)
         {
@@ -75,24 +73,22 @@ static void draw_cdf_line_gray(const float * cdf_in, uint8_t r, uint8_t g, uint8
             int yb = utils_max(prev_y, y_pix);
             for (int y = ya; y <= yb; y++)
             {
-                g_hist_pixels.by_row[ y ][ x ][ 0 ] = r;
-                g_hist_pixels.by_row[ y ][ x ][ 1 ] = g;
-                g_hist_pixels.by_row[ y ][ x ][ 2 ] = b;
-                g_hist_pixels.by_row[ y ][ x ][ 3 ] = 255;
+                g_hist_pixels[ 0 ][ y ][ x ][ 0 ] = 255;
+                g_hist_pixels[ 0 ][ y ][ x ][ 1 ] = 255;
+                g_hist_pixels[ 0 ][ y ][ x ][ 2 ] = 0;
+                g_hist_pixels[ 0 ][ y ][ x ][ 3 ] = 255;
             }
         }
         prev_y = y_pix;
     }
 }
 
-static void draw_cdf_line_channel(const float * cdf_in, int band_index, int x_lo, int x_hi, int span, uint8_t r,
-                                  uint8_t g, uint8_t b)
+static void draw_cdf_line_channel(const float * cdf_in, int channel, int x_lo, int x_hi, int span)
 {
     float cdf[ HIST_BINS ];
     memcpy(cdf, cdf_in, sizeof(cdf));
     apply_smoothing(cdf, HIST_BINS);
 
-    int y0     = band_index * HIST_BAND_ROWS;
     int prev_y = -1;
 
     for (int x = x_lo; x <= x_hi; x++)
@@ -100,7 +96,7 @@ static void draw_cdf_line_channel(const float * cdf_in, int band_index, int x_lo
         int xs = utils_clamp((x - x_lo) * HIST_BINS / span, 0, HIST_BINS - 1);
 
         int y_local = (int)(cdf[ x ] * (float)(HIST_BAND_ROWS - 1) + 0.5f);
-        int y_pix   = y0 + (HIST_BAND_ROWS - 1 - y_local);
+        int y_pix   = HIST_BAND_ROWS - 1 - y_local;
 
         if (prev_y >= 0)
         {
@@ -108,12 +104,12 @@ static void draw_cdf_line_channel(const float * cdf_in, int band_index, int x_lo
             int yb = utils_max(prev_y, y_pix);
             for (int y = ya; y <= yb; y++)
             {
-                if (y >= y0 && y < y0 + HIST_BAND_ROWS)
+                if (y >= 0 && y < HIST_BAND_ROWS)
                 {
-                    g_hist_pixels.by_channel[ band_index ][ y - y0 ][ xs ][ 0 ] = r;
-                    g_hist_pixels.by_channel[ band_index ][ y - y0 ][ xs ][ 1 ] = g;
-                    g_hist_pixels.by_channel[ band_index ][ y - y0 ][ xs ][ 2 ] = b;
-                    g_hist_pixels.by_channel[ band_index ][ y - y0 ][ xs ][ 3 ] = 255;
+                    g_hist_pixels[ channel ][ y ][ xs ][ 0 ] = 255;
+                    g_hist_pixels[ channel ][ y ][ xs ][ 1 ] = 255;
+                    g_hist_pixels[ channel ][ y ][ xs ][ 2 ] = 0;
+                    g_hist_pixels[ channel ][ y ][ xs ][ 3 ] = 255;
                 }
             }
         }
@@ -148,14 +144,9 @@ static void compute_cdf_channel(const uint32_t * bins, float * cdf_out)
 //------------------------------------------------------- Указатели краёв
 //-----------------------------------------------
 
-/// \brief Рисует вертикальные линии на позициях min и max из аналитики.
-//------------------------------------------------------- Указатели краёв
-//-----------------------------------------------
-
-/// \brief Рисует вертикальные линии на позициях перцентилей 1% и 99%, используя готовую CDF.
 static void draw_edge_pointers(const float * cdf, int channel, int lo, int span)
 {
-    if (!cdf)
+    if (!cdf || channel < 0 || channel >= HIST_CHANNELS)
     {
         return;
     }
@@ -163,7 +154,6 @@ static void draw_edge_pointers(const float * cdf, int channel, int lo, int span)
     int min_bin = 0;
     int max_bin = HIST_BINS - 1;
 
-    // Находим бины для 1% и 99% по уже готовой CDF
     for (int i = 0; i < HIST_BINS; i++)
     {
         if (cdf[ i ] >= 0.01f)
@@ -181,12 +171,8 @@ static void draw_edge_pointers(const float * cdf, int channel, int lo, int span)
         }
     }
 
-    // Переводим в координаты X на текстуре
     int x_min = utils_clamp((min_bin - lo) * HIST_BINS / span, 0, HIST_BINS - 1);
     int x_max = utils_clamp((max_bin - lo) * HIST_BINS / span, 0, HIST_BINS - 1);
-
-    int y0 = (channel == -1) ? 0 : (channel * HIST_BAND_ROWS);
-    int h  = (channel == -1) ? HIST_TEX_H : HIST_BAND_ROWS;
 
     uint8_t r_min = (uint8_t)(UI_HIST_EDGE_MIN.r * 255.0f);
     uint8_t g_min = (uint8_t)(UI_HIST_EDGE_MIN.g * 255.0f);
@@ -196,30 +182,22 @@ static void draw_edge_pointers(const float * cdf, int channel, int lo, int span)
     uint8_t g_max = (uint8_t)(UI_HIST_EDGE_MAX.g * 255.0f);
     uint8_t b_max = (uint8_t)(UI_HIST_EDGE_MAX.b * 255.0f);
 
-    for (int y = 0; y < h; y++)
+    for (int y = 0; y < HIST_BAND_ROWS; y++)
     {
-        // Ширина 1 пиксель
-        int xm = utils_clamp(x_min, 0, HIST_BINS - 1);
-        int xM = utils_clamp(x_max, 0, HIST_BINS - 1);
+        g_hist_pixels[ channel ][ y ][ x_min ][ 0 ] = r_min;
+        g_hist_pixels[ channel ][ y ][ x_min ][ 1 ] = g_min;
+        g_hist_pixels[ channel ][ y ][ x_min ][ 2 ] = b_min;
+        g_hist_pixels[ channel ][ y ][ x_min ][ 3 ] = 255;
 
-        // Минимум (1%)
-        g_hist_pixels.by_row[ y0 + y ][ xm ][ 0 ] = r_min;
-        g_hist_pixels.by_row[ y0 + y ][ xm ][ 1 ] = g_min;
-        g_hist_pixels.by_row[ y0 + y ][ xm ][ 2 ] = b_min;
-        g_hist_pixels.by_row[ y0 + y ][ xm ][ 3 ] = 255;
-
-        // Максимум (99%)
-        g_hist_pixels.by_row[ y0 + y ][ xM ][ 0 ] = r_max;
-        g_hist_pixels.by_row[ y0 + y ][ xM ][ 1 ] = g_max;
-        g_hist_pixels.by_row[ y0 + y ][ xM ][ 2 ] = b_max;
-        g_hist_pixels.by_row[ y0 + y ][ xM ][ 3 ] = 255;
+        g_hist_pixels[ channel ][ y ][ x_max ][ 0 ] = r_max;
+        g_hist_pixels[ channel ][ y ][ x_max ][ 1 ] = g_max;
+        g_hist_pixels[ channel ][ y ][ x_max ][ 2 ] = b_max;
+        g_hist_pixels[ channel ][ y ][ x_max ][ 3 ] = 255;
     }
 }
 
-
 //------------------------------------------------------- Основная сборка ----------------------------------------------
 
-/// \brief Заполняет g_hist_pixels растр по текущей гистограмме из analytics.
 static void build_histogram_image(void)
 {
     const histogram_s * hist = analytics_get_histogram();
@@ -230,14 +208,15 @@ static void build_histogram_image(void)
 
     if (hist->active_channels == 1)
     {
-        for (size_t y = 0; y < HIST_TEX_H; y++)
+        // Grayscale: только канал 0 (64 строки).
+        for (size_t y = 0; y < HIST_BAND_ROWS; y++)
         {
             for (size_t x = 0; x < HIST_BINS; x++)
             {
-                g_hist_pixels.by_row[ y ][ x ][ 0 ] = 255;
-                g_hist_pixels.by_row[ y ][ x ][ 1 ] = 255;
-                g_hist_pixels.by_row[ y ][ x ][ 2 ] = 255;
-                g_hist_pixels.by_row[ y ][ x ][ 3 ] = HIST_BACKGROUND_OPACITY;
+                g_hist_pixels[ 0 ][ y ][ x ][ 0 ] = 255;
+                g_hist_pixels[ 0 ][ y ][ x ][ 1 ] = 255;
+                g_hist_pixels[ 0 ][ y ][ x ][ 2 ] = 255;
+                g_hist_pixels[ 0 ][ y ][ x ][ 3 ] = HIST_BACKGROUND_OPACITY;
             }
         }
 
@@ -249,25 +228,22 @@ static void build_histogram_image(void)
                 int bar;
                 if (g_log_scale)
                 {
-                    bar = (int)(log(1.0 + (double)hist->bins[ 0 ][ x ]) / log(1.0 + (double)maxv) * HIST_TEX_H);
+                    bar = (int)(log(1.0 + (double)hist->bins[ 0 ][ x ]) / log(1.0 + (double)maxv) * HIST_BAND_ROWS);
                 }
                 else
                 {
-                    bar = (int)((uint64_t)hist->bins[ 0 ][ x ] * HIST_TEX_H / maxv);
+                    bar = (int)((uint64_t)hist->bins[ 0 ][ x ] * HIST_BAND_ROWS / maxv);
                 }
 
                 for (int y = 0; y < bar; y++)
                 {
-                    g_hist_pixels.by_row[ HIST_TEX_H - 1 - y ][ x ][ 3 ] = HIST_BIN_OPACITY;
+                    g_hist_pixels[ 0 ][ HIST_BAND_ROWS - 1 - y ][ x ][ 3 ] = HIST_BIN_OPACITY;
                 }
             }
 
-            // CDF
             float cdf[ HIST_BINS ];
             compute_cdf_channel(hist->bins[ 0 ], cdf);
-            draw_cdf_line_gray(cdf, 255, 255, 0); // жёлтая линия CDF
-
-            // Указатели краёв (рисуем в самом конце)
+            draw_cdf_line_gray(cdf);
             draw_edge_pointers(cdf, 0, 0, HIST_BINS);
         }
     }
@@ -291,10 +267,10 @@ static void build_histogram_image(void)
             {
                 for (size_t x = 0; x < HIST_BINS; x++)
                 {
-                    g_hist_pixels.by_channel[ c ][ y ][ x ][ 0 ] = (*color)[ c ][ 0 ];
-                    g_hist_pixels.by_channel[ c ][ y ][ x ][ 1 ] = (*color)[ c ][ 1 ];
-                    g_hist_pixels.by_channel[ c ][ y ][ x ][ 2 ] = (*color)[ c ][ 2 ];
-                    g_hist_pixels.by_channel[ c ][ y ][ x ][ 3 ] = HIST_BACKGROUND_OPACITY;
+                    g_hist_pixels[ c ][ y ][ x ][ 0 ] = (*color)[ c ][ 0 ];
+                    g_hist_pixels[ c ][ y ][ x ][ 1 ] = (*color)[ c ][ 1 ];
+                    g_hist_pixels[ c ][ y ][ x ][ 2 ] = (*color)[ c ][ 2 ];
+                    g_hist_pixels[ c ][ y ][ x ][ 3 ] = HIST_BACKGROUND_OPACITY;
                 }
             }
         }
@@ -328,23 +304,20 @@ static void build_histogram_image(void)
 
                 for (int y = 0; y < bar; y++)
                 {
-                    g_hist_pixels.by_channel[ c ][ HIST_BAND_ROWS - 1 - y ][ xs ][ 3 ] = HIST_BIN_OPACITY;
+                    g_hist_pixels[ c ][ HIST_BAND_ROWS - 1 - y ][ xs ][ 3 ] = HIST_BIN_OPACITY;
                 }
             }
 
-            // CDF
             float cdf[ HIST_BINS ];
             compute_cdf_channel(hist->bins[ c ], cdf);
-            draw_cdf_line_channel(cdf, c, lo, hi, span, 255, 255, 0);
-
-            // Указатели краёв (рисуем в самом конце)
+            draw_cdf_line_channel(cdf, c, lo, hi, span);
             draw_edge_pointers(cdf, c, lo, span);
         }
     }
 
     glBindTexture(GL_TEXTURE_2D, g_hist_tex);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HIST_BINS, HIST_TEX_H, GL_RGBA, GL_UNSIGNED_BYTE, &g_hist_pixels);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, HIST_BINS, HIST_TEX_H, GL_RGBA, GL_UNSIGNED_BYTE, g_hist_pixels);
 }
 
 //------------------------------------------------------- API ---------------------------------------------------------
@@ -364,11 +337,12 @@ bool histogram_view_init(GLuint quad_vao)
     static const char * hist_frag =
         "#version 330 core\n"
         "uniform sampler2D tex;\n"
+        "uniform float uv_scale_y;\n"
         "in vec2 TexCoord;\n"
         "out vec4 FragColor;\n"
         "void main()\n"
         "{\n"
-        "    FragColor = texture(tex, TexCoord);\n"
+        "    FragColor = texture(tex, vec2(TexCoord.x, TexCoord.y * uv_scale_y));\n"
         "}\n";
 
     g_hist_program = gl_utils_build_program(hist_frag);
@@ -380,7 +354,8 @@ bool histogram_view_init(GLuint quad_vao)
     }
 
     glUseProgram(g_hist_program);
-    g_hist_uniform_tex = glGetUniformLocation(g_hist_program, "tex");
+    g_hist_uniform_tex        = glGetUniformLocation(g_hist_program, "tex");
+    g_hist_uniform_uv_scale_y = glGetUniformLocation(g_hist_program, "uv_scale_y");
 
     bool ls;
     if (settings_get_feature_bool("histogram", "log_scale", &ls))
@@ -427,14 +402,12 @@ void histogram_view_render(point_s pos, image_size_s win, float dpi_scale)
 
     const image_size_s sz = histogram_view_get_size();
 
-    // Дефолт
     if (pos.x < 0 || pos.y < 0)
     {
         pos   = (point_s) {utils_max(win.x - sz.x - 10, 0), 10};
         g_pos = pos;
     }
 
-    // Контент сдвинут вниз на TITLE_H
     int title_h   = panel_title_height(dpi_scale);
     int content_y = pos.y + title_h;
     int gl_y      = win.y - content_y - sz.y;
@@ -446,6 +419,11 @@ void histogram_view_render(point_s pos, image_size_s win, float dpi_scale)
     if (g_hist_uniform_tex >= 0)
     {
         glUniform1i(g_hist_uniform_tex, 0);
+    }
+    if (g_hist_uniform_uv_scale_y >= 0)
+    {
+        const float uv_y = (hist->active_channels == 1) ? (float)HIST_BAND_ROWS / (float)HIST_TEX_H : 1.0f;
+        glUniform1f(g_hist_uniform_uv_scale_y, uv_y);
     }
 
     glBindVertexArray(g_quad_vao);
@@ -507,5 +485,8 @@ void histogram_view_set_pos(point_s pos)
 
 image_size_s histogram_view_get_size(void)
 {
-    return (image_size_s) {320, 240};
+    const histogram_s * hist = analytics_get_histogram();
+    // Grayscale: одна полоса из трёх → панель в 3 раза ниже.
+    const int h = (hist->active_channels == 1) ? 240 * HIST_BAND_ROWS / HIST_TEX_H : 240;
+    return (image_size_s) {320, h};
 }

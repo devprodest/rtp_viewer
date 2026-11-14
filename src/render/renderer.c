@@ -190,7 +190,7 @@ bool renderer_init(image_size_s win, const char * format_name, int effective_bit
     diff_view_init();
 
     screenshot_init();
-    screenshot_set_size(win.x, win.y);
+    screenshot_size_set(win.x, win.y);
 
     { // ini — база; CLI-флаг переопределяет, если ключ есть.
         bool want_smoothing;
@@ -342,7 +342,7 @@ void renderer_draw(void)
     // Контекстное меню — автономно (свой overlay + NanoVG)
     context_menu_draw(win, g_dpi_scale);
 
-    screenshot_process_if_requested();
+    screenshot_process();
     window_swap_buffers();
 }
 

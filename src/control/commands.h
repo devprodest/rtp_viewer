@@ -27,6 +27,7 @@ typedef enum commands_e
     CMD_RECORD_SCREENSHOT,
     CMD_RECORD_FLUSH,
     CMD_FLICKER_TOGGLE,
+    CMD_OPEN_OUTPUT_DIR,
     CMD_RESET_ALL,
     CMD_ZOOM_RESET,
     CMD_SHOW_HELP,
@@ -34,12 +35,12 @@ typedef enum commands_e
 
 typedef enum menu_group_e
 {
-    MENU_GROUP_DISPLAY,
-    MENU_GROUP_ANALYSIS,
-    MENU_GROUP_DIFF,
-    MENU_GROUP_PLAYBACK,
-    MENU_GROUP_RECORDING,
-    MENU_GROUP_UTILITY,
+    MENU_GRP_DISPLAY,
+    MENU_GRP_ANALYSIS,
+    MENU_GRP_DIFF,
+    MENU_GRP_PLAYBACK,
+    MENU_GRP_RECORDING,
+    MENU_GRP_UTILITY,
 } menu_group_e;
 
 typedef enum command_type_e

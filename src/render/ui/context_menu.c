@@ -48,8 +48,8 @@ static const commands_e g_menu_order[] = {
     CMD_PLAY_PAUSE_TOGGLE,
     CMD_PLAY_STEP_FORWARD,
     CMD_RECORD_TOGGLE,
-    CMD_RECORD_FLUSH,
     CMD_RECORD_SCREENSHOT,
+    CMD_OPEN_OUTPUT_DIR,
 
     CMD_AUTO_LEVELS_TOGGLE,
     CMD_SMOOTHING_TOGGLE,
@@ -57,6 +57,7 @@ static const commands_e g_menu_order[] = {
     CMD_FULLSCREEN_TOGGLE,
     CMD_RESET_ALL,
     CMD_SHOW_HELP,
+
 };
 #define MENU_ORDER_COUNT ((int)(sizeof(g_menu_order) / sizeof(g_menu_order[ 0 ])))
 
@@ -86,12 +87,12 @@ static fcolor_rgba_s group_bg_color(menu_group_e group)
 {
     switch (group)
     {
-        case MENU_GROUP_DISPLAY: return UI_CELL_BG_DISPLAY;
-        case MENU_GROUP_ANALYSIS: return UI_CELL_BG_ANALYSIS;
-        case MENU_GROUP_DIFF: return UI_CELL_BG_DIFF;
-        case MENU_GROUP_PLAYBACK: return UI_CELL_BG_PLAYBACK;
-        case MENU_GROUP_RECORDING: return UI_CELL_BG_RECORDING;
-        case MENU_GROUP_UTILITY: return UI_CELL_BG_UTILITY;
+        case MENU_GRP_DISPLAY: return UI_CELL_BG_DISPLAY;
+        case MENU_GRP_ANALYSIS: return UI_CELL_BG_ANALYSIS;
+        case MENU_GRP_DIFF: return UI_CELL_BG_DIFF;
+        case MENU_GRP_PLAYBACK: return UI_CELL_BG_PLAYBACK;
+        case MENU_GRP_RECORDING: return UI_CELL_BG_RECORDING;
+        case MENU_GRP_UTILITY: return UI_CELL_BG_UTILITY;
     }
     return UI_CELL_BG;
 }

@@ -25,33 +25,34 @@
 
 // clang-format off
 static const command_info_s g_commands[] = {
-    // label              hotkey    key                mods              type              group
-    [CMD_SMOOTHING_TOGGLE]       = {"Smoothing",       "1",      GLFW_KEY_1,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_DISPLAY  },
-    [CMD_AUTO_LEVELS_TOGGLE]     = {"Auto-levels",     "2",      GLFW_KEY_2,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_DISPLAY  },
-    [CMD_GRADIENT_TOGGLE]        = {"Sobel Mask",      "F",      GLFW_KEY_F,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_ANALYSIS },
-    [CMD_INSPECTOR_TOGGLE]       = {"Inspector",       "I",      GLFW_KEY_I,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_ANALYSIS },
-    [CMD_SATURATION_TOGGLE]      = {"Saturation",      "E",      GLFW_KEY_E,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_ANALYSIS },
-    [CMD_HISTOGRAM_TOGGLE]       = {"Histogram",       "H",      GLFW_KEY_H,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_ANALYSIS },
-    [CMD_HISTOGRAM_SCALE_TOGGLE] = {"Log Scale",       "Ctrl+H", GLFW_KEY_H,        GLFW_MOD_CONTROL, CMD_TYPE_TOGGLE, MENU_GROUP_ANALYSIS },
-    [CMD_STATS_TOGGLE]           = {"Stats",           "T",      GLFW_KEY_T,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_ANALYSIS },
-    [CMD_LINE_PROFILE_TOGGLE]    = {"Line Profile",    "L",      GLFW_KEY_L,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_ANALYSIS },
-    [CMD_VECTORSCOPE_TOGGLE]     = {"Vectorscope",     "M",      GLFW_KEY_M,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_ANALYSIS },
-    [CMD_DEFECT_VIEW_TOGGLE]     = {"Find Defects",    "D",      GLFW_KEY_D,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_ANALYSIS},
-    [CMD_FLICKER_TOGGLE]         = {"Flicker View",    "K",      GLFW_KEY_K,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_ANALYSIS},
-    [CMD_DIFF_SET_REFERENCE]     = {"Diff Ref",        "V",      GLFW_KEY_V,        0,                CMD_TYPE_ACTION, MENU_GROUP_DIFF     },
-    [CMD_DIFF_TOGGLE]            = {"Diff View",       "B",      GLFW_KEY_B,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_DIFF     },
-    [CMD_DIFF_GAIN_DOWN]         = {"Diff Gain -",     "-",      GLFW_KEY_MINUS,    0,                CMD_TYPE_ACTION, MENU_GROUP_DIFF     },
-    [CMD_DIFF_GAIN_UP]           = {"Diff Gain +",     "=",      GLFW_KEY_EQUAL,    0,                CMD_TYPE_ACTION, MENU_GROUP_DIFF     },
-    [CMD_PLAY_STEP_BACKWARD]     = {"Backward",        "Left",   GLFW_KEY_LEFT,     0,                CMD_TYPE_ACTION, MENU_GROUP_PLAYBACK },
-    [CMD_PLAY_PAUSE_TOGGLE]      = {"Pause",           "Space",  GLFW_KEY_SPACE,    0,                CMD_TYPE_TOGGLE, MENU_GROUP_PLAYBACK },
-    [CMD_PLAY_STEP_FORWARD]      = {"Forward",         "Right",  GLFW_KEY_RIGHT,    0,                CMD_TYPE_ACTION, MENU_GROUP_PLAYBACK },
-    [CMD_RECORD_TOGGLE]          = {"Recording",       "R",      GLFW_KEY_R,        0,                CMD_TYPE_TOGGLE, MENU_GROUP_RECORDING},
-    [CMD_RECORD_FLUSH]           = {"Flush Save",      "W",      GLFW_KEY_W,        0,                CMD_TYPE_ACTION, MENU_GROUP_RECORDING},
-    [CMD_RECORD_SCREENSHOT]      = {"Screenshot",      "S",      GLFW_KEY_S,        0,                CMD_TYPE_ACTION, MENU_GROUP_RECORDING},
-    [CMD_RESET_ALL]              = {"Reset All",       "Esc",    GLFW_KEY_ESCAPE,   0,                CMD_TYPE_ACTION, MENU_GROUP_UTILITY},
-    [CMD_ZOOM_RESET]             = {"Reset Zoom",      "0",      GLFW_KEY_0,        0,                CMD_TYPE_ACTION, MENU_GROUP_UTILITY  },
-    [CMD_FULLSCREEN_TOGGLE]      = {"Full screen",     "F11",    GLFW_KEY_F11,      0,                CMD_TYPE_TOGGLE, MENU_GROUP_UTILITY  },
-    [CMD_SHOW_HELP]              = {"Help",            "F1",     GLFW_KEY_F1,       0,                CMD_TYPE_ACTION, MENU_GROUP_UTILITY  },
+    //                              label           hotkey    key              mods              type             group
+    [CMD_SMOOTHING_TOGGLE]       = {"Smoothing",    "1",      GLFW_KEY_1,      0,                CMD_TYPE_TOGGLE, MENU_GRP_DISPLAY  },
+    [CMD_AUTO_LEVELS_TOGGLE]     = {"Auto-levels",  "2",      GLFW_KEY_2,      0,                CMD_TYPE_TOGGLE, MENU_GRP_DISPLAY  },
+    [CMD_GRADIENT_TOGGLE]        = {"Sobel Mask",   "F",      GLFW_KEY_F,      0,                CMD_TYPE_TOGGLE, MENU_GRP_ANALYSIS },
+    [CMD_INSPECTOR_TOGGLE]       = {"Inspector",    "I",      GLFW_KEY_I,      0,                CMD_TYPE_TOGGLE, MENU_GRP_ANALYSIS },
+    [CMD_SATURATION_TOGGLE]      = {"Saturation",   "E",      GLFW_KEY_E,      0,                CMD_TYPE_TOGGLE, MENU_GRP_ANALYSIS },
+    [CMD_HISTOGRAM_TOGGLE]       = {"Histogram",    "H",      GLFW_KEY_H,      0,                CMD_TYPE_TOGGLE, MENU_GRP_ANALYSIS },
+    [CMD_HISTOGRAM_SCALE_TOGGLE] = {"Log Scale",    "Ctrl+H", GLFW_KEY_H,      GLFW_MOD_CONTROL, CMD_TYPE_TOGGLE, MENU_GRP_ANALYSIS },
+    [CMD_STATS_TOGGLE]           = {"Stats",        "T",      GLFW_KEY_T,      0,                CMD_TYPE_TOGGLE, MENU_GRP_ANALYSIS },
+    [CMD_LINE_PROFILE_TOGGLE]    = {"Line Profile", "L",      GLFW_KEY_L,      0,                CMD_TYPE_TOGGLE, MENU_GRP_ANALYSIS },
+    [CMD_VECTORSCOPE_TOGGLE]     = {"Vectorscope",  "M",      GLFW_KEY_M,      0,                CMD_TYPE_TOGGLE, MENU_GRP_ANALYSIS },
+    [CMD_DEFECT_VIEW_TOGGLE]     = {"Find Defects", "D",      GLFW_KEY_D,      0,                CMD_TYPE_TOGGLE, MENU_GRP_ANALYSIS },
+    [CMD_FLICKER_TOGGLE]         = {"Flicker View", "K",      GLFW_KEY_K,      0,                CMD_TYPE_TOGGLE, MENU_GRP_ANALYSIS },
+    [CMD_DIFF_SET_REFERENCE]     = {"Diff Ref",     "V",      GLFW_KEY_V,      0,                CMD_TYPE_ACTION, MENU_GRP_DIFF     },
+    [CMD_DIFF_TOGGLE]            = {"Diff View",    "B",      GLFW_KEY_B,      0,                CMD_TYPE_TOGGLE, MENU_GRP_DIFF     },
+    [CMD_DIFF_GAIN_DOWN]         = {"Diff Gain -",  "-",      GLFW_KEY_MINUS,  0,                CMD_TYPE_ACTION, MENU_GRP_DIFF     },
+    [CMD_DIFF_GAIN_UP]           = {"Diff Gain +",  "=",      GLFW_KEY_EQUAL,  0,                CMD_TYPE_ACTION, MENU_GRP_DIFF     },
+    [CMD_PLAY_STEP_BACKWARD]     = {"Backward",     "Left",   GLFW_KEY_LEFT,   0,                CMD_TYPE_ACTION, MENU_GRP_PLAYBACK },
+    [CMD_PLAY_PAUSE_TOGGLE]      = {"Pause",        "Space",  GLFW_KEY_SPACE,  0,                CMD_TYPE_TOGGLE, MENU_GRP_PLAYBACK },
+    [CMD_PLAY_STEP_FORWARD]      = {"Forward",      "Right",  GLFW_KEY_RIGHT,  0,                CMD_TYPE_ACTION, MENU_GRP_PLAYBACK },
+    [CMD_RECORD_TOGGLE]          = {"Recording",    "R",      GLFW_KEY_R,      0,                CMD_TYPE_TOGGLE, MENU_GRP_RECORDING},
+    [CMD_RECORD_FLUSH]           = {"Flush Save",   "W",      GLFW_KEY_W,      0,                CMD_TYPE_ACTION, MENU_GRP_RECORDING},
+    [CMD_RECORD_SCREENSHOT]      = {"Screenshot",   "S",      GLFW_KEY_S,      0,                CMD_TYPE_ACTION, MENU_GRP_RECORDING},
+    [CMD_OPEN_OUTPUT_DIR]        = {"Open folder",  "O",      GLFW_KEY_O,      0,                CMD_TYPE_ACTION, MENU_GRP_RECORDING},
+    [CMD_RESET_ALL]              = {"Reset All",    "Esc",    GLFW_KEY_ESCAPE, 0,                CMD_TYPE_ACTION, MENU_GRP_UTILITY  },
+    [CMD_ZOOM_RESET]             = {"Reset Zoom",   "0",      GLFW_KEY_0,      0,                CMD_TYPE_ACTION, MENU_GRP_UTILITY  },
+    [CMD_FULLSCREEN_TOGGLE]      = {"Full screen",  "F11",    GLFW_KEY_F11,    0,                CMD_TYPE_TOGGLE, MENU_GRP_UTILITY  },
+    [CMD_SHOW_HELP]              = {"Help",         "F1",     GLFW_KEY_F1,     0,                CMD_TYPE_ACTION, MENU_GRP_UTILITY  },
 };
 // clang-format on
 
@@ -98,15 +99,16 @@ void cmd_execute(commands_e cmd)
         case CMD_DIFF_GAIN_DOWN: diff_view_gain_down(); break;
 
         case CMD_AUTO_LEVELS_TOGGLE: post_pass_toggle_auto_levels(); break;
-        case CMD_RECORD_FLUSH: saver_flush(); break;
+        case CMD_RECORD_FLUSH: saver_recording_flush(); break;
         case CMD_RECORD_TOGGLE:
-            saver_toggle_recording();
+            saver_recording_toggle();
             window_title_refresh();
             break;
         case CMD_PLAY_PAUSE_TOGGLE: app_toggle_pause(); break;
         case CMD_PLAY_STEP_FORWARD: app_step_forward(); break;
         case CMD_PLAY_STEP_BACKWARD: app_step_backward(); break;
         case CMD_RECORD_SCREENSHOT: screenshot_request(); break;
+        case CMD_OPEN_OUTPUT_DIR: saver_outdir_open(); break;
 
         case CMD_RESET_ALL:
         {
@@ -151,7 +153,7 @@ bool cmd_is_active(commands_e cmd)
         case CMD_LINE_PROFILE_TOGGLE: return line_profile_view_is_enabled();
         case CMD_AUTO_LEVELS_TOGGLE: return post_pass_is_auto_levels_active();
         case CMD_DIFF_TOGGLE: return diff_view_is_enabled();
-        case CMD_RECORD_TOGGLE: return saver_is_recording();
+        case CMD_RECORD_TOGGLE: return saver_recording_is_run();
         case CMD_PLAY_PAUSE_TOGGLE: return app_is_paused();
         case CMD_DEFECT_VIEW_TOGGLE: return defect_view_is_enabled();
         default: return false;

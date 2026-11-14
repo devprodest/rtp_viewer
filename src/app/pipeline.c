@@ -133,7 +133,7 @@ static void * worker_thread(void * arg)
                 pthread_mutex_unlock(&g_frame_mutex);
             }
 
-            saver_add_frame(g_worker_buffer); // запись продолжается
+            saver_recording_frame_add(g_worker_buffer); // запись продолжается
             stats_frame_rendered();           // FPS в заголовке тоже считается
             frame_state_reset(&state);        // сбрасываем сборку кадра
 

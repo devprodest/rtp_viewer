@@ -16,12 +16,15 @@ typedef struct saver_config_s
 } saver_config_s;
 
 void saver_init(saver_config_s * config);
-void saver_add_frame(const uint8_t * frame_data);
-void saver_flush(void);
-void saver_toggle_recording(void);
 void saver_cleanup(void);
 
-bool saver_is_recording(void);
-const char * saver_get_outdir(void);
-const char * saver_get_prefix(void);
-const char * saver_get_format_name(void);
+void saver_recording_frame_add(const uint8_t * frame_data);
+void saver_recording_flush(void);
+void saver_recording_toggle(void);
+bool saver_recording_is_run(void);
+
+void saver_outdir_open(void);
+const char * saver_outdir_get(void);
+
+const char * saver_prefix_get(void);
+const char * saver_format_name_get(void);
